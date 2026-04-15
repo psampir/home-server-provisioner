@@ -1,0 +1,8 @@
+common_packages:
+  - curl
+  - wget
+  - git
+  - vim
+  - htop
+  - unzip
+  - net-tools

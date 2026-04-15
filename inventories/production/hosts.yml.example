@@ -1,0 +1,26 @@
+# Home Server Provisioner - Production Inventory
+#
+# Copy this file to hosts.yml and fill in your own hosts.
+# Do not commit hosts.yml - it is gitignored.
+#
+# A host can appear in multiple groups if it serves multiple roles.
+# All hosts under "servers" receive baseline provisioning (common, SSH, users).
+
+all:
+  children:
+    servers:
+      children:
+        app_servers:
+          hosts:
+            # my-main-server:
+            #   ansible_host: 10.0.0.1
+        backup_targets:
+          hosts:
+            # my-local-backup:
+            #   ansible_host: 10.0.0.2
+            # my-offsite-backup:
+            #   ansible_host: 10.0.0.3
+        vpn_servers:
+          hosts:
+            # my-vps:
+            #   ansible_host: 203.0.113.10

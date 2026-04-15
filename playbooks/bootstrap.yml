@@ -1,0 +1,4 @@
+- name: Base system provisioning
+  hosts: servers
+  roles:
+    - common
