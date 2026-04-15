@@ -1,6 +1,9 @@
 # Private planning documents
 *.priv.md
 
+# Editor settings
+.vscode/
+
 # Ansible vault password files
 .vault_pass
 .vault_password
@@ -12,3 +15,9 @@ inventories/production/host_vars/
 
 # Retry files (Ansible creates these on failed runs)
 *.retry
+
+# Local environment overrides
+.env
+
+# Generated test inventory
+inventories/test/hosts.yml
