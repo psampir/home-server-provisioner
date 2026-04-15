@@ -1,1 +1,14 @@
+# Private planning documents
 *.priv.md
+
+# Ansible vault password files
+.vault_pass
+.vault_password
+
+# User-specific inventory and variables
+inventories/production/hosts.yml
+inventories/production/group_vars/
+inventories/production/host_vars/
+
+# Retry files (Ansible creates these on failed runs)
+*.retry
