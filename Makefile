@@ -9,16 +9,22 @@ export VM_DISK
 export VM_IMAGE
 export ANSIBLE_PRIVATE_KEY_FILE
 
-# --- Setup ---
+TEST_INVENTORY = inventories/test
+PROD_INVENTORY = inventories/production
 
-.PHONY: setup
+# --- Ansible (production) ---
 
-setup: ## Install Ansible, ansible-lint, and required collections
-	@./scripts/setup.sh
+.PHONY: bootstrap provision
+
+bootstrap: ## First run on fresh hosts (production)
+	ansible-playbook playbooks/bootstrap.yml -i $(PROD_INVENTORY) -e 'ansible_user={{ bootstrap_user }}'
+
+provision: ## Run full site playbook (production)
+	ansible-playbook playbooks/site.yml -i $(PROD_INVENTORY)
 
 # --- Test environment ---
 
-.PHONY: test-env-create test-env-destroy test-env-status
+.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision
 
 test-env-create: ## Create test VMs and generate inventory
 	./scripts/test-env.sh create
@@ -28,6 +34,19 @@ test-env-destroy: ## Destroy all test VMs and clean up
 
 test-env-status: ## Show test VM status
 	./scripts/test-env.sh status
+
+test-bootstrap: ## First run on test VMs
+	ansible-playbook playbooks/bootstrap.yml -i $(TEST_INVENTORY) -e 'ansible_user={{ bootstrap_user }}'
+
+test-provision: ## Run full site playbook against test VMs
+	ansible-playbook playbooks/site.yml -i $(TEST_INVENTORY)
+
+# --- Setup ---
+
+.PHONY: setup
+
+setup: ## Install Ansible, ansible-lint, and required collections
+	@./scripts/setup.sh
 
 # --- Help ---
 
