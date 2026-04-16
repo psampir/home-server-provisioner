@@ -1,0 +1,26 @@
+- name: Ensure ~/.ssh/config.d directory exists
+  ansible.builtin.file:
+    path: "{{ ssh_config_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Generate SSH config file
+  ansible.builtin.template:
+    src: ssh_config.j2
+    dest: "{{ ssh_config_file }}"
+    mode: "0600"
+
+- name: Ensure ~/.ssh/config exists
+  ansible.builtin.file:
+    path: "{{ lookup('env', 'HOME') }}/.ssh/config"
+    state: touch
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve
+
+- name: Add Include directive to ~/.ssh/config
+  ansible.builtin.lineinfile:
+    path: "{{ lookup('env', 'HOME') }}/.ssh/config"
+    line: "Include config.d/*"
+    insertbefore: BOF
+    state: present

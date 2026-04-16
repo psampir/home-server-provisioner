@@ -1,0 +1,12 @@
+# Managed by home-server-provisioner - do not edit manually
+# Regenerate with: make provision
+
+{% for host in groups['servers'] | default([]) | sort %}
+Host {{ host }}
+    HostName {{ hostvars[host]['ansible_host'] | default(host) }}
+    User {{ hostvars[host]['admin_user_name'] }}
+    IdentityFile {{ ssh_config_private_key }}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
