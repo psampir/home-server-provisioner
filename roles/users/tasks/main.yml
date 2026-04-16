@@ -1,0 +1,19 @@
+- name: Create admin user
+  ansible.builtin.user:
+    name: "{{ users_admin_user }}"
+    shell: "{{ users_admin_user_shell }}"
+    create_home: true
+    state: present
+
+- name: Grant passwordless sudo
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ users_admin_user }}"
+    content: "{{ users_admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+- name: Authorize SSH key for admin user
+  ansible.posix.authorized_key:
+    user: "{{ users_admin_user }}"
+    key: "{{ users_admin_ssh_pubkey }}"
+    state: present
