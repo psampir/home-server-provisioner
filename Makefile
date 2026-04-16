@@ -17,7 +17,7 @@ PROD_INVENTORY = inventories/production
 .PHONY: bootstrap provision
 
 bootstrap: ## First run on fresh hosts (production)
-	ansible-playbook playbooks/bootstrap.yml -i $(PROD_INVENTORY) -e 'ansible_user={{ bootstrap_user }}'
+	ansible-playbook playbooks/bootstrap.yml -i $(PROD_INVENTORY) -e 'ansible_user={{ bootstrap_user }}' -kK
 
 provision: ## Run full site playbook (production)
 	ansible-playbook playbooks/site.yml -i $(PROD_INVENTORY)
@@ -36,7 +36,7 @@ test-env-status: ## Show test VM status
 	./scripts/test-env.sh status
 
 test-bootstrap: ## First run on test VMs
-	ansible-playbook playbooks/bootstrap.yml -i $(TEST_INVENTORY) -e 'ansible_user={{ bootstrap_user }}'
+	ansible-playbook playbooks/bootstrap.yml -i $(TEST_INVENTORY) -e 'ansible_user={{ bootstrap_user }}' -kK
 
 test-provision: ## Run full site playbook against test VMs
 	ansible-playbook playbooks/site.yml -i $(TEST_INVENTORY)
