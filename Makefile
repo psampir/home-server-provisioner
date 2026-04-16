@@ -43,10 +43,13 @@ test-provision: ## Run full site playbook against test VMs
 
 # --- Setup ---
 
-.PHONY: setup
+.PHONY: setup init-config
 
 setup: ## Install Ansible, ansible-lint, and required collections
 	@./scripts/setup.sh
+
+init-config: ## Create config/ directory for tracking private settings
+	@./scripts/init-config.sh
 
 # --- Help ---
 

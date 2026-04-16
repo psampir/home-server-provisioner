@@ -28,24 +28,15 @@ This installs Ansible, ansible-lint, and required collections. It auto-detects H
 ./scripts/setup.sh brew    # or: ./scripts/setup.sh pipx
 ```
 
-### 2. Configure environment
-
-Copy the example environment file and adjust if needed:
+### 2. Set up your configuration
 
 ```bash
-cp .env.example .env
+make init-config
 ```
 
-The defaults work for most setups. Override `SSH_PUBKEY_FILE` if your key isn't `~/.ssh/id_ed25519.pub`.
+This creates a `config/` directory with your private settings (`.env`, inventory, variables) and symlinks them into place. The directory is its own git repo - you can push it to a private remote to back up your config.
 
-### 3. Create your inventory and configuration
-
-```bash
-cp inventories/production/hosts.yml.example inventories/production/hosts.yml
-cp inventories/production/group_vars/all.yml.example inventories/production/group_vars/all.yml
-```
-
-Edit `hosts.yml` and add your hosts. Each host needs:
+Edit `config/inventory/hosts.yml` and add your hosts. Each host needs:
 
 - `ansible_host` - the IP address or hostname
 - `bootstrap_user` - the SSH user on a fresh install (e.g., `ubuntu`, `root`)
@@ -58,7 +49,9 @@ app_servers:
       bootstrap_user: jan
 ```
 
-Edit `group_vars/all.yml` to configure roles. All options have sensible defaults - uncomment and adjust what you need. See the example file for available options.
+Edit `config/inventory/group_vars/all.yml` to configure roles. All options have sensible defaults - uncomment and adjust what you need.
+
+Edit `config/.env` if your SSH key isn't `~/.ssh/id_ed25519`.
 
 A host can belong to multiple groups:
 
@@ -68,7 +61,7 @@ A host can belong to multiple groups:
 | `backup_targets` | Backup storage, borgmatic destinations |
 | `vpn_servers` | WireGuard listening endpoint |
 
-### 4. Bootstrap (first run only)
+### 3. Bootstrap (first run only)
 
 ```bash
 make bootstrap
@@ -76,7 +69,7 @@ make bootstrap
 
 This connects as each host's `bootstrap_user`, creates a dedicated `ansible` user with sudo and SSH key access. Run this once per host.
 
-### 5. Provision
+### 4. Provision
 
 ```bash
 make provision

@@ -16,6 +16,9 @@
 # Local environment overrides
 .env
 
+# User-specific config (may be its own git repo via make init-config)
+config/
+
 # User-specific inventory and variables
 inventories/production/hosts.yml
 inventories/production/group_vars/all.yml
