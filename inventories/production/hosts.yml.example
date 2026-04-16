@@ -5,6 +5,10 @@
 #
 # A host can appear in multiple groups if it serves multiple roles.
 # All hosts under "servers" receive baseline provisioning (common, SSH, users).
+#
+# Set bootstrap_user per host to the initial SSH user on a fresh install.
+# This is only used by 'make bootstrap' - subsequent runs connect as the
+# dedicated ansible user.
 
 all:
   children:
@@ -14,13 +18,17 @@ all:
           hosts:
             # my-main-server:
             #   ansible_host: 10.0.0.1
+            #   bootstrap_user: jan
         backup_targets:
           hosts:
             # my-local-backup:
             #   ansible_host: 10.0.0.2
+            #   bootstrap_user: jan
             # my-offsite-backup:
             #   ansible_host: 10.0.0.3
+            #   bootstrap_user: root
         vpn_servers:
           hosts:
             # my-vps:
             #   ansible_host: 203.0.113.10
+            #   bootstrap_user: root

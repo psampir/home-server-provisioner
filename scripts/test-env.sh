@@ -116,7 +116,7 @@ EOF
         local hosts=""
         while IFS=: read -r vm_name vm_group vm_ip; do
             if [[ "$vm_group" == "$group" ]]; then
-                hosts="${hosts}            ${vm_name}:\n              ansible_host: ${vm_ip}\n"
+                hosts="${hosts}            ${vm_name}:\n              ansible_host: ${vm_ip}\n              bootstrap_user: ubuntu\n"
             fi
         done <<< "$vm_lines"
 
@@ -159,7 +159,7 @@ cmd_create() {
 
     generate_inventory
     echo ""
-    echo "Done. Run 'make provision' to test your playbooks."
+    echo "Done. Run 'make test-bootstrap' and 'make test-provision' to test your playbooks."
 }
 
 cmd_destroy() {
