@@ -1,0 +1,4 @@
+admin_user_name: ""
+admin_user_shell: bash
+admin_user_extra_packages: []
+admin_user_ssh_pubkey: "{{ service_user_ssh_pubkey }}"

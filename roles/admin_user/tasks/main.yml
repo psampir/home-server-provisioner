@@ -1,0 +1,82 @@
+- name: Validate admin_user_name is configured
+  ansible.builtin.fail:
+    msg: >-
+      admin_user_name must be set in group_vars/all.yml.
+      This role creates the interactive SSH user for human access.
+  when: admin_user_name | length == 0
+
+- name: Install extra packages
+  ansible.builtin.apt:
+    name: "{{ admin_user_extra_packages }}"
+    state: present
+  when: admin_user_extra_packages | length > 0
+
+- name: Install admin shell package
+  ansible.builtin.apt:
+    name: "{{ admin_user_shell }}"
+    state: present
+  when: admin_user_shell not in ['bash', 'sh']
+
+- name: Resolve shell path
+  ansible.builtin.command:
+    cmd: "which {{ admin_user_shell }}"
+  register: admin_user_shell_path
+  changed_when: false
+
+- name: Create admin user
+  ansible.builtin.user:
+    name: "{{ admin_user_name }}"
+    shell: "{{ admin_user_shell_path.stdout }}"
+    create_home: true
+    groups: sudo
+    append: true
+    state: present
+
+- name: Grant passwordless sudo
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ admin_user_name }}"
+    content: "{{ admin_user_name }} ALL=(ALL) NOPASSWD:ALL\n"
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+- name: Authorize SSH key for admin user
+  ansible.posix.authorized_key:
+    user: "{{ admin_user_name }}"
+    key: "{{ admin_user_ssh_pubkey }}"
+    state: present
+
+- name: Configure fish shell
+  when: admin_user_shell == 'fish'
+  block:
+    - name: Ensure fish config directory exists
+      ansible.builtin.file:
+        path: "/home/{{ admin_user_name }}/.config/fish"
+        state: directory
+        owner: "{{ admin_user_name }}"
+        group: "{{ admin_user_name }}"
+        mode: "0755"
+
+    - name: Suppress fish greeting
+      ansible.builtin.blockinfile:
+        path: "/home/{{ admin_user_name }}/.config/fish/config.fish"
+        marker: "# {mark} greeting managed by ansible"
+        block: |
+          set -g fish_greeting
+        create: true
+        owner: "{{ admin_user_name }}"
+        group: "{{ admin_user_name }}"
+        mode: "0644"
+
+    - name: Add zoxide init to fish config
+      when: "'zoxide' in admin_user_extra_packages"
+      ansible.builtin.blockinfile:
+        path: "/home/{{ admin_user_name }}/.config/fish/config.fish"
+        marker: "# {mark} zoxide managed by ansible"
+        block: |
+          if status is-interactive
+              zoxide init fish --cmd cd | source
+          end
+        create: true
+        owner: "{{ admin_user_name }}"
+        group: "{{ admin_user_name }}"
+        mode: "0644"
