@@ -91,42 +91,14 @@ Runs the full provisioning playbook as the `ansible` user. Safe to re-run - all 
 
 More roles (Docker, Caddy, WireGuard, borgmatic) are planned.
 
-## Repository layout
-
-```
-├── ansible.cfg                          # Ansible configuration
-├── requirements.yml                     # Required Ansible collections
-├── Makefile                             # Project entry point
-├── .env.example                         # Environment variable template
-├── docs/
-│   └── deployment-guide.md              # Multi-site deployment scenarios
-├── inventories/
-│   ├── test/                            # Auto-generated test inventory
-│   └── production/
-│       ├── hosts.yml.example            # Inventory template
-│       └── group_vars/
-│           └── all.yml                  # Shared variables
-├── playbooks/
-│   ├── bootstrap.yml                    # First-run user setup
-│   └── site.yml                         # Full provisioning
-├── roles/
-│   ├── common/                          # Base packages
-│   ├── users/                           # Admin user management
-│   └── ssh_hardening/                   # SSH server hardening
-└── scripts/
-    ├── setup.sh                         # Dependency installer
-    ├── test-env.sh                      # Multipass test VM manager
-    └── test-vms.conf                    # Test VM definitions
-```
-
 ## Testing
 
 The project includes tooling for local testing with [Multipass](https://multipass.run) VMs:
 
 ```bash
 make test-env-create    # Launch test VMs
-make bootstrap          # Bootstrap the ansible user
-make provision          # Run full provisioning
+make test-bootstrap     # Bootstrap the ansible user
+make test-provision     # Run full provisioning
 make test-env-destroy   # Tear down VMs
 ```
 
