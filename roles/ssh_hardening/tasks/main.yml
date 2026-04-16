@@ -1,0 +1,63 @@
+- name: Disable root login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: "PermitRootLogin {{ ssh_hardening_permit_root_login }}"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd
+
+- name: Disable password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: "PasswordAuthentication {{ ssh_hardening_password_authentication }}"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd
+
+- name: Disable challenge-response authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?KbdInteractiveAuthentication'
+    line: "KbdInteractiveAuthentication {{ ssh_hardening_challenge_response_authentication }}"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd
+
+- name: Configure PAM usage
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?UsePAM'
+    line: "UsePAM {{ ssh_hardening_use_pam }}"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd
+
+- name: Limit authentication attempts
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxAuthTries'
+    line: "MaxAuthTries {{ ssh_hardening_max_auth_tries }}"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd
+
+- name: Set login grace time
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?LoginGraceTime'
+    line: "LoginGraceTime {{ ssh_hardening_login_grace_time }}"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd
+
+- name: Disable empty passwords
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitEmptyPasswords'
+    line: "PermitEmptyPasswords {{ ssh_hardening_permit_empty_passwords }}"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd
+
+- name: Disable X11 forwarding
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?X11Forwarding'
+    line: "X11Forwarding {{ ssh_hardening_x11_forwarding }}"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd

@@ -1,0 +1,8 @@
+ssh_hardening_permit_root_login: "no"
+ssh_hardening_password_authentication: "no"
+ssh_hardening_challenge_response_authentication: "no"
+ssh_hardening_use_pam: "yes"
+ssh_hardening_max_auth_tries: 3
+ssh_hardening_login_grace_time: 30
+ssh_hardening_permit_empty_passwords: "no"
+ssh_hardening_x11_forwarding: "no"
