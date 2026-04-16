@@ -1,0 +1,19 @@
+- name: Create service user
+  ansible.builtin.user:
+    name: "{{ service_user_name }}"
+    shell: "{{ service_user_shell }}"
+    create_home: true
+    state: present
+
+- name: Grant passwordless sudo
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ service_user_name }}"
+    content: "{{ service_user_name }} ALL=(ALL) NOPASSWD:ALL\n"
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+- name: Authorize SSH key for service user
+  ansible.posix.authorized_key:
+    user: "{{ service_user_name }}"
+    key: "{{ service_user_ssh_pubkey }}"
+    state: present

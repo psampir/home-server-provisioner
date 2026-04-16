@@ -38,10 +38,11 @@ cp .env.example .env
 
 The defaults work for most setups. Override `SSH_PUBKEY_FILE` if your key isn't `~/.ssh/id_ed25519.pub`.
 
-### 3. Create your inventory
+### 3. Create your inventory and configuration
 
 ```bash
 cp inventories/production/hosts.yml.example inventories/production/hosts.yml
+cp inventories/production/group_vars/all.yml.example inventories/production/group_vars/all.yml
 ```
 
 Edit `hosts.yml` and add your hosts. Each host needs:
@@ -56,6 +57,8 @@ app_servers:
       ansible_host: 10.0.0.1
       bootstrap_user: jan
 ```
+
+Edit `group_vars/all.yml` to configure roles. All options have sensible defaults - uncomment and adjust what you need. See the example file for available options.
 
 A host can belong to multiple groups:
 
@@ -85,9 +88,11 @@ Runs the full provisioning playbook as the `ansible` user. Safe to re-run - all 
 
 | Role | Description |
 |---|---|
-| `users` | Creates dedicated `ansible` user with passwordless sudo and SSH key |
-| `common` | Updates apt cache, installs common packages |
+| `service_user` | Creates dedicated `ansible` service account with passwordless sudo and SSH key |
+| `base` | Updates apt cache, upgrades packages, installs base packages |
+| `admin_user` | Interactive SSH user with configurable shell and packages |
 | `ssh_hardening` | Disables root login and password authentication |
+| `ssh_config` | Generates `~/.ssh/config.d` entries on the control machine |
 
 More roles (Docker, Caddy, WireGuard, borgmatic) are planned.
 

@@ -1,4 +1,4 @@
-- name: Bootstrap - create dedicated ansible user on fresh hosts
+- name: Bootstrap - create dedicated service user on fresh hosts
   hosts: servers
   roles:
-    - users
+    - service_user

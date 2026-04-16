@@ -1,0 +1,31 @@
+# SSH public key to authorize on the service user.
+# Reads from SSH_PUBKEY_FILE env var, or falls back to ~/.ssh/id_ed25519.pub.
+service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | default('~/.ssh/id_ed25519.pub', true)) }}"
+
+# --- base role ---
+# Additional packages to install on all hosts.
+# base_packages:
+#   - curl
+#   - htop
+#   - vim
+
+# --- service_user role (Ansible service account) ---
+# service_user_name: ansible
+# service_user_shell: /bin/bash
+
+# --- ssh_hardening role ---
+# ssh_hardening_permit_root_login: "no"
+# ssh_hardening_password_authentication: "no"
+# ssh_hardening_challenge_response_authentication: "no"
+# ssh_hardening_use_pam: "yes"
+# ssh_hardening_max_auth_tries: 3
+# ssh_hardening_login_grace_time: 30
+# ssh_hardening_permit_empty_passwords: "no"
+# ssh_hardening_x11_forwarding: "no"
+
+# --- admin_user role (interactive SSH user) ---
+# admin_user_name: jan
+# admin_user_shell: fish
+# admin_user_extra_packages:
+#   - fish
+#   - zoxide

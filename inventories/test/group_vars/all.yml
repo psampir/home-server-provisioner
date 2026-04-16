@@ -1,3 +1,10 @@
-# SSH public key to authorize on the admin user.
+# SSH public key to authorize on the service user.
 # In the test environment this is read from the same key used by test-env.sh.
-users_admin_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | default('~/.ssh/id_ed25519.pub', true)) }}"
+service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | default('~/.ssh/id_ed25519.pub', true)) }}"
+
+# --- admin_user role ---
+admin_user_name: testadmin
+admin_user_shell: fish
+admin_user_extra_packages:
+  - fish
+  - zoxide

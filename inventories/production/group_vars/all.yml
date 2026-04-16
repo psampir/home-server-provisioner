@@ -1,3 +1,0 @@
-# SSH public key to authorize on the admin user.
-# Reads from SSH_PUBKEY_FILE env var, or falls back to ~/.ssh/id_ed25519.pub.
-users_admin_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | default('~/.ssh/id_ed25519.pub', true)) }}"
