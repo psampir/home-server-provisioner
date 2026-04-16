@@ -1,1 +1,6 @@
-- import_playbook: bootstrap.yml
+- name: Base system provisioning
+  hosts: servers
+  roles:
+    - users
+    - common
+    - ssh_hardening

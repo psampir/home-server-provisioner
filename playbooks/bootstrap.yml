@@ -1,4 +1,4 @@
-- name: Base system provisioning
+- name: Bootstrap - create dedicated ansible user on fresh hosts
   hosts: servers
   roles:
-    - common
+    - users
