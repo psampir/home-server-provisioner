@@ -1,0 +1,8 @@
+# Managed by Ansible - do not edit manually.
+[Time]
+{% if time_sync_ntp_servers | length > 0 %}
+NTP={{ time_sync_ntp_servers | join(' ') }}
+{% endif %}
+{% if time_sync_fallback_ntp_servers | length > 0 %}
+FallbackNTP={{ time_sync_fallback_ntp_servers | join(' ') }}
+{% endif %}

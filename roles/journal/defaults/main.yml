@@ -1,0 +1,4 @@
+journal_storage: persistent
+# Empty values keep systemd defaults.
+journal_max_use: ""
+journal_max_retention_sec: ""

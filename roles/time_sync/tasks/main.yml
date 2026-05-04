@@ -1,0 +1,21 @@
+- name: Ensure systemd-timesyncd is installed
+  ansible.builtin.apt:
+    name: systemd-timesyncd
+    state: present
+
+- name: Configure custom NTP servers
+  ansible.builtin.template:
+    src: timesyncd.conf.j2
+    dest: /etc/systemd/timesyncd.conf.d/10-ansible.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: time_sync_ntp_servers | length > 0 or time_sync_fallback_ntp_servers | length > 0
+  notify: Restart systemd-timesyncd
+
+- name: Ensure systemd-timesyncd is unmasked, enabled and running
+  ansible.builtin.systemd:
+    name: systemd-timesyncd
+    enabled: true
+    masked: false
+    state: started

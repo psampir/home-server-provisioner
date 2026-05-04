@@ -1,0 +1,9 @@
+# Origins to upgrade. Defaults to security updates only.
+# ${distro_codename} is expanded by unattended-upgrades at runtime.
+auto_updates_origins:
+  - "origin=Debian,codename=${distro_codename},label=Debian-Security"
+
+auto_updates_enable_reboot: false
+auto_updates_reboot_time: "03:00"
+auto_updates_remove_unused_dependencies: true
+auto_updates_autofix_interrupted_dpkg: true

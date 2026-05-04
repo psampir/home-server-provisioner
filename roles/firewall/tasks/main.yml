@@ -1,0 +1,40 @@
+- name: Install ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Set UFW logging level
+  community.general.ufw:
+    logging: "{{ firewall_logging }}"
+
+- name: Set UFW default incoming policy  # noqa: args[module]
+  community.general.ufw:
+    direction: incoming
+    policy: "{{ firewall_default_incoming }}"
+
+- name: Set UFW default outgoing policy  # noqa: args[module]
+  community.general.ufw:
+    direction: outgoing
+    policy: "{{ firewall_default_outgoing }}"
+
+- name: Always allow SSH (lockout protection)
+  community.general.ufw:
+    rule: allow
+    port: "{{ firewall_ssh_port | string }}"
+    proto: tcp
+    comment: SSH
+
+- name: Apply user-defined allow rules
+  community.general.ufw:
+    rule: "{{ item.rule | default('allow') }}"
+    port: "{{ item.port | string }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    from_ip: "{{ item.from | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ firewall_allow_rules }}"
+  loop_control:
+    label: "{{ item.comment | default(item.port) }}"
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled

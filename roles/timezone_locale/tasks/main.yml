@@ -1,0 +1,27 @@
+- name: Ensure locales package is installed
+  ansible.builtin.apt:
+    name: locales
+    state: present
+
+- name: Set system timezone
+  community.general.timezone:
+    name: "{{ timezone_locale_timezone }}"
+
+- name: Generate primary locale
+  community.general.locale_gen:
+    name: "{{ timezone_locale_locale }}"
+    state: present
+
+- name: Generate extra locales
+  community.general.locale_gen:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ timezone_locale_extra_locales }}"
+
+- name: Set default system locale
+  ansible.builtin.copy:
+    dest: /etc/default/locale
+    content: "LANG={{ timezone_locale_locale }}\n"
+    owner: root
+    group: root
+    mode: "0644"

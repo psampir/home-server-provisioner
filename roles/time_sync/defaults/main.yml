@@ -1,0 +1,4 @@
+# NTP servers passed to systemd-timesyncd. An empty list keeps the
+# distribution defaults (Debian pool servers).
+time_sync_ntp_servers: []
+time_sync_fallback_ntp_servers: []

@@ -1,0 +1,9 @@
+# Managed by Ansible - do not edit manually.
+[Journal]
+Storage={{ journal_storage }}
+{% if journal_max_use | length > 0 %}
+SystemMaxUse={{ journal_max_use }}
+{% endif %}
+{% if journal_max_retention_sec | length > 0 %}
+MaxRetentionSec={{ journal_max_retention_sec }}
+{% endif %}

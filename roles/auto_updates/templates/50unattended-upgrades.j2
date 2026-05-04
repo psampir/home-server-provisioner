@@ -1,0 +1,12 @@
+// Managed by Ansible - do not edit manually.
+Unattended-Upgrade::Origins-Pattern {
+{% for origin in auto_updates_origins %}
+    "{{ origin }}";
+{% endfor %}
+};
+
+Unattended-Upgrade::AutoFixInterruptedDpkg "{{ 'true' if auto_updates_autofix_interrupted_dpkg else 'false' }}";
+Unattended-Upgrade::MinimalSteps "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "{{ 'true' if auto_updates_remove_unused_dependencies else 'false' }}";
+Unattended-Upgrade::Automatic-Reboot "{{ 'true' if auto_updates_enable_reboot else 'false' }}";
+Unattended-Upgrade::Automatic-Reboot-Time "{{ auto_updates_reboot_time }}";

@@ -1,10 +1,17 @@
 - name: Base system provisioning
   hosts: servers
   roles:
+    - hostname
+    - timezone_locale
+    - time_sync
     - service_user
     - base
     - admin_user
     - ssh_hardening
+    - auto_updates
+    - journal
+    - fail2ban
+    - firewall
 
 - name: Update local SSH config
   hosts: localhost

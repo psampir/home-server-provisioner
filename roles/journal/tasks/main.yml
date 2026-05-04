@@ -1,0 +1,24 @@
+- name: Ensure persistent journal directory exists
+  ansible.builtin.file:
+    path: /var/log/journal
+    state: directory
+    owner: root
+    group: systemd-journal
+    mode: "2755"
+
+- name: Ensure journald drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure persistent systemd journal
+  ansible.builtin.template:
+    src: persistent.conf.j2
+    dest: /etc/systemd/journald.conf.d/persistent.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-journald

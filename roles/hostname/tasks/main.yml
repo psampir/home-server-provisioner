@@ -1,0 +1,15 @@
+- name: Set system hostname from inventory
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+    use: systemd
+
+- name: Ensure /etc/hosts maps 127.0.1.1 to the inventory hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1\s'
+    line: "127.0.1.1 {{ inventory_hostname }}"
+    state: present
+    owner: root
+    group: root
+    mode: "0644"
+  when: hostname_manage_etc_hosts

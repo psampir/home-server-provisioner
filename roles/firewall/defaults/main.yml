@@ -1,0 +1,15 @@
+firewall_default_incoming: deny
+firewall_default_outgoing: allow
+firewall_logging: low
+
+# SSH is always allowed to avoid locking out the management connection.
+firewall_ssh_port: 22
+
+# Additional allow rules. Each entry is a dict with at least 'port'.
+# Example:
+#   firewall_allow_rules:
+#     - { port: 80,    proto: tcp, comment: "HTTP" }
+#     - { port: 443,   proto: tcp, comment: "HTTPS" }
+#     - { port: 51820, proto: udp, comment: "WireGuard" }
+#     - { port: 9090,  proto: tcp, from: "10.0.0.0/24", comment: "Internal admin" }
+firewall_allow_rules: []
