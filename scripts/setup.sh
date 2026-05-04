@@ -58,6 +58,22 @@ case "$METHOD" in
         ;;
 esac
 
+if ! command -v ansible-galaxy &>/dev/null; then
+    echo ""
+    echo "Error: 'ansible-galaxy' is not on your PATH."
+    if [[ "$METHOD" == "pipx" ]]; then
+        echo "pipx installs binaries into ~/.local/bin, which isn't on your PATH yet."
+        echo "Add it and re-run 'make setup':"
+        echo ""
+        if [[ -n "${FISH_VERSION:-}" ]] || [[ "$(basename "${SHELL:-}")" == "fish" ]]; then
+            echo "    fish_add_path ~/.local/bin"
+        else
+            echo "    pipx ensurepath   # then start a new shell"
+        fi
+    fi
+    exit 1
+fi
+
 echo "Installing required Ansible collections..."
 ansible-galaxy collection install -r "$PROJECT_DIR/requirements.yml"
 

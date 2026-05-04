@@ -1,18 +1,19 @@
 # home-server-provisioner
 
-Ansible-based provisioning toolkit for Ubuntu self-hosted servers.
+Ansible-based provisioning toolkit for Debian self-hosted servers.
 
-Prepares fresh Ubuntu hosts with system hardening, a dedicated management user, and a baseline configuration - ready for Docker workloads, reverse proxying, VPN connectivity, and automated backups.
+Prepares fresh Debian hosts with system hardening, a dedicated management user, and a baseline configuration - ready for Docker workloads, reverse proxying, VPN connectivity, and automated backups.
 
 ## Supported platform
 
-- Ubuntu Server 24.04 LTS
+- Debian 13 (trixie)
 
 ## Prerequisites
 
-- A control machine (macOS or Linux) with SSH access to your servers
+- A control machine (Linux or macOS) with SSH access to your servers
 - An SSH key pair (`ssh-keygen` if you don't have one)
 - [Homebrew](https://brew.sh) or [pipx](https://pipx.pypa.io) for installing Ansible
+- For local testing: [Incus](https://linuxcontainers.org/incus/) on a Linux workstation
 
 ## Quick start
 
@@ -39,7 +40,7 @@ This creates a `config/` directory with your private settings (`.env`, inventory
 Edit `config/inventory/hosts.yml` and add your hosts. Each host needs:
 
 - `ansible_host` - the IP address or hostname
-- `bootstrap_user` - the SSH user on a fresh install (e.g., `ubuntu`, `root`)
+- `bootstrap_user` - the SSH user on a fresh install (typically the regular user you created during the Debian installer, or `root`)
 
 ```yaml
 app_servers:
@@ -91,14 +92,37 @@ More roles (Docker, Caddy, WireGuard, borgmatic) are planned.
 
 ## Testing
 
-The project includes tooling for local testing with [Multipass](https://multipass.run) VMs:
+The project includes tooling for local testing with [Incus](https://linuxcontainers.org/incus/) VMs (Linux only).
+
+### One-time Incus setup (Fedora example)
 
 ```bash
-make test-env-create    # Launch test VMs
-make test-bootstrap     # Bootstrap the ansible user
+sudo dnf install -y incus incus-tools
+sudo usermod -aG incus-admin $USER
+sudo systemctl enable --now incus.socket
+sudo incus admin init --minimal
+# Log out and back in (or `newgrp incus-admin`) so the group takes effect.
+```
+
+If you use `firewalld` (Fedora's default), trust the Incus bridge so VMs get IPv4 via DHCP:
+
+```bash
+sudo firewall-cmd --permanent --zone=trusted --add-interface=incusbr0
+sudo firewall-cmd --reload
+```
+
+For Debian/Ubuntu/Arch hosts, follow [the official Incus install guide](https://linuxcontainers.org/incus/docs/main/installing/).
+
+### Test loop
+
+```bash
+make test-env-create    # Launch VMs, install sshd, create initial user
+make test-bootstrap     # Bootstrap the ansible service user
 make test-provision     # Run full provisioning
 make test-env-destroy   # Tear down VMs
 ```
+
+VM defaults (image, CPU, memory, initial username) live in `.env` - see `.env.example`.
 
 ## Further reading
 

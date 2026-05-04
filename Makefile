@@ -1,13 +1,16 @@
 # Load user overrides if present (see .env.example)
 -include .env
 
-# Export variables so scripts and Ansible can access them
+# Export variables so scripts and Ansible can access them.
+# Only export non-empty values to avoid Ansible interpreting empty paths.
 export SSH_PUBKEY_FILE
 export VM_CPUS
 export VM_MEMORY
-export VM_DISK
-export VM_IMAGE
+export INCUS_IMAGE
+export BOOTSTRAP_USER
+ifneq ($(strip $(ANSIBLE_PRIVATE_KEY_FILE)),)
 export ANSIBLE_PRIVATE_KEY_FILE
+endif
 
 TEST_INVENTORY = inventories/test
 PROD_INVENTORY = inventories/production
