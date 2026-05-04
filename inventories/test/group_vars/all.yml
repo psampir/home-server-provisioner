@@ -8,3 +8,4 @@ admin_user_shell: fish
 admin_user_extra_packages:
   - fish
   - zoxide
+  - fastfetch
