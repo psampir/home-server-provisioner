@@ -22,7 +22,7 @@ config/
 # User-specific inventory and variables
 inventories/production/hosts.yml
 inventories/production/group_vars/all.yml
-inventories/production/host_vars/
+inventories/production/host_vars
 
 # Generated test inventory
 inventories/test/hosts.yml

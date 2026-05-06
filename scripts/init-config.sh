@@ -61,7 +61,7 @@ create_link "../../../config/inventory/host_vars" "$REPO_ROOT/inventories/produc
 
 # Initialise git repo inside config/
 cd "$CONFIG_DIR"
-git init --quiet
+git init --quiet -b main
 
 cat > .gitignore << 'EOF'
 .vault_pass

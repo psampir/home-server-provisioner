@@ -1,19 +1,83 @@
-# SSH public key to authorize on the service user.
-# Reads from SSH_PUBKEY_FILE env var, or falls back to ~/.ssh/id_ed25519.pub.
+# =============================================================================
+# Production group_vars - copy to all.yml and edit.
+#
+# Conventions:
+#   REQUIRED                 Playbook fails if not set; you MUST provide a value.
+#   Optional override        Commented-out line shows the role's actual default.
+#                            Uncomment only to change behavior.
+#   # Example (not default)  Illustrative value for vars whose default is empty
+#                            ([] / "") and where a sample is more useful than
+#                            re-stating the default.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# REQUIRED - interactive admin user (admin_user role)
+# -----------------------------------------------------------------------------
+# The human SSH user created on every server, with passwordless sudo.
+admin_user_name: ""   # REQUIRED, e.g. "jan"
+
+
+# -----------------------------------------------------------------------------
+# REQUIRED in practice - SSH public key authorized on service + admin users
+# -----------------------------------------------------------------------------
+# Defaults to $SSH_PUBKEY_FILE, then ~/.ssh/id_ed25519.pub. Override only if
+# you keep your provisioning key elsewhere.
 service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | default('~/.ssh/id_ed25519.pub', true)) }}"
 
-# --- base role ---
-# Additional packages to install on all hosts.
-# base_packages:
-#   - curl
-#   - htop
-#   - vim
 
-# --- service_user role (Ansible service account) ---
+# =============================================================================
+# OPTIONAL OVERRIDES - defaults shown commented out. Uncomment to change.
+# =============================================================================
+
+# --- admin_user role -----------------------------------------------------------
+# admin_user_shell: bash
+# admin_user_extra_packages: []
+# admin_user_ssh_pubkey: "{{ service_user_ssh_pubkey }}"
+#
+# Example (not default): fish + zoxide
+# admin_user_shell: fish
+# admin_user_extra_packages:
+#   - fish
+#   - zoxide
+
+# --- service_user role (Ansible service account) -------------------------------
 # service_user_name: ansible
 # service_user_shell: /bin/bash
 
-# --- ssh_hardening role ---
+# --- base role -----------------------------------------------------------------
+# base_packages:
+#   - curl
+#
+# Override only if grub-pc auto-detection picks the wrong disk on a host.
+# Prefer setting per-host in hosts.yml when possible.
+# grub_install_device: /dev/sda
+
+# --- hostname role -------------------------------------------------------------
+# hostname_manage_etc_hosts: true
+
+# --- timezone_locale role ------------------------------------------------------
+# timezone_locale_timezone: UTC
+# timezone_locale_locale: en_US.UTF-8
+# timezone_locale_extra_locales: []
+#
+# Example (not default):
+# timezone_locale_extra_locales:
+#   - pl_PL.UTF-8
+
+# --- time_sync role ------------------------------------------------------------
+# Empty lists keep the distribution defaults (Debian NTP pool).
+# time_sync_ntp_servers: []
+# time_sync_fallback_ntp_servers: []
+#
+# Example (not default):
+# time_sync_ntp_servers:
+#   - 0.debian.pool.ntp.org
+#   - 1.debian.pool.ntp.org
+# time_sync_fallback_ntp_servers:
+#   - time.cloudflare.com
+
+# --- ssh_hardening role --------------------------------------------------------
 # ssh_hardening_permit_root_login: "no"
 # ssh_hardening_password_authentication: "no"
 # ssh_hardening_challenge_response_authentication: "no"
@@ -23,42 +87,25 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # ssh_hardening_permit_empty_passwords: "no"
 # ssh_hardening_x11_forwarding: "no"
 
-# --- admin_user role (interactive SSH user) ---
-# admin_user_name: jan
-# admin_user_shell: fish
-# admin_user_extra_packages:
-#   - fish
-#   - zoxide
-
-# --- hostname role ---
-# hostname_manage_etc_hosts: true
-
-# --- timezone_locale role ---
-# timezone_locale_timezone: UTC
-# timezone_locale_locale: en_US.UTF-8
-# timezone_locale_extra_locales:
-#   - pl_PL.UTF-8
-
-# --- time_sync role ---
-# Override only if you don't want the distro's default NTP pool.
-# time_sync_ntp_servers:
-#   - 0.debian.pool.ntp.org
-#   - 1.debian.pool.ntp.org
-# time_sync_fallback_ntp_servers:
-#   - time.cloudflare.com
-
-# --- journal role ---
+# --- journal role --------------------------------------------------------------
 # journal_storage: persistent
+# Empty strings keep systemd defaults.
+# journal_max_use: ""
+# journal_max_retention_sec: ""
+#
+# Example (not default):
 # journal_max_use: "1G"
 # journal_max_retention_sec: "1month"
 
-# --- auto_updates role ---
+# --- auto_updates role ---------------------------------------------------------
 # auto_updates_origins:
 #   - "origin=Debian,codename=${distro_codename},label=Debian-Security"
 # auto_updates_enable_reboot: false
 # auto_updates_reboot_time: "03:00"
+# auto_updates_remove_unused_dependencies: true
+# auto_updates_autofix_interrupted_dpkg: true
 
-# --- fail2ban role ---
+# --- fail2ban role -------------------------------------------------------------
 # fail2ban_bantime: 1h
 # fail2ban_findtime: 10m
 # fail2ban_maxretry: 5
@@ -67,12 +114,16 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #   - ::1
 # fail2ban_ssh_port: ssh
 
-# --- firewall role (UFW) ---
+# --- firewall role (UFW) -------------------------------------------------------
 # firewall_default_incoming: deny
 # firewall_default_outgoing: allow
 # firewall_logging: low
 # firewall_ssh_port: 22
+# firewall_allow_rules: []
+#
+# Example (not default):
 # firewall_allow_rules:
 #   - { port: 80,    proto: tcp, comment: "HTTP" }
 #   - { port: 443,   proto: tcp, comment: "HTTPS" }
 #   - { port: 51820, proto: udp, comment: "WireGuard" }
+#   - { port: 9090,  proto: tcp, from: "10.0.0.0/24", comment: "Internal admin" }
