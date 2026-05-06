@@ -5,6 +5,13 @@
       This role creates the interactive SSH user for human access.
   when: admin_user_name | length == 0
 
+- name: Ensure sudo is installed
+  ansible.builtin.apt:
+    name: sudo
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Install extra packages
   ansible.builtin.apt:
     name: "{{ admin_user_extra_packages }}"
@@ -44,39 +51,3 @@
     user: "{{ admin_user_name }}"
     key: "{{ admin_user_ssh_pubkey }}"
     state: present
-
-- name: Configure fish shell
-  when: admin_user_shell == 'fish'
-  block:
-    - name: Ensure fish config directory exists
-      ansible.builtin.file:
-        path: "/home/{{ admin_user_name }}/.config/fish"
-        state: directory
-        owner: "{{ admin_user_name }}"
-        group: "{{ admin_user_name }}"
-        mode: "0755"
-
-    - name: Suppress fish greeting
-      ansible.builtin.blockinfile:
-        path: "/home/{{ admin_user_name }}/.config/fish/config.fish"
-        marker: "# {mark} greeting managed by ansible"
-        block: |
-          set -g fish_greeting
-        create: true
-        owner: "{{ admin_user_name }}"
-        group: "{{ admin_user_name }}"
-        mode: "0644"
-
-    - name: Add zoxide init to fish config
-      when: "'zoxide' in admin_user_extra_packages"
-      ansible.builtin.blockinfile:
-        path: "/home/{{ admin_user_name }}/.config/fish/config.fish"
-        marker: "# {mark} zoxide managed by ansible"
-        block: |
-          if status is-interactive
-              zoxide init fish --cmd cd | source
-          end
-        create: true
-        owner: "{{ admin_user_name }}"
-        group: "{{ admin_user_name }}"
-        mode: "0644"

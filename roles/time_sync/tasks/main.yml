@@ -3,6 +3,15 @@
     name: systemd-timesyncd
     state: present
 
+- name: Ensure timesyncd drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/timesyncd.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: time_sync_ntp_servers | length > 0 or time_sync_fallback_ntp_servers | length > 0
+
 - name: Configure custom NTP servers
   ansible.builtin.template:
     src: timesyncd.conf.j2
