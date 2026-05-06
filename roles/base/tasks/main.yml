@@ -5,14 +5,14 @@
 
 - name: Check whether grub-pc (BIOS GRUB) is installed
   ansible.builtin.command: dpkg-query -W -f=${Status} grub-pc
-  register: grub_pc_status
+  register: base_grub_pc_status
   changed_when: false
   failed_when: false
   check_mode: false
 
 - name: Detect boot disk for grub-pc pre-seed
   ansible.builtin.shell: |
-    set -eu
+    set -euo pipefail
     src=$(findmnt -no SOURCE /boot 2>/dev/null || findmnt -no SOURCE /)
     pk=$(lsblk -no PKNAME "$src" | head -n1)
     if [ -n "$pk" ]; then
@@ -20,26 +20,26 @@
     else
       echo "$src"
     fi
-  register: grub_boot_disk
+  register: base_grub_boot_disk
   changed_when: false
   check_mode: false
   when:
     - grub_install_device is not defined
-    - grub_pc_status.stdout is search('^install ok ')
+    - base_grub_pc_status.stdout is search('^install ok ')
 
 - name: Pre-seed grub-pc install device (avoid postinst prompt during upgrade)
   ansible.builtin.debconf:
     name: grub-pc
     question: grub-pc/install_devices
     vtype: multiselect
-    value: "{{ grub_install_device | default(grub_boot_disk.stdout) }}"
-  when: grub_pc_status.stdout is search('^install ok ')
+    value: "{{ grub_install_device | default(base_grub_boot_disk.stdout) }}"
+  when: base_grub_pc_status.stdout is search('^install ok ')
 
 - name: Finish any pending dpkg configuration (e.g. previously failed grub-pc postinst)
   ansible.builtin.command: dpkg --configure -a
-  register: dpkg_configure
-  changed_when: dpkg_configure.stdout != '' or dpkg_configure.stderr != ''
-  when: grub_pc_status.stdout is search('^install ok ')
+  register: base_dpkg_configure
+  changed_when: base_dpkg_configure.stdout != '' or base_dpkg_configure.stderr != ''
+  when: base_grub_pc_status.stdout is search('^install ok ')
 
 - name: Upgrade installed packages
   ansible.builtin.apt:
