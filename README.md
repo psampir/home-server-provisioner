@@ -86,7 +86,7 @@ Runs the full provisioning playbook as the `ansible` user. Safe to re-run - all 
 | `base` | Updates apt cache, upgrades packages, installs base packages |
 | `admin_user` | Interactive SSH user with configurable shell and packages |
 | `ssh_hardening` | Disables root login and password authentication |
-| `ssh_config` | Generates `~/.ssh/config.d` entries on the control machine |
+| `local_ssh_config` | Generates `~/.ssh/config.d` entries on the control machine |
 
 More roles (Docker, Caddy, WireGuard, borgmatic) are planned.
 

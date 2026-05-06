@@ -1,3 +1,0 @@
-ssh_config_dir: "{{ lookup('env', 'HOME') }}/.ssh/config.d"
-ssh_config_file: "{{ ssh_config_dir }}/home-server-provisioner"
-ssh_config_private_key: "{{ lookup('env', 'ANSIBLE_PRIVATE_KEY_FILE') | default('~/.ssh/id_ed25519', true) }}"

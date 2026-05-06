@@ -19,4 +19,4 @@
   gather_facts: false
   become: false
   roles:
-    - ssh_config
+    - local_ssh_config

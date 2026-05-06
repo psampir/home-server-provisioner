@@ -1,6 +1,6 @@
 - name: Ensure ~/.ssh/config.d directory exists
   ansible.builtin.file:
-    path: "{{ ssh_config_dir }}"
+    path: "{{ local_ssh_config_dir }}"
     state: directory
     owner: "{{ lookup('env', 'USER') }}"
     group: "{{ lookup('env', 'USER') }}"
@@ -8,8 +8,8 @@
 
 - name: Generate SSH config file
   ansible.builtin.template:
-    src: ssh_config.j2
-    dest: "{{ ssh_config_file }}"
+    src: local_ssh_config.j2
+    dest: "{{ local_ssh_config_file }}"
     owner: "{{ lookup('env', 'USER') }}"
     group: "{{ lookup('env', 'USER') }}"
     mode: "0600"
