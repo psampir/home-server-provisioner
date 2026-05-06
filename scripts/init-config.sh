@@ -14,6 +14,33 @@ echo "Initialising config directory..."
 # Create directory structure
 mkdir -p "$CONFIG_DIR/inventory/group_vars"
 mkdir -p "$CONFIG_DIR/inventory/host_vars"
+mkdir -p "$CONFIG_DIR/dotfiles/home"
+
+# Seed dotfiles/ with a README so the directory is tracked and self-documenting
+if [ ! -f "$CONFIG_DIR/dotfiles/README.md" ]; then
+    cat > "$CONFIG_DIR/dotfiles/README.md" << 'EOF'
+# dotfiles/
+
+Files placed under `dotfiles/home/` are mirrored into the admin user's
+home directory by the `admin_dotfiles` role.
+
+Layout mirrors the target home directly. For example:
+
+    dotfiles/home/.config/fish/config.fish
+        → ~admin/.config/fish/config.fish
+    dotfiles/home/.gitconfig
+        → ~admin/.gitconfig
+
+Only files actually present here are managed. Removing a file from
+`dotfiles/home/` causes it to be removed from the server on the next
+run (tracked via a per-host manifest at
+`~admin/.config/admin_dotfiles.manifest`).
+
+Runtime state in unshipped paths (`.bash_history`, `fish_history`,
+`.cache/`, etc.) is never touched.
+EOF
+    echo "  seeded: $CONFIG_DIR/dotfiles/README.md"
+fi
 
 # Copy example files as starting points (don't overwrite existing)
 copy_example() {

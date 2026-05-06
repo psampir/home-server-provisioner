@@ -1,0 +1,117 @@
+- name: Resolve admin user home directory
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ admin_user_name }}"
+
+- name: Set admin_dotfiles initial facts
+  ansible.builtin.set_fact:
+    admin_dotfiles_home: "{{ ansible_facts.getent_passwd[admin_user_name][4] }}"
+    admin_dotfiles_src_present: "{{ admin_dotfiles_src | length > 0 and (admin_dotfiles_src is exists) }}"
+
+- name: Notice - admin_dotfiles source directory missing, skipping
+  ansible.builtin.debug:
+    msg: >-
+      admin_dotfiles_src ({{ admin_dotfiles_src }}) does not exist on the
+      control machine. Skipping dotfiles sync. Create the directory (e.g.
+      via scripts/init-config.sh) and put files under it to enable.
+  when: not admin_dotfiles_src_present
+
+- name: Sync dotfiles
+  when: admin_dotfiles_src_present
+  block:
+    - name: Resolve admin_dotfiles_src to a canonical absolute path
+      delegate_to: localhost
+      become: false
+      ansible.builtin.command:
+        cmd: "realpath -- {{ admin_dotfiles_src }}"
+      register: admin_dotfiles_src_realpath
+      changed_when: false
+
+    - name: Set resolved source path fact
+      ansible.builtin.set_fact:
+        admin_dotfiles_src_real: "{{ admin_dotfiles_src_realpath.stdout }}"
+
+    - name: Find dotfiles on the control machine
+      delegate_to: localhost
+      become: false
+      ansible.builtin.find:
+        paths: "{{ admin_dotfiles_src_real }}"
+        recurse: true
+        file_type: file
+        hidden: true
+        excludes:
+          - .git
+          - .gitignore
+          - .gitmodules
+          - .gitkeep
+      register: admin_dotfiles_find
+
+    - name: Compute managed paths (relative to source root)
+      ansible.builtin.set_fact:
+        admin_dotfiles_managed: >-
+          {{ admin_dotfiles_find.files
+             | map(attribute='path')
+             | map('relpath', admin_dotfiles_src_real)
+             | list }}
+
+    - name: Ensure parent directories exist for managed dotfiles
+      ansible.builtin.file:
+        path: "{{ admin_dotfiles_home }}/{{ item }}"
+        state: directory
+        owner: "{{ admin_user_name }}"
+        group: "{{ admin_user_name }}"
+        mode: "0755"
+      loop: "{{ admin_dotfiles_managed | map('dirname') | unique | reject('equalto', '') | reject('equalto', '.') | list }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Copy managed dotfiles into admin user's home
+      ansible.builtin.copy:
+        src: "{{ admin_dotfiles_src_real }}/{{ item }}"
+        dest: "{{ admin_dotfiles_home }}/{{ item }}"
+        owner: "{{ admin_user_name }}"
+        group: "{{ admin_user_name }}"
+        mode: preserve
+      loop: "{{ admin_dotfiles_managed }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Read previous manifest (if any)
+      ansible.builtin.slurp:
+        src: "{{ admin_dotfiles_home }}/{{ admin_dotfiles_manifest }}"
+      register: admin_dotfiles_old_manifest_raw
+      failed_when: false
+      changed_when: false
+
+    - name: Determine stale files to remove
+      ansible.builtin.set_fact:
+        admin_dotfiles_stale: >-
+          {{ ((admin_dotfiles_old_manifest_raw.content | default('') | b64decode).split('\n')
+              | map('trim')
+              | select
+              | list)
+             | difference(admin_dotfiles_managed) }}
+
+    - name: Remove dotfiles no longer in the source repo
+      ansible.builtin.file:
+        path: "{{ admin_dotfiles_home }}/{{ item }}"
+        state: absent
+      loop: "{{ admin_dotfiles_stale }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Ensure manifest parent directory exists
+      ansible.builtin.file:
+        path: "{{ admin_dotfiles_home }}/{{ admin_dotfiles_manifest | dirname }}"
+        state: directory
+        owner: "{{ admin_user_name }}"
+        group: "{{ admin_user_name }}"
+        mode: "0755"
+
+    - name: Write current manifest
+      ansible.builtin.copy:
+        content: "{{ (admin_dotfiles_managed | sort | join('\n')) ~ '\n' }}"
+        dest: "{{ admin_dotfiles_home }}/{{ admin_dotfiles_manifest }}"
+        owner: "{{ admin_user_name }}"
+        group: "{{ admin_user_name }}"
+        mode: "0644"

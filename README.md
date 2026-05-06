@@ -85,6 +85,7 @@ Runs the full provisioning playbook as the `ansible` user. Safe to re-run - all 
 | `service_user` | Creates dedicated `ansible` service account with passwordless sudo and SSH key |
 | `base` | Updates apt cache, upgrades packages, installs base packages |
 | `admin_user` | Interactive SSH user with configurable shell and packages |
+| `admin_dotfiles` | Mirrors `config/dotfiles/home/` into the admin user's home directory (manifest-tracked, only manages files explicitly shipped) |
 | `ssh_hardening` | Disables root login and password authentication |
 | `local_ssh_config` | Generates `~/.ssh/config.d` entries on the control machine |
 

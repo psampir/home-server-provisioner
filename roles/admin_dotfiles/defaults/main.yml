@@ -1,0 +1,15 @@
+# Source directory on the control machine. Files under it are mirrored
+# verbatim into the admin user's home directory, preserving their
+# relative paths. Set to "" to disable the role entirely.
+#
+# Default: <playbook_dir>/../config/dotfiles/home - i.e. the user-managed
+# private config repo created by scripts/init-config.sh. The role becomes
+# a no-op (with a notice) if this directory does not exist or is empty.
+admin_dotfiles_src: "{{ playbook_dir }}/../config/dotfiles/home"
+
+# Path of the per-host manifest tracking which files this role currently
+# owns. Files listed in the previous manifest but missing from the
+# current source are removed on the next run, giving strict
+# single-source-of-truth semantics for managed paths only - runtime
+# state in unmanaged paths is never touched.
+admin_dotfiles_manifest: ".config/admin_dotfiles.manifest"
