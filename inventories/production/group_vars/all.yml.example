@@ -147,3 +147,23 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # docker_runtime_users:
 #   - "{{ admin_user_name }}"
 #   - deploybot
+
+# --- compose_deploy role (app_servers only) ----------------------------------
+# Deploys user-supplied Docker Compose stacks under /opt/stacks/<name>/.
+# Source trees live on the controller under config/stacks/<name>/ (gitignored
+# alongside other private user content). Each stack directory is fully synced
+# to the host on every run.
+#
+# compose_deploy_base_dir: /opt/stacks
+# compose_deploy_owner: "{{ admin_user_name }}"
+# compose_deploy_group: "{{ admin_user_name }}"
+# compose_deploy_src_root: "{{ playbook_dir }}/../config/stacks"
+# compose_deploy_stacks: []
+#
+# Example (not default):
+# compose_deploy_stacks:
+#   - name: whoami
+#     # state: present      # or 'absent' to tear the stack down
+#     # pull: missing       # always | missing | never
+#     env:
+#       WHOAMI_PORT: "8080"

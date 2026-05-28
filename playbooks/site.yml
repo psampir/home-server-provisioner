@@ -18,6 +18,7 @@
   hosts: app_servers
   roles:
     - docker_runtime
+    - compose_deploy
 
 - name: Update local SSH config
   hosts: localhost

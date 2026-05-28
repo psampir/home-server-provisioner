@@ -1,0 +1,53 @@
+- name: "Tear down stack (state=absent) - {{ stack.name }}"
+  when: stack.state | default('present') == 'absent'
+  block:
+    - name: "Check whether stack directory exists - {{ stack.name }}"
+      ansible.builtin.stat:
+        path: "{{ compose_deploy_base_dir }}/{{ stack.name }}"
+      register: compose_deploy_stack_dir
+
+    - name: "Stop and remove containers - {{ stack.name }}"
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_deploy_base_dir }}/{{ stack.name }}"
+        state: absent
+      when: compose_deploy_stack_dir.stat.exists
+
+    - name: "Remove stack directory - {{ stack.name }}"
+      ansible.builtin.file:
+        path: "{{ compose_deploy_base_dir }}/{{ stack.name }}"
+        state: absent
+
+- name: "Deploy stack (state=present) - {{ stack.name }}"
+  when: stack.state | default('present') == 'present'
+  block:
+    - name: "Ensure stack directory exists - {{ stack.name }}"
+      ansible.builtin.file:
+        path: "{{ compose_deploy_base_dir }}/{{ stack.name }}"
+        state: directory
+        owner: "{{ compose_deploy_owner }}"
+        group: "{{ compose_deploy_group }}"
+        mode: "0750"
+
+    - name: "Sync stack files from controller - {{ stack.name }}"
+      ansible.builtin.copy:
+        src: "{{ stack.src_dir | default(compose_deploy_src_root + '/' + stack.name) }}/"
+        dest: "{{ compose_deploy_base_dir }}/{{ stack.name }}/"
+        owner: "{{ compose_deploy_owner }}"
+        group: "{{ compose_deploy_group }}"
+        mode: "0640"
+        directory_mode: "0750"
+
+    - name: "Render .env file - {{ stack.name }}"
+      ansible.builtin.template:
+        src: env.j2
+        dest: "{{ compose_deploy_base_dir }}/{{ stack.name }}/.env"
+        owner: "{{ compose_deploy_owner }}"
+        group: "{{ compose_deploy_group }}"
+        mode: "0640"
+      when: stack.env | default({}) | length > 0
+
+    - name: "Bring stack up - {{ stack.name }}"
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_deploy_base_dir }}/{{ stack.name }}"
+        state: present
+        pull: "{{ stack.pull | default('missing') }}"

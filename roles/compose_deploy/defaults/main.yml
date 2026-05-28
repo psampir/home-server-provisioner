@@ -1,0 +1,30 @@
+# Base directory where every stack lives on the target host.
+compose_deploy_base_dir: /opt/stacks
+
+# Default ownership for stack directories and files.
+# Falls back to root if no interactive admin user is defined.
+compose_deploy_owner: "{{ admin_user_name | default('root') }}"
+compose_deploy_group: "{{ admin_user_name | default('root') }}"
+
+# Where on the Ansible controller compose source trees live.
+# Each stack expects a subdirectory <compose_deploy_src_root>/<stack.name>/
+# containing at minimum a compose.yaml file.
+compose_deploy_src_root: "{{ playbook_dir }}/../config/stacks"
+
+# Stacks to deploy. Empty by default - define per inventory.
+#
+# Each item:
+#   name:    Stack name (also the on-host directory and compose project name).
+#   state:   present (default) | absent
+#   pull:    policy passed to docker_compose_v2 (always | missing | never).
+#            Default: missing.
+#   src_dir: Optional override for the source tree on the controller.
+#            Default: {{ compose_deploy_src_root }}/{{ name }}
+#   env:     Dict rendered into a .env file inside the stack directory.
+#
+# Example:
+#   compose_deploy_stacks:
+#     - name: whoami
+#       env:
+#         WHOAMI_PORT: "8080"
+compose_deploy_stacks: []

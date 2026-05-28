@@ -1,0 +1,21 @@
+- name: Install Docker SDK for Python (docker_compose_v2 prereq)
+  ansible.builtin.apt:
+    name: python3-docker
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Ensure base stacks directory exists
+  ansible.builtin.file:
+    path: "{{ compose_deploy_base_dir }}"
+    state: directory
+    owner: "{{ compose_deploy_owner }}"
+    group: "{{ compose_deploy_group }}"
+    mode: "0750"
+
+- name: Deploy compose stacks
+  ansible.builtin.include_tasks: deploy_stack.yml
+  loop: "{{ compose_deploy_stacks }}"
+  loop_control:
+    loop_var: stack
+    label: "{{ stack.name }} ({{ stack.state | default('present') }})"
