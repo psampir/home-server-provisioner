@@ -127,3 +127,23 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #   - { port: 443,   proto: tcp, comment: "HTTPS" }
 #   - { port: 51820, proto: udp, comment: "WireGuard" }
 #   - { port: 9090,  proto: tcp, from: "10.0.0.0/24", comment: "Internal admin" }
+
+# --- docker_runtime role (app_servers only) -----------------------------------
+# Installs Docker CE + Compose plugin from the official upstream apt repo
+# (download.docker.com). By default the admin user is added to the `docker`
+# group so it can talk to the socket without sudo.
+#
+# docker_runtime_packages:
+#   - docker-ce
+#   - docker-ce-cli
+#   - containerd.io
+#   - docker-buildx-plugin
+#   - docker-compose-plugin
+# docker_runtime_users: "[admin_user_name]"   # auto-derived; override with a list
+# docker_runtime_service_enabled: true
+# docker_runtime_service_state: started
+#
+# Example (not default) - grant docker access to extra accounts:
+# docker_runtime_users:
+#   - "{{ admin_user_name }}"
+#   - deploybot

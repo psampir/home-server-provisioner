@@ -14,6 +14,11 @@
     - fail2ban
     - firewall
 
+- name: Application server provisioning
+  hosts: app_servers
+  roles:
+    - docker_runtime
+
 - name: Update local SSH config
   hosts: localhost
   connection: local

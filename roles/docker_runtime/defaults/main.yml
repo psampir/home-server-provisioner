@@ -1,0 +1,31 @@
+# --- Docker apt repository (official upstream) ---
+docker_runtime_apt_key_url: https://download.docker.com/linux/debian/gpg
+docker_runtime_apt_keyring: /etc/apt/keyrings/docker.asc
+docker_runtime_apt_repo_url: https://download.docker.com/linux/debian
+docker_runtime_apt_suite: "{{ ansible_facts['distribution_release'] }}"
+docker_runtime_apt_components:
+  - stable
+docker_runtime_apt_arch: >-
+  {{ 'amd64' if ansible_facts['architecture'] == 'x86_64'
+     else ('arm64' if ansible_facts['architecture'] == 'aarch64'
+     else ansible_facts['architecture']) }}
+
+# --- Packages ---
+docker_runtime_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+# --- Service ---
+docker_runtime_service_enabled: true
+docker_runtime_service_state: started
+
+# --- Users granted access to the docker socket ---
+# Defaults to the interactive admin user (if admin_user role is in play).
+# Override with an explicit list to grant access to other accounts.
+docker_runtime_users: >-
+  {{ [admin_user_name]
+     if (admin_user_name | default('') | length > 0)
+     else [] }}
