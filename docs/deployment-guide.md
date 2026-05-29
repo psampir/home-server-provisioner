@@ -21,7 +21,7 @@ Off-site hosts (e.g., a remote backup server) are not directly reachable from th
 While the host is still on the local network:
 
 ```yaml
-# inventories/production/hosts.yml
+# configs/prod/inventory/hosts.yml
 backup_targets:
   hosts:
     offsite-backup:

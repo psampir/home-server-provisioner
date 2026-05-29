@@ -10,19 +10,14 @@
 # Ansible
 .ansible/
 *.retry
-.vault_pass
-.vault_password
 
 # Local environment overrides
 .env
 
-# User-specific config (may be its own git repo via make init-config)
-config/
+# Per-environment config trees (each has its own private git repo).
+# configs/example/ is the template tracked here; everything else is private.
+configs/*
+!configs/example/
 
-# User-specific inventory and variables
-inventories/production/hosts.yml
-inventories/production/group_vars/all.yml
-inventories/production/host_vars
-
-# Generated test inventory
-inventories/test/hosts.yml
+# WireGuard build artifacts (client .conf + QR codes)
+build/

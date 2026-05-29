@@ -12,37 +12,93 @@ ifneq ($(strip $(ANSIBLE_PRIVATE_KEY_FILE)),)
 export ANSIBLE_PRIVATE_KEY_FILE
 endif
 
-TEST_INVENTORY = inventories/test
-PROD_INVENTORY = inventories/production
+# --- Environment selection ---
+#
+# Every environment lives under configs/<ENV>/ and ships:
+#   inventory/   Ansible inventory (hosts.yml, group_vars/, host_vars/)
+#   stacks/      Docker Compose stacks (consumed by compose_deploy role)
+#   dotfiles/    Files synced to admin user (consumed by admin_dotfiles role)
+#   .vault_pass  Ansible Vault password (mode 600, gitignored)
+#
+# Defaults to `prod`; override with `make <target> ENV=prod2` etc.
+ENV ?= prod
+ENV_DIR = configs/$(ENV)
+INVENTORY = $(ENV_DIR)/inventory
+VAULT_FILE ?= $(INVENTORY)/group_vars/all/vault.yml
 
-# --- Ansible (production) ---
+# Always point Ansible at the per-env vault password file. The file may not
+# exist yet (e.g. before `make vault-init`); commands that need it will fail
+# loudly with a clear ansible-vault error in that case.
+export ANSIBLE_VAULT_PASSWORD_FILE = $(ENV_DIR)/.vault_pass
 
-.PHONY: bootstrap provision
+# Extra flags injected by targets (e.g. test-bootstrap clears -kK).
+BOOTSTRAP_FLAGS ?= -kK
+WG_KEYS_FLAGS ?=
 
-bootstrap: ## First run on fresh hosts (production)
-	ansible-playbook playbooks/bootstrap.yml -i $(PROD_INVENTORY) -e 'ansible_user={{ bootstrap_user }}' -kK
+# --- Ansible ---
 
-provision: ## Run full site playbook (production)
-	ansible-playbook playbooks/site.yml -i $(PROD_INVENTORY)
+.PHONY: bootstrap provision wireguard-keys
+
+bootstrap: ## First run on fresh hosts (ENV=prod by default)
+	ansible-playbook playbooks/bootstrap.yml -i $(INVENTORY) -e 'ansible_user={{ bootstrap_user }}' $(BOOTSTRAP_FLAGS)
+
+provision: wireguard-keys ## Run full site playbook (ENV=prod by default)
+	ansible-playbook playbooks/site.yml -i $(INVENTORY)
+
+wireguard-keys: ## Generate/prune WireGuard client keys (vaulted, auto-committed)
+	scripts/wg-ensure-keys.py --inventory $(INVENTORY) $(WG_KEYS_FLAGS)
+
+# --- Vault (secrets) ---
+
+.PHONY: vault-init vault-edit vault-view vault-rekey vault-encrypt vault-decrypt
+
+vault-init: ## Create $(ENV_DIR)/.vault_pass (prompts for password, chmod 600)
+	@target="$(ENV_DIR)/.vault_pass"; \
+	if [ -e "$$target" ] && [ ! -L "$$target" ]; then \
+		echo "$$target already exists; refusing to overwrite."; exit 1; \
+	fi; \
+	mkdir -p "$$(dirname $$target)"; \
+	stty -echo; printf "New vault password for ENV=$(ENV): "; read pw; stty echo; echo; \
+	printf "%s" "$$pw" > "$$target"; \
+	chmod 600 "$$target"; \
+	echo "Wrote $$target (mode 600, gitignored)."
+
+vault-edit: ## Edit (and encrypt on first save) $(VAULT_FILE)
+	ansible-vault edit $(VAULT_FILE)
+
+vault-view: ## View $(VAULT_FILE) without decrypting to disk
+	ansible-vault view $(VAULT_FILE)
+
+vault-encrypt: ## Encrypt a plain-text vault file in place (one-time)
+	ansible-vault encrypt $(VAULT_FILE)
+
+vault-decrypt: ## Decrypt $(VAULT_FILE) to plain text in place (DANGEROUS)
+	ansible-vault decrypt $(VAULT_FILE)
+
+vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password
+	ansible-vault rekey $(VAULT_FILE)
 
 # --- Test environment ---
+#
+# Test env is just ENV=test with a pre-built configs/test/ tree that is
+# regenerated from scratch by scripts/test-env.sh (gitignored).
 
 .PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision
 
-test-env-create: ## Create test VMs and generate inventory
+test-env-create: ## Create test VMs and seed configs/test/
 	./scripts/test-env.sh create
 
-test-env-destroy: ## Destroy all test VMs and clean up
+test-env-destroy: ## Destroy all test VMs and remove configs/test/
 	./scripts/test-env.sh destroy
 
 test-env-status: ## Show test VM status
 	./scripts/test-env.sh status
 
-test-bootstrap: ## First run on test VMs (test-env shapes passwordless sudo + SSH key)
-	ansible-playbook playbooks/bootstrap.yml -i $(TEST_INVENTORY) -e 'ansible_user={{ bootstrap_user }}'
+test-bootstrap: ## bootstrap against ENV=test (no password prompt)
+	$(MAKE) bootstrap ENV=test BOOTSTRAP_FLAGS=
 
-test-provision: ## Run full site playbook against test VMs
-	ansible-playbook playbooks/site.yml -i $(TEST_INVENTORY)
+test-provision: ## provision against ENV=test (no git auto-commit for vault)
+	$(MAKE) provision ENV=test WG_KEYS_FLAGS=--no-commit
 
 # --- Setup ---
 
@@ -51,8 +107,8 @@ test-provision: ## Run full site playbook against test VMs
 setup: ## Install Ansible, ansible-lint, and required collections
 	@./scripts/setup.sh
 
-init-config: ## Create config/ directory for tracking private settings
-	@./scripts/init-config.sh
+init-config: ## Create configs/$(ENV)/ from configs/example/ (own git repo)
+	@./scripts/init-config.sh "$(ENV)"
 
 # --- Help ---
 

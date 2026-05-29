@@ -1,7 +1,7 @@
 # admin_dotfiles
 
 Mirrors a directory of dotfiles from the control machine (typically
-`config/dotfiles/home/`, created by `scripts/init-config.sh`) into the
+`configs/<ENV>/dotfiles/home/`, created by `scripts/init-config.sh`) into the
 admin user's home directory on every server.
 
 Shell-agnostic: the role copies files verbatim and has no knowledge of
@@ -12,7 +12,7 @@ fish, bash, zoxide or any specific tool.
 `admin_dotfiles_src` mirrors the admin user's home directory. Example:
 
 ```
-config/dotfiles/home/
+configs/<ENV>/dotfiles/home/
 ├── .gitconfig
 ├── .tmux.conf
 └── .config/
@@ -78,5 +78,5 @@ private config repo.)
 
 | Variable | Default | Description |
 |---|---|---|
-| `admin_dotfiles_src` | `{{ playbook_dir }}/../config/dotfiles/home` | Source directory on the control machine. |
+| `admin_dotfiles_src` | `{{ inventory_dir }}/../dotfiles/home` | Source directory on the control machine. |
 | `admin_dotfiles_manifest` | `.config/admin_dotfiles.manifest` | Path (relative to admin user's home) of the per-host manifest. |

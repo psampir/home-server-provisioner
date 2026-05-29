@@ -19,16 +19,37 @@ all:
             # my-main-server:
             #   ansible_host: 10.0.0.1
             #   bootstrap_user: jan
+            #   vpn_ip: 10.10.0.2          # WireGuard address (managed peer)
         backup_targets:
           hosts:
             # my-local-backup:
             #   ansible_host: 10.0.0.2
             #   bootstrap_user: jan
+            #   vpn_ip: 10.10.0.3
             # my-offsite-backup:
             #   ansible_host: 10.0.0.3
             #   bootstrap_user: root
+            #   vpn_ip: 10.10.0.4
         vpn_servers:
           hosts:
             # my-vps:
             #   ansible_host: 203.0.113.10
             #   bootstrap_user: root
+            #   vpn_ip: 10.10.0.1          # convention: hub gets .1
+            #   wireguard_role: hub        # exactly ONE host must set this
+
+# --- Per-host vars (recommended) ----------------------------------------------
+# For richer per-host configuration, prefer split files over inline blocks:
+#
+#   config/inventory/host_vars/my-vps.yml        (symlinked from host_vars/)
+#     ---
+#     vpn_ip: 10.10.0.1
+#     wireguard_role: hub
+#     # wireguard_hub_endpoint: "vpn.example.com:51820"   # override if needed
+#
+#   config/inventory/host_vars/my-main-server.yml
+#     ---
+#     vpn_ip: 10.10.0.2
+#
+# `make init-config` creates the config/ tree that hosts.yml and host_vars/
+# symlink into. Everything under config/ is gitignored.

@@ -9,7 +9,7 @@ compose_deploy_group: "{{ admin_user_name | default('root') }}"
 # Where on the Ansible controller compose source trees live.
 # Each stack expects a subdirectory <compose_deploy_src_root>/<stack.name>/
 # containing at minimum a compose.yaml file.
-compose_deploy_src_root: "{{ playbook_dir }}/../config/stacks"
+compose_deploy_src_root: "{{ inventory_dir }}/../stacks"
 
 # Stacks to deploy. Empty by default - define per inventory.
 #

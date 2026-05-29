@@ -203,3 +203,64 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #   - 10.0.0.0/8
 #   - 172.16.0.0/12
 #   - 192.168.0.0/16
+
+# --- wireguard role (servers) ------------------------------------------------
+# Hub-and-spoke VPN. Exactly ONE host in inventory must declare
+# `wireguard_role: hub` (typically your public VPS). All other hosts are
+# managed peers. External clients (phones, laptops) are listed in
+# `wireguard_clients` and only exist as [Peer] sections on the hub.
+#
+# Per-host (in host_vars/<host>.yml):
+#   vpn_ip: 10.10.0.2          # required; must be unique inside wireguard_subnet
+#   wireguard_role: hub        # ONLY on the hub host (defaults to "peer")
+#
+# Group-level overrides (rare):
+#   wireguard_subnet: "10.10.0.0/24"     # CIDR; avoid clash with LAN + Docker
+#   wireguard_hub_ip: "10.10.0.1"
+#   wireguard_listen_port: 51820
+#   wireguard_persistent_keepalive: 25
+#   wireguard_enable_nat: true           # masquerade for full-tunnel clients
+#   wireguard_wan_interface: ""          # auto-detected from default route
+#   wireguard_firewall_from: [any]       # who can hit UDP 51820
+#
+# Convention for vpn_ip:
+#   .1            hub
+#   .2 ..  .19    managed peers (servers)
+#   .20 .. .254   external clients (phones, laptops)
+#
+# External clients (phones, laptops) are listed here as plain definitions.
+# Only `name` and `vpn_ip` are required; `allowed_ips` is optional and
+# defaults to split tunnel (VPN subnet only).
+#
+# wireguard_clients:
+#   - { name: phone, vpn_ip: 10.10.0.20 }
+#   - { name: laptop,  vpn_ip: 10.10.0.21, allowed_ips: "0.0.0.0/0" }
+#
+# Keys (privkey/pubkey/psk) are NEVER hand-written here. They are
+# auto-generated and stored in vault.yml (next to this file, encrypted with
+# ansible-vault) by scripts/wg-ensure-keys.py, which `make provision`
+# invokes as a pre-hook. Adding a name → keys generated + auto-committed to
+# the config repo. Removing a name → keys pruned (only when the config
+# repo's working tree is clean - protects against the "typo in name"
+# scenario).
+#
+# Vault setup (one-time, per environment):
+#   make init-config ENV=prod        # copies configs/example/ → configs/prod/
+#   make vault-init  ENV=prod        # prompts for vault password
+#   make provision   ENV=prod        # generates keys on first run
+#
+# Then re-export the vaulted map so the role can find it:
+wireguard_client_keys: "{{ vault_wireguard_client_keys | default({}) }}"
+
+# Rendered client configs + QR codes appear under ./build/wireguard/
+# (gitignored). Hand the .png QR to the user, scan in the WireGuard app.
+
+# --- dns_client role (non-hub servers) ---------------------------------------
+# Points /etc/resolv.conf at the WireGuard hub so that managed peers
+# resolve *.home through dnsmasq on the hub.
+#
+# dns_client_nameservers:
+#   - "{{ wireguard_hub_ip | default('10.10.0.1') }}"
+#   - 1.1.1.1                  # safety fallback
+# dns_client_search: home
+# dns_client_disable_resolved: true

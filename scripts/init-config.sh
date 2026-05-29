@@ -1,108 +1,76 @@
 #!/usr/bin/env bash
+#
+# Initialise a per-environment config directory under configs/<NAME>/.
+#
+# Usage:
+#   ./scripts/init-config.sh           # creates configs/prod/
+#   ./scripts/init-config.sh prod2     # creates configs/prod2/
+#
+# Copies configs/example/ as the starting tree, initialises a fresh git repo
+# inside the new directory (so users can push it to their own private remote
+# independently of this provisioner repo), and creates a .gitignore that hides
+# the vault password.
+#
+# Idempotent: refuses to overwrite an existing configs/<NAME>/.
+
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CONFIG_DIR="$REPO_ROOT/config"
+NAME="${1:-prod}"
+SRC_DIR="$REPO_ROOT/configs/example"
+DEST_DIR="$REPO_ROOT/configs/$NAME"
 
-if [ -d "$CONFIG_DIR/.git" ]; then
-    echo "Config repo already initialised at config/"
+if [[ ! -d "$SRC_DIR" ]]; then
+    echo "Error: $SRC_DIR not found (broken installation?)." >&2
+    exit 1
+fi
+
+if [[ -e "$DEST_DIR" ]]; then
+    echo "configs/$NAME/ already exists - nothing to do."
+    echo "(If you want to start over, remove it manually first.)"
     exit 0
 fi
 
-echo "Initialising config directory..."
+echo "Creating configs/$NAME/ from configs/example/ ..."
 
-# Create directory structure
-mkdir -p "$CONFIG_DIR/inventory/group_vars"
-mkdir -p "$CONFIG_DIR/inventory/host_vars"
-mkdir -p "$CONFIG_DIR/dotfiles/home"
+# Preserve hidden files (e.g. .gitkeep). Use cp -a so timestamps + structure
+# carry over verbatim.
+cp -a "$SRC_DIR" "$DEST_DIR"
 
-# Seed dotfiles/ with a README so the directory is tracked and self-documenting
-if [ ! -f "$CONFIG_DIR/dotfiles/README.md" ]; then
-    cat > "$CONFIG_DIR/dotfiles/README.md" << 'EOF'
-# dotfiles/
-
-Files placed under `dotfiles/home/` are mirrored into the admin user's
-home directory by the `admin_dotfiles` role.
-
-Layout mirrors the target home directly. For example:
-
-    dotfiles/home/.config/fish/config.fish
-        → ~admin/.config/fish/config.fish
-    dotfiles/home/.gitconfig
-        → ~admin/.gitconfig
-
-Only files actually present here are managed. Removing a file from
-`dotfiles/home/` causes it to be removed from the server on the next
-run (tracked via a per-host manifest at
-`~admin/.config/admin_dotfiles.manifest`).
-
-Runtime state in unshipped paths (`.bash_history`, `fish_history`,
-`.cache/`, etc.) is never touched.
-EOF
-    echo "  seeded: $CONFIG_DIR/dotfiles/README.md"
+# Rename example files that ship with a .example suffix to their real names.
+if [[ -f "$DEST_DIR/inventory/hosts.yml.example" ]]; then
+    mv "$DEST_DIR/inventory/hosts.yml.example" "$DEST_DIR/inventory/hosts.yml"
 fi
 
-# Copy example files as starting points (don't overwrite existing)
-copy_example() {
-    local src="$1" dest="$2"
-    if [ -f "$dest" ]; then
-        echo "  exists: $dest (skipping)"
-    elif [ -f "$src" ]; then
-        cp "$src" "$dest"
-        echo "  copied: $dest"
-    fi
-}
-
-copy_example "$REPO_ROOT/.env.example" "$CONFIG_DIR/.env"
-copy_example "$REPO_ROOT/inventories/production/hosts.yml.example" "$CONFIG_DIR/inventory/hosts.yml"
-copy_example "$REPO_ROOT/inventories/production/group_vars/all.yml.example" "$CONFIG_DIR/inventory/group_vars/all.yml"
-
-# Move existing user config files into config/ if they exist (and aren't symlinks)
-move_if_exists() {
-    local src="$1" dest="$2"
-    if [ -f "$src" ] && [ ! -L "$src" ]; then
-        mv "$src" "$dest"
-        echo "  moved: $src → $dest"
-    fi
-}
-
-move_if_exists "$REPO_ROOT/.env" "$CONFIG_DIR/.env"
-move_if_exists "$REPO_ROOT/inventories/production/hosts.yml" "$CONFIG_DIR/inventory/hosts.yml"
-move_if_exists "$REPO_ROOT/inventories/production/group_vars/all.yml" "$CONFIG_DIR/inventory/group_vars/all.yml"
-
-# Create symlinks (relative paths for portability)
-create_link() {
-    local target="$1" link="$2"
-    if [ -L "$link" ]; then
-        echo "  linked: $link (already)"
-        return
-    fi
-    ln -sf "$target" "$link"
-    echo "  linked: $link"
-}
-
-create_link "config/.env" "$REPO_ROOT/.env"
-create_link "../../config/inventory/hosts.yml" "$REPO_ROOT/inventories/production/hosts.yml"
-create_link "../../../config/inventory/group_vars/all.yml" "$REPO_ROOT/inventories/production/group_vars/all.yml"
-create_link "../../../config/inventory/host_vars" "$REPO_ROOT/inventories/production/host_vars"
-
-# Initialise git repo inside config/
-cd "$CONFIG_DIR"
+# Initialise a git repo inside the new env so the user can push it to their
+# own private remote (independent of the provisioner repo).
+cd "$DEST_DIR"
 git init --quiet -b main
 
 cat > .gitignore << 'EOF'
+# Vault password - must never be committed.
 .vault_pass
 .vault_password
 EOF
 
 git add -A
-git commit --quiet -m "Initial config"
+git commit --quiet -m "Initial $NAME config (from configs/example/)"
 
-echo ""
-echo "Config repo created at config/"
-echo ""
-echo "Next steps:"
-echo "  1. Edit config files to match your environment"
-echo "  2. Add a private remote:"
-echo "     cd config && git remote add origin <your-private-repo-url>"
-echo "  3. Push: cd config && git push -u origin main"
+cd "$REPO_ROOT"
+
+cat <<EOF
+
+Done. New environment at: configs/$NAME/
+
+Next steps:
+  1. Edit configs/$NAME/inventory/hosts.yml and group_vars/all/main.yml
+     to match your real hosts and credentials.
+  2. Create a vault password:
+       make vault-init ENV=$NAME
+  3. (Optional) Push to your own private remote:
+       cd configs/$NAME && git remote add origin <your-private-repo-url>
+       git push -u origin main
+  4. Run a first deployment:
+       make bootstrap ENV=$NAME
+       make provision ENV=$NAME
+EOF
