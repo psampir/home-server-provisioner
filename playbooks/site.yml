@@ -14,6 +14,11 @@
     - fail2ban
     - firewall
 
+- name: VPN hub and resolver provisioning
+  hosts: vpn_servers
+  roles:
+    - dnsmasq
+
 - name: Application server provisioning
   hosts: app_servers
   roles:

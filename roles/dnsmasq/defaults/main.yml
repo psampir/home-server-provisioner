@@ -1,0 +1,54 @@
+# --- Local domain ---
+# Suffix appended to short hostnames. Avoid `.local` (mDNS conflict). `home`
+# and `home.arpa` (RFC 8375) are both safe for private use.
+dnsmasq_domain: home
+
+# --- Upstream resolvers ---
+# Servers dnsmasq forwards non-local queries to. Empty list disables
+# forwarding (dnsmasq will only answer for local records).
+dnsmasq_upstream_servers:
+  - 1.1.1.1
+  - 1.0.0.1
+
+# --- Listening ---
+# Interfaces dnsmasq binds to. Stable across IP changes - adding a new
+# WireGuard peer does not require touching this list (everyone uses wg0).
+# Default `[lo]` is safe out of the box: only the host queries itself.
+# In production, add e.g. `wg0` and the LAN interface.
+dnsmasq_interfaces:
+  - lo
+
+# --- Records ---
+# Auto-generate host-record entries from the Ansible inventory.
+# For each host in `dnsmasq_inventory_groups`, the record points to:
+#   1. `vpn_ip` host variable (if defined - set manually or, later, by the
+#      wireguard role as a fact),
+#   2. otherwise `ansible_host`.
+dnsmasq_include_inventory_hosts: true
+dnsmasq_inventory_groups:
+  - servers
+
+# Extra static records merged into the generated config.
+# Each item: { name: "printer", ip: "192.168.1.7" }
+# The domain is appended automatically.
+dnsmasq_extra_hosts: []
+
+# --- Cache and logging ---
+dnsmasq_cache_size: 1000
+dnsmasq_log_queries: false
+
+# --- Firewall (UFW) ---
+# Open port 53 (tcp+udp). `any` is fine here because `bind-interfaces`
+# already prevents dnsmasq from accepting queries on interfaces not listed
+# in `dnsmasq_interfaces`. Override with CIDRs (e.g. private ranges only)
+# if you want defence-in-depth at the UFW layer too.
+dnsmasq_open_firewall: true
+dnsmasq_firewall_from:
+  - any
+
+# --- Host resolver behavior ---
+# systemd-resolved is disabled so dnsmasq can own port 53. The host's
+# /etc/resolv.conf is then managed by this role and points to 127.0.0.1
+# with this fallback as a safety net if dnsmasq itself is down. Set to ""
+# to skip the fallback line.
+dnsmasq_resolv_fallback: 1.1.1.1

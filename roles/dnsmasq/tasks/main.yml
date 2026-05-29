@@ -1,0 +1,68 @@
+- name: Install dnsmasq
+  ansible.builtin.apt:
+    name: dnsmasq
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Disable systemd-resolved (would conflict on port 53)
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    enabled: false
+    state: stopped
+    masked: true
+
+- name: Stat /etc/resolv.conf to detect symlink left by systemd-resolved
+  ansible.builtin.stat:
+    path: /etc/resolv.conf
+  register: dnsmasq_resolv_stat
+
+- name: Remove resolv.conf symlink (only if it still is a symlink)
+  ansible.builtin.file:
+    path: /etc/resolv.conf
+    state: absent
+  when: dnsmasq_resolv_stat.stat.islnk | default(false)
+
+- name: Write static /etc/resolv.conf pointing at dnsmasq
+  ansible.builtin.template:
+    src: resolv.conf.j2
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Render dnsmasq managed config
+  ansible.builtin.template:
+    src: managed.conf.j2
+    dest: /etc/dnsmasq.d/managed.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "dnsmasq --test --conf-file=%s"
+  notify: Restart dnsmasq
+
+- name: Ensure dnsmasq service is enabled and running
+  ansible.builtin.systemd:
+    name: dnsmasq
+    enabled: true
+    state: started
+
+- name: Open dnsmasq port 53/tcp in firewall
+  community.general.ufw:
+    rule: allow
+    port: "53"
+    proto: tcp
+    from_ip: "{{ item }}"
+    comment: "dnsmasq (tcp)"
+  loop: "{{ dnsmasq_firewall_from }}"
+  when: dnsmasq_open_firewall
+
+- name: Open dnsmasq port 53/udp in firewall
+  community.general.ufw:
+    rule: allow
+    port: "53"
+    proto: udp
+    from_ip: "{{ item }}"
+    comment: "dnsmasq (udp)"
+  loop: "{{ dnsmasq_firewall_from }}"
+  when: dnsmasq_open_firewall

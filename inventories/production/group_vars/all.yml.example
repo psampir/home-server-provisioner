@@ -167,3 +167,39 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #     # pull: missing       # always | missing | never
 #     env:
 #       WHOAMI_PORT: "8080"
+
+# --- dnsmasq role (vpn_servers only) -----------------------------------------
+# Full LAN/VPN DNS resolver: forwards external queries upstream, answers
+# local queries for hosts in the inventory (auto-derived) and any extras
+# you define. Deployed alongside the VPN hub - peers connecting through
+# WireGuard get DNS for free over the same tunnel.
+# systemd-resolved is disabled on the host (port 53 conflict) and
+# /etc/resolv.conf is rewritten to point at 127.0.0.1.
+#
+# dnsmasq_domain: home                 # avoid .local (mDNS conflict)
+# dnsmasq_upstream_servers: [1.1.1.1, 1.0.0.1]
+# dnsmasq_interfaces: [lo]             # safe default; add wg0, LAN iface, etc.
+# dnsmasq_include_inventory_hosts: true
+# dnsmasq_inventory_groups: [servers]
+# dnsmasq_extra_hosts: []
+# dnsmasq_cache_size: 1000
+# dnsmasq_log_queries: false
+# dnsmasq_open_firewall: true
+# dnsmasq_firewall_from: [any]
+# dnsmasq_resolv_fallback: 1.1.1.1
+#
+# Per-host: set `vpn_ip` in host_vars to override which IP DNS returns
+# for that host (defaults to ansible_host).
+#
+# Example (not default) - production VPN hub serving DNS to LAN + peers:
+# dnsmasq_interfaces:
+#   - lo
+#   - wg0          # WireGuard peers (phones, off-site machines)
+#   - enp1s0       # LAN
+# dnsmasq_extra_hosts:
+#   - { name: printer, ip: 192.168.1.7 }
+#   - { name: nas,     ip: 192.168.1.5 }
+# dnsmasq_firewall_from:
+#   - 10.0.0.0/8
+#   - 172.16.0.0/12
+#   - 192.168.0.0/16

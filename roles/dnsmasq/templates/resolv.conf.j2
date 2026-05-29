@@ -1,0 +1,9 @@
+# Managed by Ansible (dnsmasq role) - do not edit by hand.
+# dnsmasq on 127.0.0.1 handles all local + forwarded queries.
+nameserver 127.0.0.1
+{% if dnsmasq_resolv_fallback | default('') | length > 0 %}
+# Fallback if dnsmasq itself is unavailable.
+nameserver {{ dnsmasq_resolv_fallback }}
+{% endif %}
+options edns0 trust-ad
+search {{ dnsmasq_domain }}

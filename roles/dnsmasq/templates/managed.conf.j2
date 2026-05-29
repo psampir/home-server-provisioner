@@ -1,0 +1,37 @@
+# Managed by Ansible (dnsmasq role) - do not edit by hand.
+
+# --- Upstream resolvers ---
+no-resolv
+{% for server in dnsmasq_upstream_servers %}
+server={{ server }}
+{% endfor %}
+
+# --- Local domain ---
+domain={{ dnsmasq_domain }}
+local=/{{ dnsmasq_domain }}/
+expand-hosts
+
+# --- Listening ---
+{% for iface in dnsmasq_interfaces %}
+interface={{ iface }}
+{% endfor %}
+bind-interfaces
+
+# --- Cache ---
+cache-size={{ dnsmasq_cache_size }}
+{% if dnsmasq_log_queries %}
+log-queries
+{% endif %}
+
+# --- Host records ---
+{% if dnsmasq_include_inventory_hosts %}
+{% for group in dnsmasq_inventory_groups %}
+{% for host in groups[group] | default([]) %}
+{% set ip = hostvars[host].vpn_ip | default(hostvars[host].ansible_host | default(host)) %}
+host-record={{ host }}.{{ dnsmasq_domain }},{{ ip }}
+{% endfor %}
+{% endfor %}
+{% endif %}
+{% for entry in dnsmasq_extra_hosts %}
+host-record={{ entry.name }}.{{ dnsmasq_domain }},{{ entry.ip }}
+{% endfor %}
