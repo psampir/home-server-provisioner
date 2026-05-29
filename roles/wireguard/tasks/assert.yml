@@ -1,0 +1,88 @@
+- name: Compute network prefix portion of wireguard_subnet for validation
+  ansible.builtin.set_fact:
+    wireguard_subnet_prefix_dotted: "{{ wireguard_subnet.split('/')[0].rsplit('.', 1)[0] }}"
+    wireguard_hub_hosts: >-
+      {{ (groups['servers'] | default([]))
+         | select('in', hostvars)
+         | map('extract', hostvars)
+         | selectattr('wireguard_role', 'defined')
+         | selectattr('wireguard_role', 'equalto', 'hub')
+         | map(attribute='inventory_hostname')
+         | list }}
+  run_once: true
+
+- name: Build flat list of all VPN IPs (managed + clients) for validation
+  ansible.builtin.set_fact:
+    wireguard_all_ips: >-
+      {{
+        (groups['servers'] | default([]))
+          | map('extract', hostvars, 'vpn_ip')
+          | select('defined') | list
+        + wireguard_clients | map(attribute='vpn_ip') | list
+      }}
+  run_once: true
+
+- name: Assert every managed peer has a vpn_ip inside the configured subnet
+  ansible.builtin.assert:
+    that:
+      - vpn_ip is defined
+      - vpn_ip.startswith(wireguard_subnet_prefix_dotted + '.')
+    fail_msg: >-
+      Host '{{ inventory_hostname }}' is missing `vpn_ip` or it is not in
+      `wireguard_subnet` ({{ wireguard_subnet }}). Set it in
+      configs/<ENV>/inventory/host_vars/{{ inventory_hostname }}.yml - e.g.
+      `vpn_ip: {{ wireguard_subnet_prefix_dotted }}.2`.
+
+- name: Assert no two peers share the same vpn_ip
+  ansible.builtin.assert:
+    that:
+      - wireguard_all_ips | length == wireguard_all_ips | unique | length
+    fail_msg: >-
+      Duplicate vpn_ip detected. Each managed host (`vpn_ip` in host_vars)
+      and each entry in `wireguard_clients` must have a unique address
+      inside {{ wireguard_subnet }}. Current allocation:
+      {{ wireguard_all_ips }}
+  run_once: true
+
+- name: Assert every client entry has the required definition fields
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.vpn_ip is defined
+      - item.vpn_ip.startswith(wireguard_subnet_prefix_dotted + '.')
+    fail_msg: >-
+      Client peer entry is malformed: {{ item.name | default('<unnamed>') }}.
+      Required keys: name, vpn_ip (inside {{ wireguard_subnet }}).
+      Keys (privkey/pubkey/psk) are auto-managed via the vault - do not
+      hand-write them in `wireguard_clients`.
+  loop: "{{ wireguard_clients }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+  run_once: true
+
+- name: Assert every client has matching keys (vault entry or inline)
+  ansible.builtin.assert:
+    that:
+      - (wireguard_client_keys[item.name] is defined
+         and wireguard_client_keys[item.name].pubkey is defined
+         and wireguard_client_keys[item.name].privkey is defined)
+        or
+        (item.pubkey is defined and item.privkey is defined)
+    fail_msg: >-
+      Client '{{ item.name }}' has no keys. Run `make wireguard-keys` (or
+      `make provision`, which runs it as a pre-hook) to generate and vault
+      them. If you are testing without a vault, you may inline `pubkey`,
+      `privkey`, `psk` on the client entry instead.
+  loop: "{{ wireguard_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  run_once: true
+
+- name: Assert exactly one host is declared as the WireGuard hub
+  ansible.builtin.assert:
+    that:
+      - wireguard_hub_hosts | length == 1
+    fail_msg: >-
+      Exactly one host must set `wireguard_role: hub` in its host_vars.
+      Currently {{ wireguard_hub_hosts | length }} found: {{ wireguard_hub_hosts }}
+  run_once: true

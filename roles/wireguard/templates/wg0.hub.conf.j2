@@ -1,0 +1,35 @@
+# Managed by Ansible (wireguard role) - do not edit by hand.
+[Interface]
+Address    = {{ wireguard_hub_ip }}/{{ wireguard_subnet_prefix }}
+ListenPort = {{ wireguard_listen_port }}
+PrivateKey = {{ wireguard_privkey }}
+{% if wireguard_enable_nat and wireguard_wan_interface_effective %}
+PostUp     = iptables -t nat -A POSTROUTING -s {{ wireguard_subnet }} -o {{ wireguard_wan_interface_effective }} -j MASQUERADE
+PostDown   = iptables -t nat -D POSTROUTING -s {{ wireguard_subnet }} -o {{ wireguard_wan_interface_effective }} -j MASQUERADE
+{% endif %}
+
+{# --- Managed peers (server hosts running this role) --- #}
+{% for host in (groups['servers'] | default([])) %}
+{%   if hostvars[host].wireguard_role | default('peer') == 'peer'
+       and hostvars[host].wireguard_pubkey is defined
+       and hostvars[host].vpn_ip is defined %}
+
+# {{ host }} (managed peer)
+[Peer]
+PublicKey  = {{ hostvars[host].wireguard_pubkey }}
+AllowedIPs = {{ hostvars[host].vpn_ip }}/32
+{%   endif %}
+{% endfor %}
+
+{# --- External client peers (phones, laptops) --- #}
+{% for client in wireguard_clients %}
+{%   set keys = wireguard_client_keys[client.name] | default(client) %}
+
+# {{ client.name }} (client)
+[Peer]
+PublicKey  = {{ keys.pubkey }}
+{% if keys.psk is defined and keys.psk %}
+PresharedKey = {{ keys.psk }}
+{% endif %}
+AllowedIPs = {{ client.vpn_ip }}/32
+{% endfor %}

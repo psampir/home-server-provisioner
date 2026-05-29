@@ -1,0 +1,85 @@
+# --- Topology ---
+# Hub-and-spoke. Exactly one host should have `wireguard_role: hub`.
+# All other managed peers (servers in inventory running the role) get
+# `wireguard_role: peer` (the default) and a single [Peer] section pointing
+# at the hub. External clients (phones, laptops) are declared in
+# `wireguard_clients` and only exist as [Peer] entries on the hub.
+wireguard_role: peer
+
+# --- Network ---
+# CIDR for the VPN. Hub gets .1, managed peers .2-.19, clients .20+.
+# Avoid collision with LAN (10.166.72.0/24 in test) and Docker bridges
+# (172.17/16, 172.18/16).
+wireguard_subnet: "10.10.0.0/24"
+wireguard_subnet_prefix: 24
+wireguard_hub_ip: "10.10.0.1"
+
+# Public endpoint clients connect to. On the hub this resolves to its
+# WAN address; in test we use the LAN IP of hsp-vpn.
+wireguard_hub_endpoint: "{{ hostvars[wireguard_hub_host].ansible_host }}:{{ wireguard_listen_port }}"
+
+# Hostname of the hub in inventory. Auto-derived if exactly one host has
+# `wireguard_role: hub`. Override if you have multiple vpn_servers.
+wireguard_hub_host: "{{ (groups['vpn_servers'] | default([]))[0] | default('') }}"
+
+# --- Interface ---
+wireguard_interface: wg0
+wireguard_listen_port: 51820
+# Apps + telephones idle a long time - keep NAT mappings warm.
+wireguard_persistent_keepalive: 25
+
+# --- Managed peers (in-inventory hosts) ---
+# Their VPN IP must be declared per-host as `vpn_ip` in host_vars or inline
+# in the inventory. Example: vpn_ip: 10.10.0.2
+# Private keys are generated in-place on the host; public keys are
+# collected as facts and distributed to the hub config.
+
+# --- External client peers ---
+# User-facing definition (plain YAML, edited in inventory). Only `name` and
+# `vpn_ip` are required; `allowed_ips` is optional (split-tunnel by default).
+#
+# wireguard_clients:
+#   - { name: phone, vpn_ip: 10.10.0.20 }
+#   - { name: laptop,  vpn_ip: 10.10.0.21, allowed_ips: "0.0.0.0/0" }
+#
+# Keys (privkey/pubkey/psk) are NEVER hand-written here. They live in a
+# vaulted map `vault_wireguard_client_keys`, auto-managed by
+# `scripts/wg-ensure-keys.py` (run by `make provision`). The script
+# generates keys for any client missing from the vault, prunes orphans
+# whose name disappeared from `wireguard_clients`, and auto-commits the
+# updated vault into the `configs/<ENV>/` repo for an audit trail.
+wireguard_clients: []
+
+# Map of client name → {privkey, pubkey, psk}. Sourced from the vault.
+# Defaults to an empty dict so dry-runs and the test environment work
+# without any vaulted content. In practice you re-export the vault var:
+#     wireguard_client_keys: "{{ vault_wireguard_client_keys }}"
+# (done automatically in configs/example/inventory/group_vars/all/main.yml).
+wireguard_client_keys: {}
+
+# Default split-tunnel: clients only route the VPN subnet through us.
+# Override per-client with `allowed_ips: 0.0.0.0/0` for full tunnel.
+wireguard_client_default_allowed_ips: "{{ wireguard_subnet }}"
+# DNS pushed to clients via their generated .conf
+wireguard_client_dns: "{{ wireguard_hub_ip }}"
+
+# --- Hub: IP forwarding and NAT ---
+# IP forwarding is required on the hub for any peer-to-peer routing
+# (e.g. phone reaching hsp-app via the tunnel).
+wireguard_enable_ip_forward: true
+# NAT/masquerade for full-tunnel clients. Even with split tunnel today,
+# keeping it on costs nothing and lets full-tunnel clients work later.
+wireguard_enable_nat: true
+# Outbound interface for NAT. Auto-detected from default route if empty.
+wireguard_wan_interface: ""
+
+# --- Firewall ---
+wireguard_open_firewall: true
+wireguard_firewall_from:
+  - any
+
+# --- Client config output (controller-side) ---
+# Where to write rendered <peer>.conf + QR PNG for distribution.
+# Gitignored. Files are mode 0600.
+wireguard_client_output_dir: "{{ playbook_dir }}/../build/wireguard"
+wireguard_generate_qr: true

@@ -13,6 +13,7 @@
     - journal
     - fail2ban
     - firewall
+    - wireguard
 
 - name: VPN hub and resolver provisioning
   hosts: vpn_servers
@@ -22,6 +23,7 @@
 - name: Application server provisioning
   hosts: app_servers
   roles:
+    - dns_client
     - docker_runtime
     - compose_deploy
 

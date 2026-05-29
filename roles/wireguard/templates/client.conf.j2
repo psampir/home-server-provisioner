@@ -1,0 +1,15 @@
+# {{ item.name }} - managed by Ansible (wireguard role)
+{% set keys = wireguard_client_keys[item.name] | default(item) %}
+[Interface]
+PrivateKey = {{ keys.privkey }}
+Address    = {{ item.vpn_ip }}/32
+DNS        = {{ wireguard_client_dns }}
+
+[Peer]
+PublicKey           = {{ hostvars[wireguard_hub_host].wireguard_pubkey }}
+{% if keys.psk is defined and keys.psk %}
+PresharedKey        = {{ keys.psk }}
+{% endif %}
+Endpoint            = {{ wireguard_hub_endpoint }}
+AllowedIPs          = {{ item.allowed_ips | default(wireguard_client_default_allowed_ips) }}
+PersistentKeepalive = {{ wireguard_persistent_keepalive }}

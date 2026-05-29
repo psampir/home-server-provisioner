@@ -1,0 +1,12 @@
+# --- Resolvers to write into /etc/resolv.conf ---
+# Default points at the WireGuard hub (which runs dnsmasq for *.home).
+# Falls back to Cloudflare in case dnsmasq is unreachable.
+dns_client_nameservers:
+  - "{{ wireguard_hub_ip | default('10.10.0.1') }}"
+  - 1.1.1.1
+
+# Search domain appended to short hostnames (matches dnsmasq_domain).
+dns_client_search: home
+
+# Disable systemd-resolved (frees up /etc/resolv.conf so we own it).
+dns_client_disable_resolved: true

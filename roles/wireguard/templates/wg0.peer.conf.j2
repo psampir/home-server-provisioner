@@ -1,0 +1,11 @@
+# Managed by Ansible (wireguard role) - do not edit by hand.
+[Interface]
+Address    = {{ vpn_ip }}/{{ wireguard_subnet_prefix }}
+PrivateKey = {{ wireguard_privkey }}
+
+# Hub
+[Peer]
+PublicKey           = {{ hostvars[wireguard_hub_host].wireguard_pubkey }}
+Endpoint            = {{ wireguard_hub_endpoint }}
+AllowedIPs          = {{ wireguard_subnet }}
+PersistentKeepalive = {{ wireguard_persistent_keepalive }}

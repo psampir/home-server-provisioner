@@ -1,0 +1,141 @@
+- name: Validate inventory wiring (unique vpn_ip, hub count, client fields)
+  ansible.builtin.include_tasks: assert.yml
+
+- name: Install WireGuard
+  ansible.builtin.apt:
+    name:
+      - wireguard
+      - wireguard-tools
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Ensure /etc/wireguard exists with safe permissions
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Check whether private key already exists
+  ansible.builtin.stat:
+    path: "/etc/wireguard/{{ wireguard_interface }}.privkey"
+  register: wireguard_privkey_stat
+
+- name: Generate private key (in-place, never leaves the host)
+  ansible.builtin.shell: |
+    set -o pipefail
+    umask 077
+    wg genkey > /etc/wireguard/{{ wireguard_interface }}.privkey
+  args:
+    executable: /bin/bash
+    creates: "/etc/wireguard/{{ wireguard_interface }}.privkey"
+  when: not wireguard_privkey_stat.stat.exists
+
+- name: Read private key
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ wireguard_interface }}.privkey"
+  register: wireguard_privkey_raw
+  no_log: true
+
+- name: Derive public key from private key
+  ansible.builtin.shell: "wg pubkey < /etc/wireguard/{{ wireguard_interface }}.privkey"
+  register: wireguard_pubkey_cmd
+  changed_when: false
+  check_mode: false
+
+- name: Cache pubkey and privkey as facts (privkey only for templating locally)
+  ansible.builtin.set_fact:
+    wireguard_pubkey: "{{ wireguard_pubkey_cmd.stdout }}"
+    wireguard_privkey: "{{ wireguard_privkey_raw.content | b64decode | trim }}"
+  no_log: true
+
+- name: Enable IP forwarding (hub only)
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    sysctl_set: true
+    reload: true
+    sysctl_file: /etc/sysctl.d/99-wireguard.conf
+  when:
+    - wireguard_role == "hub"
+    - wireguard_enable_ip_forward
+
+- name: Detect WAN interface for NAT (default route)
+  ansible.builtin.shell: |
+    set -o pipefail
+    ip -o -4 route show default | awk '{print $5; exit}'
+  args:
+    executable: /bin/bash
+  register: wireguard_wan_iface_cmd
+  changed_when: false
+  check_mode: false
+  when:
+    - wireguard_role == "hub"
+    - wireguard_enable_nat
+    - wireguard_wan_interface == ""
+
+- name: Resolve effective WAN interface
+  ansible.builtin.set_fact:
+    wireguard_wan_interface_effective: >-
+      {{ wireguard_wan_interface
+         if wireguard_wan_interface != ''
+         else wireguard_wan_iface_cmd.stdout | default('') }}
+  when: wireguard_role == "hub"
+
+- name: Render wg0.conf for the hub
+  ansible.builtin.template:
+    src: wg0.hub.conf.j2
+    dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  when: wireguard_role == "hub"
+  notify: Restart wireguard
+
+- name: Render wg0.conf for managed peers
+  ansible.builtin.template:
+    src: wg0.peer.conf.j2
+    dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  when: wireguard_role == "peer"
+  notify: Restart wireguard
+
+- name: Enable and start wg-quick service
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ wireguard_interface }}"
+    enabled: true
+    state: started
+
+- name: Open WireGuard UDP port in firewall (hub only)
+  community.general.ufw:
+    rule: allow
+    port: "{{ wireguard_listen_port }}"
+    proto: udp
+    from_ip: "{{ item }}"
+    comment: "WireGuard"
+  loop: "{{ wireguard_firewall_from }}"
+  when:
+    - wireguard_role == "hub"
+    - wireguard_open_firewall
+
+- name: Allow forwarding between WireGuard peers (hub only)
+  community.general.ufw:
+    route: true
+    rule: allow
+    interface_in: "{{ wireguard_interface }}"
+    interface_out: "{{ wireguard_interface }}"
+    comment: "WireGuard peer-to-peer transit"
+  when:
+    - wireguard_role == "hub"
+    - wireguard_open_firewall
+
+- name: Generate client configs and QR codes (controller-side)
+  ansible.builtin.include_tasks: client_configs.yml
+  when:
+    - wireguard_role == "hub"
+    - wireguard_clients | length > 0

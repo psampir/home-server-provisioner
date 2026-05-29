@@ -1,0 +1,59 @@
+- name: Ensure client output directory exists on controller
+  ansible.builtin.file:
+    path: "{{ wireguard_client_output_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Render client .conf files on controller
+  ansible.builtin.template:
+    src: client.conf.j2
+    dest: "{{ wireguard_client_output_dir }}/{{ item.name }}.conf"
+    mode: "0600"
+  loop: "{{ wireguard_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  no_log: true
+
+- name: Check if qrencode is available on controller
+  ansible.builtin.command: which qrencode
+  register: wireguard_qrencode_check
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+  failed_when: false
+  when: wireguard_generate_qr
+
+- name: Render client QR codes on controller (requires qrencode)
+  ansible.builtin.shell: >
+    qrencode -t PNG -o "{{ wireguard_client_output_dir }}/{{ item.name }}.png"
+    < "{{ wireguard_client_output_dir }}/{{ item.name }}.conf"
+  args:
+    executable: /bin/bash
+  loop: "{{ wireguard_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+  when:
+    - wireguard_generate_qr
+    - wireguard_qrencode_check.rc | default(1) == 0
+
+- name: Warn if qrencode is missing
+  ansible.builtin.debug:
+    msg: >-
+      qrencode not found on controller - skipping QR generation.
+      Install with: sudo dnf install qrencode  (Fedora)
+      or: sudo apt install qrencode  (Debian/Ubuntu)
+  run_once: true
+  when:
+    - wireguard_generate_qr
+    - wireguard_qrencode_check.rc | default(1) != 0

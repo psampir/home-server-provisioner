@@ -1,0 +1,8 @@
+# Managed by Ansible (dns_client role) - do not edit by hand.
+{% for ns in dns_client_nameservers %}
+nameserver {{ ns }}
+{% endfor %}
+{% if dns_client_search %}
+search {{ dns_client_search }}
+options edns0 trust-ad
+{% endif %}
