@@ -38,18 +38,7 @@ all:
             #   vpn_ip: 10.10.0.1          # convention: hub gets .1
             #   wireguard_role: hub        # exactly ONE host must set this
 
-# --- Per-host vars (recommended) ----------------------------------------------
-# For richer per-host configuration, prefer split files over inline blocks:
-#
-#   config/inventory/host_vars/my-vps.yml        (symlinked from host_vars/)
-#     ---
-#     vpn_ip: 10.10.0.1
-#     wireguard_role: hub
-#     # wireguard_hub_endpoint: "vpn.example.com:51820"   # override if needed
-#
-#   config/inventory/host_vars/my-main-server.yml
-#     ---
-#     vpn_ip: 10.10.0.2
-#
-# `make init-config` creates the config/ tree that hosts.yml and host_vars/
-# symlink into. Everything under config/ is gitignored.
+# --- Per-host vars ------------------------------------------------------------
+# For simple per-host overrides (vpn_ip, wireguard_role, etc.) just inline
+# them under the host, as shown above. Use inventory/host_vars/<name>.yml
+# only when a single host has a large block of config worth its own file.

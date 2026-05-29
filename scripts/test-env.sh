@@ -30,7 +30,6 @@ EXAMPLE_DIR="$PROJECT_DIR/configs/example"
 INVENTORY_DIR="$ENV_DIR/inventory"
 INVENTORY_FILE="$INVENTORY_DIR/hosts.yml"
 GROUP_VARS_DIR="$INVENTORY_DIR/group_vars/all"
-HOST_VARS_DIR="$INVENTORY_DIR/host_vars"
 VAULT_PASS_FILE="$ENV_DIR/.vault_pass"
 
 # Static, throwaway vault password for the test env. It only protects
@@ -206,7 +205,7 @@ wait_for_ssh() {
 seed_env_dir() {
     echo "Seeding configs/test/ ..."
 
-    mkdir -p "$GROUP_VARS_DIR" "$HOST_VARS_DIR"
+    mkdir -p "$GROUP_VARS_DIR"
 
     # Static vault password - gitignored, so safe to write a literal.
     printf "%s" "$TEST_VAULT_PASSWORD" > "$VAULT_PASS_FILE"
@@ -247,15 +246,6 @@ wireguard_clients:
 wireguard_client_keys: "{{ vault_wireguard_client_keys | default({}) }}"
 EOF
 
-    # Per-host vars (hub vs peer).
-    cat > "$HOST_VARS_DIR/hsp-vpn.yml" <<'EOF'
-vpn_ip: 10.10.0.1
-wireguard_role: hub
-EOF
-    cat > "$HOST_VARS_DIR/hsp-app.yml" <<'EOF'
-vpn_ip: 10.10.0.2
-EOF
-
     # Stacks + dotfiles come straight from configs/example/ so a test
     # provision exercises the exact same code paths as a prod provision.
     rm -rf "$ENV_DIR/stacks" "$ENV_DIR/dotfiles"
@@ -269,11 +259,13 @@ generate_inventory() {
     echo "Generating test inventory..."
 
     local vm_lines=""
-    while IFS=: read -r -u 3 vm_name vm_groups; do
+    while IFS=: read -r -u 3 vm_name vm_groups vm_extra; do
         local ip
         ip=$(get_vm_ip "$vm_name")
         wait_for_ssh "$ip"
-        vm_lines="${vm_lines}${vm_name}:${vm_groups}:${ip}"$'\n'
+        # Use $'\t' as the field separator inside vm_lines so the `extra`
+        # field can contain ':' freely.
+        vm_lines="${vm_lines}${vm_name}	${vm_groups}	${ip}	${vm_extra:-}"$'\n'
     done 3< <(read_vms)
 
     cat > "$INVENTORY_FILE" <<EOF
@@ -286,10 +278,23 @@ EOF
 
     for group in $ALL_GROUPS; do
         local hosts=""
-        while IFS=: read -r vm_name vm_groups vm_ip; do
+        while IFS=$'\t' read -r vm_name vm_groups vm_ip vm_extra; do
+            [[ -z "$vm_name" ]] && continue
             # vm_groups is comma-separated; match if `group` is in the list.
             if [[ ",${vm_groups}," == *",${group},"* ]]; then
                 hosts="${hosts}            ${vm_name}:\n              ansible_host: ${vm_ip}\n              bootstrap_user: ${BOOTSTRAP_USER}\n"
+                # vm_extra: comma-separated KEY=VAL,KEY=VAL - emit each as
+                # an inline host var so we never need a host_vars/ file.
+                if [[ -n "$vm_extra" ]]; then
+                    local IFS_save="$IFS"
+                    IFS=','
+                    for kv in $vm_extra; do
+                        local k="${kv%%=*}"
+                        local v="${kv#*=}"
+                        hosts="${hosts}              ${k}: ${v}\n"
+                    done
+                    IFS="$IFS_save"
+                fi
             fi
         done <<< "$vm_lines"
 
@@ -316,7 +321,7 @@ cmd_create() {
 
     seed_env_dir
 
-    while IFS=: read -r -u 3 vm_name vm_groups; do
+    while IFS=: read -r -u 3 vm_name vm_groups _vm_extra; do
         if vm_exists "$vm_name"; then
             echo "VM '$vm_name' already exists, skipping launch."
         else
@@ -337,7 +342,7 @@ cmd_create() {
 }
 
 cmd_destroy() {
-    while IFS=: read -r -u 3 vm_name vm_groups; do
+    while IFS=: read -r -u 3 vm_name vm_groups _vm_extra; do
         if vm_exists "$vm_name"; then
             echo "Destroying VM '$vm_name'..."
             incus delete --force "$vm_name"
@@ -359,7 +364,7 @@ cmd_status() {
     printf "  %-30s %-25s %-15s %s\n" "NAME" "GROUPS" "STATE" "IP"
     printf "  %-30s %-25s %-15s %s\n" "----" "------" "-----" "--"
 
-    while IFS=: read -r -u 3 vm_name vm_groups; do
+    while IFS=: read -r -u 3 vm_name vm_groups _vm_extra; do
         local state="not created"
         local ip="-"
 
