@@ -146,12 +146,14 @@ get_vm_ip() {
     local attempts=0
 
     while [[ -z "$ip" ]] && [[ $attempts -lt $IP_WAIT_ATTEMPTS ]]; do
-        # Pick the first global-scope IPv4 from any interface that isn't loopback
+        # Pick the first global-scope IPv4 from a real interface - skip
+        # loopback and any virtual bridges created by Docker, WireGuard, etc.
+        # that may exist after the host has been provisioned.
         ip=$(incus list "$vm_name" --format json 2>/dev/null \
             | jq -r '
                 .[0].state.network
                 | to_entries[]
-                | select(.key != "lo")
+                | select(.key | test("^(lo|docker|br-|veth|cni-|wg|tun|tap|virbr)") | not)
                 | .value.addresses[]
                 | select(.family == "inet" and .scope == "global")
                 | .address
@@ -191,11 +193,11 @@ generate_inventory() {
     echo "Generating test inventory..."
 
     local vm_lines=""
-    while IFS=: read -r vm_name vm_group; do
+    while IFS=: read -r vm_name vm_groups; do
         local ip
         ip=$(get_vm_ip "$vm_name")
         wait_for_ssh "$ip"
-        vm_lines="${vm_lines}${vm_name}:${vm_group}:${ip}"$'\n'
+        vm_lines="${vm_lines}${vm_name}:${vm_groups}:${ip}"$'\n'
     done < <(read_vms)
 
     cat > "$INVENTORY_FILE" <<EOF
@@ -208,8 +210,9 @@ EOF
 
     for group in $ALL_GROUPS; do
         local hosts=""
-        while IFS=: read -r vm_name vm_group vm_ip; do
-            if [[ "$vm_group" == "$group" ]]; then
+        while IFS=: read -r vm_name vm_groups vm_ip; do
+            # vm_groups is comma-separated; match if `group` is in the list.
+            if [[ ",${vm_groups}," == *",${group},"* ]]; then
                 hosts="${hosts}            ${vm_name}:\n              ansible_host: ${vm_ip}\n              bootstrap_user: ${BOOTSTRAP_USER}\n"
             fi
         done <<< "$vm_lines"
@@ -235,11 +238,11 @@ cmd_create() {
     echo "Using image:          $INCUS_IMAGE"
     echo "Bootstrap user:       $BOOTSTRAP_USER"
 
-    while IFS=: read -r vm_name vm_group; do
+    while IFS=: read -r vm_name vm_groups; do
         if vm_exists "$vm_name"; then
             echo "VM '$vm_name' already exists, skipping launch."
         else
-            echo "Creating VM '$vm_name' (group: $vm_group)..."
+            echo "Creating VM '$vm_name' (groups: $vm_groups)..."
             incus launch "$INCUS_IMAGE" "$vm_name" \
                 --vm \
                 --config "limits.cpu=$VM_CPUS" \
@@ -255,7 +258,7 @@ cmd_create() {
 }
 
 cmd_destroy() {
-    while IFS=: read -r vm_name vm_group; do
+    while IFS=: read -r vm_name vm_groups; do
         if vm_exists "$vm_name"; then
             echo "Destroying VM '$vm_name'..."
             incus delete --force "$vm_name"
@@ -272,10 +275,10 @@ cmd_destroy() {
 cmd_status() {
     echo "Defined VMs (from $VM_CONF):"
     echo ""
-    printf "  %-20s %-20s %-15s %s\n" "NAME" "GROUP" "STATE" "IP"
-    printf "  %-20s %-20s %-15s %s\n" "----" "-----" "-----" "--"
+    printf "  %-30s %-25s %-15s %s\n" "NAME" "GROUPS" "STATE" "IP"
+    printf "  %-30s %-25s %-15s %s\n" "----" "------" "-----" "--"
 
-    while IFS=: read -r vm_name vm_group; do
+    while IFS=: read -r vm_name vm_groups; do
         local state="not created"
         local ip="-"
 
@@ -286,7 +289,7 @@ cmd_status() {
                 | jq -r '
                     .[0].state.network // {}
                     | to_entries[]?
-                    | select(.key != "lo")
+                    | select(.key | test("^(lo|docker|br-|veth|cni-|wg|tun|tap|virbr)") | not)
                     | .value.addresses[]?
                     | select(.family == "inet" and .scope == "global")
                     | .address
@@ -295,7 +298,7 @@ cmd_status() {
             ip="${ip:--}"
         fi
 
-        printf "  %-20s %-20s %-15s %s\n" "$vm_name" "$vm_group" "$state" "$ip"
+        printf "  %-30s %-25s %-15s %s\n" "$vm_name" "$vm_groups" "$state" "$ip"
     done < <(read_vms)
 }
 
