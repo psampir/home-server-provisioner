@@ -17,6 +17,7 @@ dnsmasq_upstream_servers:
 # In production, add e.g. `wg0` and the LAN interface.
 dnsmasq_interfaces:
   - lo
+  - wg0
 
 # --- Records ---
 # Auto-generate host-record entries from the Ansible inventory.

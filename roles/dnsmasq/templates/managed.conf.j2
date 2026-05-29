@@ -19,6 +19,9 @@ bind-interfaces
 
 # --- Cache ---
 cache-size={{ dnsmasq_cache_size }}
+# Don't read /etc/hosts - Debian's default `127.0.1.1 <hostname>` line
+# pollutes the local domain with a wrong A record.
+no-hosts
 {% if dnsmasq_log_queries %}
 log-queries
 {% endif %}
