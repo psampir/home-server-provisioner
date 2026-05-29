@@ -6,36 +6,35 @@
 - name: Set admin_dotfiles initial facts
   ansible.builtin.set_fact:
     admin_dotfiles_home: "{{ ansible_facts.getent_passwd[admin_user_name][4] }}"
-    admin_dotfiles_src_present: "{{ admin_dotfiles_src | length > 0 and (admin_dotfiles_src is exists) }}"
+    admin_dotfiles_enabled: "{{ admin_dotfiles_root | length > 0 }}"
 
-- name: Notice - admin_dotfiles source directory missing, skipping
+- name: Notice - admin_dotfiles disabled (admin_dotfiles_root is empty)
   ansible.builtin.debug:
-    msg: >-
-      admin_dotfiles_src ({{ admin_dotfiles_src }}) does not exist on the
-      control machine. Skipping dotfiles sync. Create the directory (e.g.
-      via scripts/init-config.sh) and put files under it to enable.
-  when: not admin_dotfiles_src_present
+    msg: "admin_dotfiles_root is empty, skipping dotfiles sync."
+  when: not admin_dotfiles_enabled
 
 - name: Sync dotfiles
-  when: admin_dotfiles_src_present
+  when: admin_dotfiles_enabled
   block:
-    - name: Resolve admin_dotfiles_src to a canonical absolute path
+    - name: Resolve admin_dotfiles_root to a canonical absolute path
       delegate_to: localhost
       become: false
       ansible.builtin.command:
-        cmd: "realpath -- {{ admin_dotfiles_src }}"
-      register: admin_dotfiles_src_realpath
+        cmd: "realpath -m -- {{ admin_dotfiles_root }}"
+      register: admin_dotfiles_root_realpath
       changed_when: false
 
-    - name: Set resolved source path fact
+    - name: Set resolved overlay source paths - _common then host (order matters)
       ansible.builtin.set_fact:
-        admin_dotfiles_src_real: "{{ admin_dotfiles_src_realpath.stdout }}"
+        admin_dotfiles_overlays:
+          - "{{ admin_dotfiles_root_realpath.stdout }}/{{ admin_dotfiles_common_subdir }}"
+          - "{{ admin_dotfiles_root_realpath.stdout }}/{{ admin_dotfiles_host_subdir }}"
 
-    - name: Find dotfiles on the control machine
+    - name: Discover files in each overlay
       delegate_to: localhost
       become: false
       ansible.builtin.find:
-        paths: "{{ admin_dotfiles_src_real }}"
+        paths: "{{ item }}"
         recurse: true
         file_type: file
         hidden: true
@@ -44,37 +43,28 @@
           - .gitignore
           - .gitmodules
           - .gitkeep
-      register: admin_dotfiles_find
+      register: admin_dotfiles_finds
+      failed_when: false
+      loop: "{{ admin_dotfiles_overlays }}"
+      loop_control:
+        label: "{{ item }}"
 
-    - name: Compute managed paths (relative to source root)
+    - name: Sync each overlay onto the target (host iteration overrides _common per file)
+      ansible.builtin.include_tasks: sync_overlay.yml
+      loop: "{{ admin_dotfiles_finds.results }}"
+      loop_control:
+        loop_var: overlay_find
+        label: "{{ overlay_find.item }}"
+
+    - name: Compute merged set of managed relative paths
+      vars:
+        _common_files: "{{ admin_dotfiles_finds.results[0].files | default([]) | map(attribute='path') | list }}"
+        _host_files: "{{ admin_dotfiles_finds.results[1].files | default([]) | map(attribute='path') | list }}"
       ansible.builtin.set_fact:
         admin_dotfiles_managed: >-
-          {{ admin_dotfiles_find.files
-             | map(attribute='path')
-             | map('relpath', admin_dotfiles_src_real)
-             | list }}
-
-    - name: Ensure parent directories exist for managed dotfiles
-      ansible.builtin.file:
-        path: "{{ admin_dotfiles_home }}/{{ item }}"
-        state: directory
-        owner: "{{ admin_user_name }}"
-        group: "{{ admin_user_name }}"
-        mode: "0755"
-      loop: "{{ admin_dotfiles_managed | map('dirname') | unique | reject('equalto', '') | reject('equalto', '.') | list }}"
-      loop_control:
-        label: "{{ item }}"
-
-    - name: Copy managed dotfiles into admin user's home
-      ansible.builtin.copy:
-        src: "{{ admin_dotfiles_src_real }}/{{ item }}"
-        dest: "{{ admin_dotfiles_home }}/{{ item }}"
-        owner: "{{ admin_user_name }}"
-        group: "{{ admin_user_name }}"
-        mode: preserve
-      loop: "{{ admin_dotfiles_managed }}"
-      loop_control:
-        label: "{{ item }}"
+          {{ ((_common_files | map('relpath', admin_dotfiles_overlays[0]) | list)
+               + (_host_files | map('relpath', admin_dotfiles_overlays[1]) | list))
+              | unique | sort }}
 
     - name: Read previous manifest (if any)
       ansible.builtin.slurp:
@@ -92,7 +82,7 @@
               | list)
              | difference(admin_dotfiles_managed) }}
 
-    - name: Remove dotfiles no longer in the source repo
+    - name: Remove dotfiles no longer in any overlay
       ansible.builtin.file:
         path: "{{ admin_dotfiles_home }}/{{ item }}"
         state: absent
@@ -110,7 +100,7 @@
 
     - name: Write current manifest
       ansible.builtin.copy:
-        content: "{{ (admin_dotfiles_managed | sort | join('\n')) ~ '\n' }}"
+        content: "{{ (admin_dotfiles_managed | join('\n')) ~ '\n' }}"
         dest: "{{ admin_dotfiles_home }}/{{ admin_dotfiles_manifest }}"
         owner: "{{ admin_user_name }}"
         group: "{{ admin_user_name }}"

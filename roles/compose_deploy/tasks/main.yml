@@ -13,9 +13,68 @@
     group: "{{ compose_deploy_group }}"
     mode: "0750"
 
+# --- Auto-discovery -----------------------------------------------------------
+# Build the effective stack list from the on-controller src_root layout
+# whenever the user hasn't supplied an explicit compose_deploy_stacks.
+# Host-specific directory wins per stack name.
+
+- name: Resolve src_root to a canonical absolute path
+  when: compose_deploy_stacks | length == 0
+  delegate_to: localhost
+  become: false
+  ansible.builtin.command:
+    cmd: "realpath -m -- {{ compose_deploy_src_root }}"
+  register: compose_deploy_src_root_realpath
+  changed_when: false
+
+- name: Discover stacks in _common and per-host directories
+  when: compose_deploy_stacks | length == 0
+  delegate_to: localhost
+  become: false
+  ansible.builtin.find:
+    paths:
+      - "{{ compose_deploy_src_root_realpath.stdout }}/{{ compose_deploy_common_subdir }}"
+      - "{{ compose_deploy_src_root_realpath.stdout }}/{{ compose_deploy_host_subdir }}"
+    file_type: directory
+    recurse: false
+  register: compose_deploy_discovered
+  failed_when: false
+
+- name: Build effective stack list (host overrides _common per name)
+  when: compose_deploy_stacks | length == 0
+  vars:
+    _common_root: "{{ compose_deploy_src_root_realpath.stdout }}/{{ compose_deploy_common_subdir }}"
+    _host_root: "{{ compose_deploy_src_root_realpath.stdout }}/{{ compose_deploy_host_subdir }}"
+    _all_dirs: "{{ compose_deploy_discovered.files | default([]) | map(attribute='path') | list }}"
+    _common_dirs: "{{ _all_dirs | select('match', '^' ~ _common_root ~ '/') | list }}"
+    _host_dirs: "{{ _all_dirs | select('match', '^' ~ _host_root ~ '/') | list }}"
+    _common_map: "{{ dict(_common_dirs | map('basename') | zip(_common_dirs)) }}"
+    _host_map: "{{ dict(_host_dirs | map('basename') | zip(_host_dirs)) }}"
+    _merged: "{{ _common_map | combine(_host_map) }}"
+  ansible.builtin.set_fact:
+    compose_deploy_effective_stacks: >-
+      {{ _merged | dict2items(key_name='name', value_name='src_dir')
+                 | sort(attribute='name') }}
+
+- name: Use explicit stack list (escape hatch)
+  when: compose_deploy_stacks | length > 0
+  ansible.builtin.set_fact:
+    compose_deploy_effective_stacks: "{{ compose_deploy_stacks }}"
+
+- name: "Notice - no stacks discovered for this host"
+  when:
+    - compose_deploy_stacks | length == 0
+    - compose_deploy_effective_stacks | length == 0
+  ansible.builtin.debug:
+    msg: >-
+      No compose stacks found under {{ compose_deploy_src_root }}/_common/
+      or {{ compose_deploy_src_root }}/{{ inventory_hostname }}/. Drop a
+      <stack>/compose.yaml under either directory (or set
+      compose_deploy_stacks explicitly) to deploy something.
+
 - name: Deploy compose stacks
   ansible.builtin.include_tasks: deploy_stack.yml
-  loop: "{{ compose_deploy_stacks }}"
+  loop: "{{ compose_deploy_effective_stacks }}"
   loop_control:
     loop_var: stack
     label: "{{ stack.name }} ({{ stack.state | default('present') }})"

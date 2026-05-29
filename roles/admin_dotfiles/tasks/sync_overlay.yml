@@ -1,0 +1,37 @@
+# Copy a single overlay (either _common or per-host) into the admin's home.
+# Called from main.yml in order: _common first, host second. Later
+# iterations naturally overwrite earlier ones for the same relative path.
+
+- name: "Skip overlay (missing or empty) - {{ overlay_find.item }}"
+  ansible.builtin.debug:
+    msg: "Overlay {{ overlay_find.item }} not present or empty, skipping."
+  when: (overlay_find.files | default([]) | length) == 0
+
+- name: "Sync overlay - {{ overlay_find.item }}"
+  when: (overlay_find.files | default([]) | length) > 0
+  vars:
+    _overlay_root: "{{ overlay_find.item }}"
+    _files: "{{ overlay_find.files | map(attribute='path') | list }}"
+    _relpaths: "{{ _files | map('relpath', _overlay_root) | list }}"
+  block:
+    - name: "Ensure parent directories exist - {{ _overlay_root | basename }}"
+      ansible.builtin.file:
+        path: "{{ admin_dotfiles_home }}/{{ item }}"
+        state: directory
+        owner: "{{ admin_user_name }}"
+        group: "{{ admin_user_name }}"
+        mode: "0755"
+      loop: "{{ _relpaths | map('dirname') | unique | reject('equalto', '') | reject('equalto', '.') | list }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: "Copy dotfiles from overlay - {{ _overlay_root | basename }}"
+      ansible.builtin.copy:
+        src: "{{ _overlay_root }}/{{ item }}"
+        dest: "{{ admin_dotfiles_home }}/{{ item }}"
+        owner: "{{ admin_user_name }}"
+        group: "{{ admin_user_name }}"
+        mode: preserve
+      loop: "{{ _relpaths }}"
+      loop_control:
+        label: "{{ item }}"

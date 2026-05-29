@@ -1,15 +1,20 @@
-# Source directory on the control machine. Files under it are mirrored
-# verbatim into the admin user's home directory, preserving their
-# relative paths. Set to "" to disable the role entirely.
+# Dotfiles layout on the Ansible controller (overlay, file-level):
 #
-# Default: <inventory_dir>/../dotfiles/home - i.e. the user-managed
-# private config repo created by scripts/init-config.sh. The role becomes
-# a no-op (with a notice) if this directory does not exist or is empty.
-admin_dotfiles_src: "{{ inventory_dir }}/../dotfiles/home"
+#   <admin_dotfiles_root>/_common/home/                  baseline, all hosts
+#   <admin_dotfiles_root>/<inventory_hostname>/home/     host-specific overlay
+#
+# Both trees mirror the admin user's $HOME exactly. The host overlay
+# wins per file path (so you can ship one common config.fish and add a
+# host-only conf.d/foo.fish without re-stating the rest).
+#
+# Set admin_dotfiles_root to "" to disable the role entirely.
+admin_dotfiles_root: "{{ inventory_dir }}/../dotfiles"
+admin_dotfiles_common_subdir: _common/home
+admin_dotfiles_host_subdir: "{{ inventory_hostname }}/home"
 
 # Path of the per-host manifest tracking which files this role currently
 # owns. Files listed in the previous manifest but missing from the
-# current source are removed on the next run, giving strict
+# current merged source are removed on the next run, giving strict
 # single-source-of-truth semantics for managed paths only - runtime
 # state in unmanaged paths is never touched.
 admin_dotfiles_manifest: ".config/admin_dotfiles.manifest"

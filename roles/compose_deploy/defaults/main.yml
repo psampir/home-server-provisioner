@@ -7,11 +7,28 @@ compose_deploy_owner: "{{ admin_user_name | default('root') }}"
 compose_deploy_group: "{{ admin_user_name | default('root') }}"
 
 # Where on the Ansible controller compose source trees live.
-# Each stack expects a subdirectory <compose_deploy_src_root>/<stack.name>/
-# containing at minimum a compose.yaml file.
+#
+# Auto-discovery layout (default - recommended for homelab):
+#   <src_root>/_common/<stack>/compose.yaml      deployed to every host
+#   <src_root>/<inventory_hostname>/<stack>/compose.yaml   this host only
+#
+# A stack present in both wins from the host-specific directory (full
+# directory override - no file-level merging).
+#
+# Each <stack>/ subtree is copied verbatim to the host, so put any
+# .env / Caddyfile / config/ files right next to compose.yaml.
 compose_deploy_src_root: "{{ inventory_dir }}/../stacks"
+compose_deploy_common_subdir: _common
+compose_deploy_host_subdir: "{{ inventory_hostname }}"
 
-# Stacks to deploy. Empty by default - define per inventory.
+# Stacks to deploy.
+#
+# Leave empty ([]) to use auto-discovery from compose_deploy_src_root
+# (recommended).
+#
+# Override with an explicit list as an escape hatch - useful when you
+# need to render a templated .env per host, deploy the same source tree
+# under a different name, mark a stack absent, etc.
 #
 # Each item:
 #   name:    Stack name (also the on-host directory and compose project name).
@@ -21,6 +38,8 @@ compose_deploy_src_root: "{{ inventory_dir }}/../stacks"
 #   src_dir: Optional override for the source tree on the controller.
 #            Default: {{ compose_deploy_src_root }}/{{ name }}
 #   env:     Dict rendered into a .env file inside the stack directory.
+#            Auto-discovered stacks ship their own .env as a static file
+#            inside the stack dir; the templated env is escape-hatch only.
 #
 # Example:
 #   compose_deploy_stacks:

@@ -150,23 +150,47 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 
 # --- compose_deploy role (app_servers only) ----------------------------------
 # Deploys user-supplied Docker Compose stacks under /opt/stacks/<name>/.
-# Source trees live on the controller under config/stacks/<name>/ (gitignored
-# alongside other private user content). Each stack directory is fully synced
-# to the host on every run.
+# Source trees live on the controller under configs/<env>/stacks/.
 #
+# Layout (auto-discovered):
+#   configs/<env>/stacks/_common/<name>/       deployed to every app_server
+#   configs/<env>/stacks/<hostname>/<name>/    only on that host
+# Per-stack directory should contain at least compose.yaml; drop a literal
+# .env / Caddyfile / config/ next to it and it's synced verbatim.
+# Host directory wins over _common on stack-name collision (full override).
+#
+# Defaults (override only to change behavior):
 # compose_deploy_base_dir: /opt/stacks
 # compose_deploy_owner: "{{ admin_user_name }}"
 # compose_deploy_group: "{{ admin_user_name }}"
-# compose_deploy_src_root: "{{ playbook_dir }}/../config/stacks"
-# compose_deploy_stacks: []
+# compose_deploy_src_root: "{{ inventory_dir }}/../stacks"
+# compose_deploy_common_subdir: _common
+# compose_deploy_host_subdir: "{{ inventory_hostname }}"
 #
-# Example (not default):
+# Escape hatch - set compose_deploy_stacks explicitly to a list (skips
+# auto-discovery entirely):
 # compose_deploy_stacks:
 #   - name: whoami
 #     # state: present      # or 'absent' to tear the stack down
 #     # pull: missing       # always | missing | never
 #     env:
 #       WHOAMI_PORT: "8080"
+
+# --- admin_dotfiles role -----------------------------------------------------
+# Mirrors files from configs/<env>/dotfiles/ into the admin user's $HOME.
+#
+# Layout (overlay, file-level):
+#   configs/<env>/dotfiles/_common/home/             baseline, all hosts
+#   configs/<env>/dotfiles/<hostname>/home/          host-specific overlay
+# Per file, host overlay wins. Files removed from BOTH overlays are
+# deleted from the target on the next run (tracked via per-host manifest).
+#
+# Defaults (override only to change behavior):
+# admin_dotfiles_root: "{{ inventory_dir }}/../dotfiles"
+# admin_dotfiles_common_subdir: _common/home
+# admin_dotfiles_host_subdir: "{{ inventory_hostname }}/home"
+#
+# Set admin_dotfiles_root to "" to disable the role entirely.
 
 # --- dnsmasq role (vpn_servers only) -----------------------------------------
 # Full LAN/VPN DNS resolver: forwards external queries upstream, answers

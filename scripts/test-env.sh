@@ -231,10 +231,8 @@ firewall_allow_rules:
   - { port: 8080, proto: tcp, comment: "whoami (test stack)" }
 
 # --- compose_deploy role ---
-compose_deploy_stacks:
-  - name: whoami
-    env:
-      WHOAMI_PORT: "8080"
+# Stacks are auto-discovered from configs/test/stacks/_common/ and
+# configs/test/stacks/<hostname>/ - no explicit list needed here.
 
 # --- wireguard role ---
 # Declare a single test client; keys are generated into vault.yml by
