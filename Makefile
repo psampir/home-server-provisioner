@@ -38,8 +38,8 @@ test-env-destroy: ## Destroy all test VMs and clean up
 test-env-status: ## Show test VM status
 	./scripts/test-env.sh status
 
-test-bootstrap: ## First run on test VMs
-	ansible-playbook playbooks/bootstrap.yml -i $(TEST_INVENTORY) -e 'ansible_user={{ bootstrap_user }}' -kK
+test-bootstrap: ## First run on test VMs (test-env shapes passwordless sudo + SSH key)
+	ansible-playbook playbooks/bootstrap.yml -i $(TEST_INVENTORY) -e 'ansible_user={{ bootstrap_user }}'
 
 test-provision: ## Run full site playbook against test VMs
 	ansible-playbook playbooks/site.yml -i $(TEST_INVENTORY)
