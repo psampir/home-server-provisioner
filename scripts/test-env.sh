@@ -49,7 +49,7 @@ INCUS_IMAGE="${INCUS_IMAGE:-images:debian/13}"
 BOOTSTRAP_USER="${BOOTSTRAP_USER:-testadmin}"
 
 # All groups the project supports (used to build complete inventory)
-ALL_GROUPS="app_servers backup_targets vpn_servers"
+ALL_GROUPS="app_servers backup_targets vpn_server"
 
 # IP wait tuning
 IP_WAIT_ATTEMPTS=30   # ~60s @ 2s sleep

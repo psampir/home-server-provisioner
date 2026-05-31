@@ -192,7 +192,7 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #
 # Set admin_dotfiles_root to "" to disable the role entirely.
 
-# --- dnsmasq role (vpn_servers only) -----------------------------------------
+# --- dnsmasq role (vpn_server only) -----------------------------------------
 # Full LAN/VPN DNS resolver: forwards external queries upstream, answers
 # local queries for hosts in the inventory (auto-derived) and any extras
 # you define. Deployed alongside the VPN hub - peers connecting through

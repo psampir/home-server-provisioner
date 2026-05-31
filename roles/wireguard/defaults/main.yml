@@ -18,9 +18,10 @@ wireguard_hub_ip: "10.10.0.1"
 # WAN address; in test we use the LAN IP of hsp-vpn.
 wireguard_hub_endpoint: "{{ hostvars[wireguard_hub_host].ansible_host }}:{{ wireguard_listen_port }}"
 
-# Hostname of the hub in inventory. Auto-derived if exactly one host has
-# `wireguard_role: hub`. Override if you have multiple vpn_servers.
-wireguard_hub_host: "{{ (groups['vpn_servers'] | default([]))[0] | default('') }}"
+# Hostname of the hub in inventory. Auto-derived from the single host
+# in the `vpn_server` group (the group holds exactly one hub - there is
+# no multi-hub support in this hub-and-spoke topology).
+wireguard_hub_host: "{{ (groups['vpn_server'] | default([]))[0] | default('') }}"
 
 # --- Interface ---
 wireguard_interface: wg0

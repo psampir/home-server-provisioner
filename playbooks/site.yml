@@ -16,7 +16,7 @@
     - wireguard
 
 - name: VPN hub and resolver provisioning
-  hosts: vpn_servers
+  hosts: vpn_server
   roles:
     - dnsmasq
 

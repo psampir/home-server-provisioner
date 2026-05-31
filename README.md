@@ -61,7 +61,7 @@ A host can belong to multiple groups:
 |---|---|
 | `app_servers` | Docker, Compose, Caddy, workloads |
 | `backup_targets` | Backup storage, borgmatic destinations |
-| `vpn_servers` | WireGuard listening endpoint |
+| `vpn_server` | WireGuard listening endpoint |
 
 ### 3. Bootstrap (first run only)
 

@@ -30,7 +30,7 @@ all:
             #   ansible_host: 10.0.0.3
             #   bootstrap_user: root
             #   vpn_ip: 10.10.0.4
-        vpn_servers:
+        vpn_server:
           hosts:
             # my-vps:
             #   ansible_host: 203.0.113.10
