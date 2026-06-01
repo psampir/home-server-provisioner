@@ -83,7 +83,7 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password
 # Test env is just ENV=test with a pre-built configs/test/ tree that is
 # regenerated from scratch by scripts/test-env.sh (gitignored).
 
-.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision
+.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision test-smoke
 
 test-env-create: ## Create test VMs and seed configs/test/
 	./scripts/test-env.sh create
@@ -99,6 +99,9 @@ test-bootstrap: ## bootstrap against ENV=test (no password prompt)
 
 test-provision: ## provision against ENV=test (no git auto-commit for vault)
 	$(MAKE) provision ENV=test WG_KEYS_FLAGS=--no-commit
+
+test-smoke: ## end-to-end smoke test from the controller via WG (needs sudo)
+	@./scripts/test-smoke.sh
 
 # --- Setup ---
 
