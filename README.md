@@ -129,9 +129,9 @@ on-demand step** - `make provision` never writes private-key material to
 your disk. When you actually need to onboard a phone or laptop:
 
 ```bash
-make wg-render            # writes build/wireguard/<name>.{conf,png} (mode 0600)
+make wg-render            # writes build/<env>/wireguard/<name>.{conf,png} (mode 0600)
 # scan the QR, or scp the .conf to the target device
-rm -rf build/wireguard/   # delete once you're done
+rm -rf build/              # delete once you're done
 ```
 
 The directory is gitignored, but the files contain plaintext private keys -
@@ -272,12 +272,12 @@ For Debian/Ubuntu/Arch hosts, follow [the official Incus install guide](https://
 make test-env-create    # Launch VMs, install sshd, create initial user
 make test-bootstrap     # Bootstrap the ansible service user
 make test-provision     # Run full provisioning
-make test-wg-render     # Render build/wireguard/test-controller.{conf,png}
+make test-wg-render     # Render build/test/wireguard/test-controller.{conf,png}
 make test-smoke         # End-to-end check via WG (sudo: brings the tunnel up, curls the proxied site, cleans up)
 make test-env-destroy   # Tear down VMs
 ```
 
-`make test-smoke` brings the rendered `build/wireguard/test-controller.conf`
+`make test-smoke` brings the rendered `build/test/wireguard/test-controller.conf`
 up on this machine, pings the hub + a managed peer, resolves
 `whoami.home` through dnsmasq, fetches `https://whoami.home/` through
 Caddy (TLS internal), and verifies the backend saw the request via the

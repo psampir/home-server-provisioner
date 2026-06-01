@@ -31,7 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 WG_IFACE="wg-test"
-WG_SRC="$PROJECT_DIR/build/wireguard/test-controller.conf"
+WG_SRC="$PROJECT_DIR/build/test/wireguard/test-controller.conf"
 WG_DST="/etc/wireguard/${WG_IFACE}.conf"
 
 HUB_IP="10.10.0.1"
@@ -73,7 +73,7 @@ trap cleanup EXIT INT TERM
 if [[ ! -r "$WG_SRC" ]]; then
     fail "WireGuard client config not found at $WG_SRC."
     echo "    Run 'make test-wg-render' first - it generates client .conf + QR"
-    echo "    under build/wireguard/ (decoupled from 'make test-provision')."
+    echo "    under build/test/wireguard/ (decoupled from 'make test-provision')."
     exit 1
 fi
 

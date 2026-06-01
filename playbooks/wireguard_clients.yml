@@ -1,6 +1,7 @@
 ---
 # Render WireGuard external-client artifacts (<name>.conf + <name>.png QR)
-# under build/wireguard/ on the controller. Run on demand via `make wg-render`.
+# under build/<env>/wireguard/ on the controller. Run on demand via
+# `make wg-render`.
 #
 # This is intentionally decoupled from `make provision`:
 #   - provision deploys [Peer] sections to the hub (idempotent infra change)
@@ -12,15 +13,15 @@
 # (one play, run_once) and never connects to managed peers.
 #
 # Usage:
-#   make wg-render                       # render all clients
-#   make wg-render ENV=prod              # for a non-default env
+#   make wg-render                       # render all clients for default env
+#   make wg-render ENV=prod              # for a specific env
 #
-# Output:
-#   build/wireguard/<client-name>.conf   (mode 0600)
-#   build/wireguard/<client-name>.png    (mode 0600, if qrencode installed)
+# Output (env partitioned via HSP_ENV - set by the Makefile from ENV):
+#   build/<env>/wireguard/<client-name>.conf   (mode 0600)
+#   build/<env>/wireguard/<client-name>.png    (mode 0600, if qrencode installed)
 #
-# Cleanup is your responsibility: `rm -rf build/wireguard/` once the QR has
-# been scanned / the .conf imported.
+# Cleanup is your responsibility: `rm -rf build/` once the QR has been
+# scanned / the .conf imported.
 
 - name: Render WireGuard client configs and QR codes on the controller
   hosts: vpn_server
@@ -46,8 +47,10 @@
         tasks_from: client_configs.yml
 
     - name: Report output location
+      vars:
+        _out_dir: "{{ playbook_dir }}/../build/{{ lookup('env', 'HSP_ENV') | default('default', true) }}/wireguard"
       ansible.builtin.debug:
         msg: >-
           Rendered {{ wireguard_clients | length }} client artifact(s) to
-          build/wireguard/ on the controller.
-          Delete the directory once you've imported them: rm -rf build/wireguard/
+          {{ _out_dir }} on the controller.
+          Delete the directory once you've imported them: rm -rf build/

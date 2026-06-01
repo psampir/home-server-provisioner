@@ -53,7 +53,7 @@ provision: wireguard-keys ## Run full site playbook (ENV=prod by default)
 wireguard-keys: ## Generate/prune WireGuard client keys (vaulted, auto-committed)
 	scripts/wg-ensure-keys.py --inventory $(INVENTORY) $(WG_KEYS_FLAGS)
 
-wg-render: ## Render build/wireguard/<client>.{conf,png} for distribution (sensitive!)
+wg-render: ## Render build/$(ENV)/wireguard/<client>.{conf,png} for distribution (sensitive!)
 	ansible-playbook playbooks/wireguard_clients.yml -i $(INVENTORY)
 
 # --- Vault (secrets) ---
