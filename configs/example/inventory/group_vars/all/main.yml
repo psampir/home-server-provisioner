@@ -276,8 +276,10 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # Then re-export the vaulted map so the role can find it:
 wireguard_client_keys: "{{ vault_wireguard_client_keys | default({}) }}"
 
-# Rendered client configs + QR codes appear under ./build/wireguard/
-# (gitignored). Hand the .png QR to the user, scan in the WireGuard app.
+# Rendered client configs + QR codes are NOT written during `make provision`.
+# Run `make wg-render` on demand to write build/wireguard/<name>.{conf,png}
+# (gitignored, mode 0600). Scan the QR / import the .conf, then delete the
+# directory - these files contain plaintext private keys.
 
 # --- dns_client role (non-hub servers) ---------------------------------------
 # Points /etc/resolv.conf at the WireGuard hub so that managed peers

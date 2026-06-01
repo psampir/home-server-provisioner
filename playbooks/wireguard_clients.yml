@@ -1,0 +1,53 @@
+---
+# Render WireGuard external-client artifacts (<name>.conf + <name>.png QR)
+# under build/wireguard/ on the controller. Run on demand via `make wg-render`.
+#
+# This is intentionally decoupled from `make provision`:
+#   - provision deploys [Peer] sections to the hub (idempotent infra change)
+#   - wg-render writes plaintext private keys + QR PNGs to the local disk
+#     (a one-shot onboarding artifact you should consume and delete)
+#
+# The playbook reuses the `wireguard` role's facts and templates by including
+# its `client_configs.yml` task file directly. It only touches the hub host
+# (one play, run_once) and never connects to managed peers.
+#
+# Usage:
+#   make wg-render                       # render all clients
+#   make wg-render ENV=prod              # for a non-default env
+#
+# Output:
+#   build/wireguard/<client-name>.conf   (mode 0600)
+#   build/wireguard/<client-name>.png    (mode 0600, if qrencode installed)
+#
+# Cleanup is your responsibility: `rm -rf build/wireguard/` once the QR has
+# been scanned / the .conf imported.
+
+- name: Render WireGuard client configs and QR codes on the controller
+  hosts: vpn_server
+  gather_facts: false
+  tasks:
+    - name: Short-circuit when no external clients are defined
+      ansible.builtin.meta: end_play
+      when: (wireguard_clients | default([])) | length == 0
+
+    - name: Derive hub public key (needed by client.conf.j2)
+      ansible.builtin.shell: "wg pubkey < /etc/wireguard/{{ wireguard_interface | default('wg0') }}.privkey"
+      register: wireguard_pubkey_cmd
+      changed_when: false
+      check_mode: false
+
+    - name: Cache hub pubkey as host fact
+      ansible.builtin.set_fact:
+        wireguard_pubkey: "{{ wireguard_pubkey_cmd.stdout }}"
+
+    - name: Render client .conf + QR artifacts
+      ansible.builtin.include_role:
+        name: wireguard
+        tasks_from: client_configs.yml
+
+    - name: Report output location
+      ansible.builtin.debug:
+        msg: >-
+          Rendered {{ wireguard_clients | length }} client artifact(s) to
+          build/wireguard/ on the controller.
+          Delete the directory once you've imported them: rm -rf build/wireguard/

@@ -47,6 +47,20 @@
     - wireguard_generate_qr
     - wireguard_qrencode_check.rc | default(1) == 0
 
+- name: Tighten QR PNG file permissions (qrencode writes 0644 by default)
+  ansible.builtin.file:
+    path: "{{ wireguard_client_output_dir }}/{{ item.name }}.png"
+    mode: "0600"
+  loop: "{{ wireguard_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when:
+    - wireguard_generate_qr
+    - wireguard_qrencode_check.rc | default(1) == 0
+
 - name: Warn if qrencode is missing
   ansible.builtin.debug:
     msg: >-

@@ -72,8 +72,8 @@ trap cleanup EXIT INT TERM
 # --- Pre-flight ---
 if [[ ! -r "$WG_SRC" ]]; then
     fail "WireGuard client config not found at $WG_SRC."
-    echo "    Run 'make test-provision' first - it renders the controller's .conf"
-    echo "    via the wireguard role (client_configs.yml)."
+    echo "    Run 'make test-wg-render' first - it generates client .conf + QR"
+    echo "    under build/wireguard/ (decoupled from 'make test-provision')."
     exit 1
 fi
 

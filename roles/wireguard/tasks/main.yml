@@ -134,8 +134,8 @@
     - wireguard_role == "hub"
     - wireguard_open_firewall
 
-- name: Generate client configs and QR codes (controller-side)
-  ansible.builtin.include_tasks: client_configs.yml
-  when:
-    - wireguard_role == "hub"
-    - wireguard_clients | length > 0
+# NOTE: Client .conf + QR rendering is intentionally NOT done here.
+# `make provision` deploys [Peer] sections to the hub but never writes
+# client artifacts to disk on the controller. Run `make wg-render` to
+# generate build/wireguard/<name>.{conf,png} on demand (see
+# playbooks/wireguard_clients.yml and docs/wireguard-clients.md).

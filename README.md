@@ -122,9 +122,20 @@ Run `make provision`. The first stage (`wireguard-keys`) automatically:
 2. Prunes vault entries whose name disappeared from `main.yml`.
 3. Re-encrypts `vault.yml` and **auto-commits** the change into the
    `configs/prod/` repo (e.g. `wireguard keys: add phone`).
-4. Hands off to the playbook, which renders `[Peer]` sections on the hub
-   and writes `build/wireguard/<name>.conf` + `<name>.png` (QR) on your
-   controller - ready to scan in the WireGuard mobile app.
+4. Hands off to the playbook, which renders `[Peer]` sections on the hub.
+
+Rendering the client's `.conf` + QR PNG for distribution is a **separate,
+on-demand step** - `make provision` never writes private-key material to
+your disk. When you actually need to onboard a phone or laptop:
+
+```bash
+make wg-render            # writes build/wireguard/<name>.{conf,png} (mode 0600)
+# scan the QR, or scp the .conf to the target device
+rm -rf build/wireguard/   # delete once you're done
+```
+
+The directory is gitignored, but the files contain plaintext private keys -
+treat them as one-shot, scan-and-delete artifacts.
 
 **Safety: prune is skipped if `configs/prod/` has uncommitted changes** other
 than `vault.yml` itself (catches the "typo in name" scenario where you
@@ -261,11 +272,12 @@ For Debian/Ubuntu/Arch hosts, follow [the official Incus install guide](https://
 make test-env-create    # Launch VMs, install sshd, create initial user
 make test-bootstrap     # Bootstrap the ansible service user
 make test-provision     # Run full provisioning
+make test-wg-render     # Render build/wireguard/test-controller.{conf,png}
 make test-smoke         # End-to-end check via WG (sudo: brings the tunnel up, curls the proxied site, cleans up)
 make test-env-destroy   # Tear down VMs
 ```
 
-`make test-smoke` brings the auto-generated `build/wireguard/test-controller.conf`
+`make test-smoke` brings the rendered `build/wireguard/test-controller.conf`
 up on this machine, pings the hub + a managed peer, resolves
 `whoami.home` through dnsmasq, fetches `https://whoami.home/` through
 Caddy (TLS internal), and verifies the backend saw the request via the
