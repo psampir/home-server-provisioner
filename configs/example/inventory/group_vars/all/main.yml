@@ -288,3 +288,32 @@ wireguard_client_keys: "{{ vault_wireguard_client_keys | default({}) }}"
 #   - 1.1.1.1                  # safety fallback
 # dns_client_search: home
 # dns_client_disable_resolved: true
+
+# --- caddy role (vpn_server only) --------------------------------------------
+# Native reverse proxy on the WireGuard hub. The hub is the only host with
+# (usually) a public IP and already terminates VPN + DNS, so it's the
+# natural single ingress point for all reverse-proxied services. Backends
+# are reached via the existing WG tunnel as http://10.10.0.X:<port>.
+#
+# Source layout (mirrored verbatim to /etc/caddy/):
+#   configs/<env>/caddy/Caddyfile             main config (required)
+#   configs/<env>/caddy/conf.d/*.caddy        optional snippets
+# Pull snippets in from Caddyfile with `import /etc/caddy/conf.d/*.caddy`.
+# If the configs/<env>/caddy/ directory does not exist, the role is a
+# no-op - Caddy is not installed and no firewall ports are opened.
+#
+# Defaults (override only to change behavior):
+# caddy_source_dir: "{{ inventory_dir }}/../caddy"
+# caddy_open_firewall: true
+# caddy_firewall_from: [any]    # CIDRs for defence-in-depth
+# caddy_open_http: true         # 80/tcp - required for ACME HTTP-01
+# caddy_open_https: true        # 443/tcp + 443/udp (HTTP/3)
+#
+# TLS options inside the Caddyfile:
+#   tls internal                 Caddy's local CA - VPN/LAN-only sites, no
+#                                public DNS needed. Clients see a warning
+#                                or trust the CA once.
+#   <site> { ... }               Auto Let's Encrypt via HTTP-01 (default).
+#                                Needs public DNS pointing here + inbound 80.
+#   tls { dns <provider> ... }   DNS-01 ACME for wildcards or hosts behind
+#                                NAT without port-forwarded 80.

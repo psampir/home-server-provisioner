@@ -19,6 +19,7 @@
   hosts: vpn_server
   roles:
     - dnsmasq
+    - caddy
 
 - name: Application server provisioning
   hosts: app_servers

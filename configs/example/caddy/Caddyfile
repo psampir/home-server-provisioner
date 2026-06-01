@@ -1,0 +1,68 @@
+# =============================================================================
+# Example Caddyfile - managed by the `caddy` role.
+#
+# This file is synchronized verbatim to /etc/caddy/Caddyfile on the host(s)
+# in the `vpn_server` group (Caddy lives natively on the WireGuard hub -
+# same machine that already terminates VPN traffic and serves DNS via
+# dnsmasq, so it's the natural ingress point for all reverse-proxied
+# services).
+#
+# Optional snippet files in conf.d/*.caddy are synchronized to
+# /etc/caddy/conf.d/ and can be pulled in here via `import` directives.
+#
+# After every change, the role runs `caddy validate` BEFORE reloading the
+# service, so a broken Caddyfile won't take down your existing sites.
+# =============================================================================
+
+
+# --- Global options (applied to all sites) -----------------------------------
+{
+    # Email used for ACME (Let's Encrypt) account registration. Required for
+    # any site that uses public TLS. Safe to leave commented out if every
+    # site uses `tls internal`.
+    # email admin@example.com
+
+    # Uncomment to test against the LE staging endpoint (no rate limits)
+    # before flipping to production certs:
+    # acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+
+# --- Snippet imports ---------------------------------------------------------
+# Pull in everything we dropped under conf.d/. Order is undefined, so each
+# snippet must define a complete site block.
+import /etc/caddy/conf.d/*.caddy
+
+
+# =============================================================================
+# Example site blocks - uncomment & adapt, OR move them into conf.d/ snippets.
+# =============================================================================
+
+# --- 1. Internal-only site (Caddy's local CA, no public DNS needed) ---------
+# Useful for VPN-only or LAN-only services. Caddy generates and trusts its
+# own CA - clients have to trust it once (or accept the warning). Hostname
+# can be anything that resolves to the hub (e.g. an entry in dnsmasq).
+#
+# whoami.home {
+#     tls internal
+#     reverse_proxy 10.10.0.2:8080
+# }
+
+# --- 2. Public site with automatic Let's Encrypt (HTTP-01) ------------------
+# Requires:
+#   - public DNS A/AAAA for app.example.com → this host's public IP
+#   - inbound 80/tcp reachable (UFW handled by the role; router port-forward
+#     if behind NAT)
+#   - `email` set in the global block above
+#
+# app.example.com {
+#     reverse_proxy 10.10.0.2:3000
+# }
+
+# --- 3. Multiple backends behind one host -----------------------------------
+# git.example.com {
+#     reverse_proxy 10.10.0.2:3000     # forgejo on app-server-1
+# }
+# files.example.com {
+#     reverse_proxy 10.10.0.3:3923     # copyparty on app-server-2
+# }

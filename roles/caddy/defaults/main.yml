@@ -1,0 +1,23 @@
+# --- Source on controller ---
+# Directory holding Caddyfile (+ optional conf.d/*.caddy snippets) on the
+# controller, synchronized into /etc/caddy/ on the target. Matches the
+# compose_deploy / admin_dotfiles convention of sourcing from
+# configs/<env>/<thing>/.
+#
+# If this directory does not exist on the controller, the role is a no-op:
+# Caddy is NOT installed and no firewall rules are opened. This makes the
+# role safe to leave in playbooks/site.yml for environments that don't want
+# a reverse proxy yet - just don't create the directory.
+caddy_source_dir: "{{ inventory_dir }}/../caddy"
+
+# --- Firewall (UFW) ---
+# Caddy needs 80/tcp for ACME HTTP-01 challenges even if every site
+# eventually serves on 443 only. 443/tcp is HTTPS; 443/udp is HTTP/3 (QUIC).
+# Override caddy_firewall_from with CIDRs for defence-in-depth on a
+# WG-only deployment (e.g. ["10.10.0.0/24"] to expose Caddy only to peers).
+caddy_open_firewall: true
+caddy_firewall_from:
+  - any
+
+caddy_open_http: true     # 80/tcp  - required for ACME HTTP-01
+caddy_open_https: true    # 443/tcp + 443/udp (HTTP/3)

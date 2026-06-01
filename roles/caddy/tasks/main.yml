@@ -1,0 +1,184 @@
+- name: Resolve caddy source dir to a canonical absolute path
+  delegate_to: localhost
+  become: false
+  ansible.builtin.command:
+    cmd: "realpath -m -- {{ caddy_source_dir }}"
+  register: caddy_source_realpath
+  changed_when: false
+
+- name: Stat caddy source dir on controller
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ caddy_source_realpath.stdout }}"
+  register: caddy_source_stat
+
+- name: "Notice - no Caddyfile source found, skipping role"
+  when: >-
+    not (caddy_source_stat.stat.exists | default(false)
+         and caddy_source_stat.stat.isdir | default(false))
+  ansible.builtin.debug:
+    msg: >-
+      No directory at {{ caddy_source_dir }} on the controller - Caddy role
+      is a no-op. Drop a Caddyfile (and optional conf.d/*.caddy snippets)
+      under that path to enable reverse proxy provisioning.
+
+- name: Stat Caddyfile on controller
+  when: >-
+    caddy_source_stat.stat.exists | default(false)
+    and caddy_source_stat.stat.isdir | default(false)
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ caddy_source_realpath.stdout }}/Caddyfile"
+  register: caddy_caddyfile_stat
+
+- name: Fail loudly if source dir exists but Caddyfile is missing
+  when:
+    - caddy_source_stat.stat.exists | default(false)
+    - caddy_source_stat.stat.isdir | default(false)
+    - not (caddy_caddyfile_stat.stat.exists | default(false))
+  ansible.builtin.fail:
+    msg: >-
+      {{ caddy_source_realpath.stdout }} exists but contains no Caddyfile.
+      Either remove the directory (to disable the role) or add a Caddyfile.
+
+# ---- Everything below runs only when a Caddyfile is present -----------------
+
+- name: Install Caddy
+  when: caddy_caddyfile_stat.stat.exists | default(false)
+  ansible.builtin.apt:
+    name: caddy
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Ensure /etc/caddy/conf.d exists
+  when: caddy_caddyfile_stat.stat.exists | default(false)
+  ansible.builtin.file:
+    path: /etc/caddy/conf.d
+    state: directory
+    owner: root
+    group: caddy
+    mode: "0750"
+
+- name: Sync Caddyfile from controller
+  when: caddy_caddyfile_stat.stat.exists | default(false)
+  ansible.builtin.copy:
+    src: "{{ caddy_source_realpath.stdout }}/Caddyfile"
+    dest: /etc/caddy/Caddyfile
+    owner: root
+    group: caddy
+    mode: "0640"
+    validate: "caddy validate --adapter caddyfile --config %s"
+  notify: Reload caddy
+
+- name: Discover conf.d snippets on controller
+  when: caddy_caddyfile_stat.stat.exists | default(false)
+  delegate_to: localhost
+  become: false
+  ansible.builtin.find:
+    paths: "{{ caddy_source_realpath.stdout }}/conf.d"
+    patterns: "*.caddy"
+    file_type: file
+  register: caddy_snippets_local
+  failed_when: false
+
+- name: Sync conf.d snippets to target
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - (caddy_snippets_local.files | default([])) | length > 0
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "/etc/caddy/conf.d/{{ item.path | basename }}"
+    owner: root
+    group: caddy
+    mode: "0640"
+  loop: "{{ caddy_snippets_local.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  notify: Reload caddy
+
+- name: Inventory existing snippets on target (for pruning)
+  when: caddy_caddyfile_stat.stat.exists | default(false)
+  ansible.builtin.find:
+    paths: /etc/caddy/conf.d
+    patterns: "*.caddy"
+    file_type: file
+  register: caddy_snippets_remote
+
+- name: Compute orphan snippet paths
+  when: caddy_caddyfile_stat.stat.exists | default(false)
+  vars:
+    _wanted_paths: >-
+      {{ (caddy_snippets_local.files | default([]))
+         | map(attribute='path') | map('basename')
+         | map('regex_replace', '^', '/etc/caddy/conf.d/')
+         | list }}
+  ansible.builtin.set_fact:
+    caddy_orphan_snippets: >-
+      {{ (caddy_snippets_remote.files | default([]))
+         | map(attribute='path') | list
+         | difference(_wanted_paths) }}
+
+- name: Remove orphan snippets
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - (caddy_orphan_snippets | default([])) | length > 0
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ caddy_orphan_snippets }}"
+  notify: Reload caddy
+
+- name: Validate full Caddy config after snippet sync
+  when: caddy_caddyfile_stat.stat.exists | default(false)
+  ansible.builtin.command:
+    cmd: caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
+  changed_when: false
+
+- name: Ensure caddy service is enabled and running
+  when: caddy_caddyfile_stat.stat.exists | default(false)
+  ansible.builtin.systemd:
+    name: caddy
+    enabled: true
+    state: started
+
+- name: Open HTTP (80/tcp) in firewall
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - caddy_open_firewall
+    - caddy_open_http
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+    from_ip: "{{ item }}"
+    comment: "Caddy HTTP (ACME)"
+  loop: "{{ caddy_firewall_from }}"
+
+- name: Open HTTPS (443/tcp) in firewall
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - caddy_open_firewall
+    - caddy_open_https
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+    from_ip: "{{ item }}"
+    comment: "Caddy HTTPS"
+  loop: "{{ caddy_firewall_from }}"
+
+- name: Open HTTP/3 (443/udp) in firewall
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - caddy_open_firewall
+    - caddy_open_https
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: udp
+    from_ip: "{{ item }}"
+    comment: "Caddy HTTP/3 (QUIC)"
+  loop: "{{ caddy_firewall_from }}"
