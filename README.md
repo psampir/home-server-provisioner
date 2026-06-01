@@ -59,9 +59,11 @@ A host can belong to multiple groups:
 
 | Group | Purpose |
 |---|---|
-| `app_servers` | Docker, Compose, Caddy, workloads |
+| `app_servers` | Docker + Compose workloads |
 | `backup_targets` | Backup storage, borgmatic destinations |
-| `vpn_server` | WireGuard listening endpoint |
+| `vpn_server` | WireGuard hub + central DNS (dnsmasq) + reverse proxy (Caddy). Exactly **one** host - the topology is hub-and-spoke. |
+
+A single host can carry every role at once (`vpn_server` + `app_servers` + `backup_targets`) - perfectly valid for a single-box homelab.
 
 ### 3. Bootstrap (first run only)
 
@@ -146,16 +148,89 @@ the exact same vault code paths as prod with no manual setup.
 
 ## What it does
 
+Each role is small (~50 LOC) and self-contained. The full list:
+
+### Identity and access
+
 | Role | Description |
 |---|---|
 | `service_user` | Creates dedicated `ansible` service account with passwordless sudo and SSH key |
-| `base` | Updates apt cache, upgrades packages, installs base packages |
 | `admin_user` | Interactive SSH user with configurable shell and packages |
-| `admin_dotfiles` | Overlay-syncs `configs/<ENV>/dotfiles/_common/home/` (baseline) and `configs/<ENV>/dotfiles/<hostname>/home/` (per-host override) into the admin user's home directory (manifest-tracked, only manages files explicitly shipped) |
+| `admin_dotfiles` | Overlay-syncs `configs/<ENV>/dotfiles/_common/home/` (baseline) and `configs/<ENV>/dotfiles/<hostname>/home/` (per-host override) into the admin user's home directory; manifest-tracked, only manages files explicitly shipped |
 | `ssh_hardening` | Disables root login and password authentication |
-| `local_ssh_config` | Generates `~/.ssh/config.d` entries on the control machine |
 
-More roles (Docker, Caddy, WireGuard, borgmatic) are planned.
+### System baseline
+
+| Role | Description |
+|---|---|
+| `base` | Updates apt cache, upgrades packages, installs base packages |
+| `hostname` | Sets the host's `/etc/hostname` from the inventory name |
+| `timezone_locale` | Sets timezone and generates locales |
+| `time_sync` | Verifies / configures `systemd-timesyncd` |
+| `journal` | Enables persistent journald, optional size/retention limits |
+| `auto_updates` | `unattended-upgrades` for security updates, optional auto-reboot |
+
+### Security
+
+| Role | Description |
+|---|---|
+| `firewall` | UFW with default-deny incoming, allowlist driven by `firewall_allow_rules` (SSH always open as lockout protection) |
+| `fail2ban` | SSH brute-force protection with configurable ban/find times |
+
+### Networking and ingress (`vpn_server` only)
+
+| Role | Description |
+|---|---|
+| `wireguard` | Hub-and-spoke VPN. Generates per-host keypairs, renders `[Peer]` sections on the hub, and renders `<client>.conf` + `<client>.png` QR codes on the controller for external clients. Asserts inventory sanity (unique VPN IPs, exactly one hub). |
+| `dns_client` | On non-hub servers: rewrites `/etc/resolv.conf` to point at the WireGuard hub so local hostnames resolve through dnsmasq |
+| `dnsmasq` | On the hub: full LAN/VPN resolver, auto-generates host records from the inventory, forwards external queries upstream |
+| `caddy` | On the hub: native reverse proxy with automatic TLS. Source-of-truth in `configs/<ENV>/caddy/Caddyfile` (+ optional `conf.d/*.caddy` snippets). See [docs/caddy.md](docs/caddy.md) for TLS modes, site-block patterns, and the LAN-bandwidth escape hatch. |
+
+### Applications (`app_servers` only)
+
+| Role | Description |
+|---|---|
+| `docker_runtime` | Installs Docker CE + Compose plugin from upstream apt repo |
+| `compose_deploy` | Auto-discovers and deploys Docker Compose stacks from `configs/<ENV>/stacks/_common/<name>/` (every host) and `configs/<ENV>/stacks/<hostname>/<name>/` (per-host override). Per-stack directory is synced verbatim - drop `compose.yaml` + `.env` + `Caddyfile` + `config/` next to each other. |
+
+### Controller-side
+
+| Role | Description |
+|---|---|
+| `local_ssh_config` | Generates `~/.ssh/config.d/` entries on the control machine so `ssh <hostname>` works for every inventory host |
+
+## Stacks and dotfiles layout
+
+`compose_deploy` and `admin_dotfiles` share an overlay convention.
+Anything under `_common/` ships to every applicable host; anything under
+`<hostname>/` overrides on a per-host basis.
+
+```
+configs/<ENV>/
+├── stacks/
+│   ├── _common/
+│   │   └── whoami/                 → deployed to every app_server
+│   │       └── compose.yaml
+│   └── home-app/
+│       └── forgejo/                → deployed only on home-app
+│           ├── compose.yaml
+│           └── .env
+└── dotfiles/
+    ├── _common/home/               → baseline files, every host
+    │   └── .config/fish/config.fish
+    └── home-app/home/              → host-specific overlay
+        └── .config/git/config
+```
+
+Resolution rules:
+
+- **Stacks**: host-level directory wins per stack name (full override of
+  the whole stack directory).
+- **Dotfiles**: host overlay wins per file (file-level merge - a host can
+  add new files without re-shipping the whole baseline).
+
+Escape hatch: set `compose_deploy_stacks: [...]` explicitly in host_vars
+to skip auto-discovery entirely (rare, mostly for transient debugging).
 
 ## Testing
 
@@ -186,13 +261,23 @@ For Debian/Ubuntu/Arch hosts, follow [the official Incus install guide](https://
 make test-env-create    # Launch VMs, install sshd, create initial user
 make test-bootstrap     # Bootstrap the ansible service user
 make test-provision     # Run full provisioning
+make test-smoke         # End-to-end check via WG (sudo: brings the tunnel up, curls the proxied site, cleans up)
 make test-env-destroy   # Tear down VMs
 ```
+
+`make test-smoke` brings the auto-generated `build/wireguard/test-controller.conf`
+up on this machine, pings the hub + a managed peer, resolves
+`whoami.home` through dnsmasq, fetches `https://whoami.home/` through
+Caddy (TLS internal), and verifies the backend saw the request via the
+tunnel. Trap-based cleanup always tears the tunnel down on exit. Read
+`scripts/test-smoke.sh` if you want to know exactly what it touches
+before granting sudo.
 
 VM defaults (image, CPU, memory, initial username) live in `.env` - see `.env.example`.
 
 ## Further reading
 
+- [Caddy reverse proxy](docs/caddy.md) - TLS modes, site-block patterns, LAN-bandwidth escape hatch, troubleshooting
 - [Deployment Guide](docs/deployment-guide.md) - multi-site setups, off-site hosts, and VPN connectivity
 
 ## License
