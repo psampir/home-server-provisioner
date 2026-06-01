@@ -287,6 +287,54 @@ before granting sudo.
 
 VM defaults (image, CPU, memory, initial username) live in `.env` - see `.env.example`.
 
+### Multiple environments
+
+The test loop above is just one instance of a more general pattern: the
+`scripts/incus-env.sh` script can manage Incus VMs for any environment.
+The Makefile is fully multi-env (`ENV=<name>` on every target), and
+artifacts that would otherwise collide are partitioned per env:
+
+| Artifact | Partitioned by |
+|---|---|
+| Config tree | `configs/<env>/` |
+| Vault password | `configs/<env>/.vault_pass` |
+| WG client `.conf`/`.png` | `build/<env>/wireguard/` |
+| Local SSH config | `~/.ssh/config.d/home-server-provisioner-<env>` |
+
+To spin up a new long-lived Incus-backed environment (e.g. `demo`):
+
+```bash
+# 1. Declare the VMs (tracked in this repo)
+cat > scripts/demo-vms.conf <<'EOF'
+demo-hsp-vpn:vpn_server:vpn_ip=10.10.0.1,wireguard_role=hub
+demo-hsp-app:app_servers:vpn_ip=10.10.0.2
+EOF
+
+# 2. Create the config tree (separate private git repo inside it)
+make init-config ENV=demo
+make vault-init  ENV=demo
+# Edit configs/demo/inventory/group_vars/all/main.yml, stacks/, caddy/, etc.
+
+# 3. Spin up the VMs and provision
+./scripts/incus-env.sh demo create   # writes configs/demo/inventory/hosts.yml
+make bootstrap ENV=demo
+make provision ENV=demo
+make wg-render ENV=demo               # → build/demo/wireguard/
+```
+
+**`hosts.yml` is auto-generated** by `incus-env.sh` because Incus assigns
+random DHCP IPs to fresh VMs, so the inventory has to be rewritten on
+every `create` to track them. Don't hand-edit it; put per-host overrides
+in `inventory/host_vars/<vm>.yml` and group-level config in
+`group_vars/all/main.yml`. If you instead want a hand-managed `hosts.yml`
+(real hardware, hosted VMs, mixed inventory) - just don't use
+`incus-env.sh` for that env. The two modes are mutually exclusive per
+env, not per project.
+
+VM names are **global to Incus**, so pick a unique prefix (`demo-…`)
+when running multiple envs side-by-side to avoid collisions with the
+`test` env's `hsp-…` names.
+
 ## Further reading
 
 - [Caddy reverse proxy](docs/caddy.md) - TLS modes, site-block patterns, LAN-bandwidth escape hatch, troubleshooting
