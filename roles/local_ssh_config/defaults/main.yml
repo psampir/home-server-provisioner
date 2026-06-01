@@ -1,3 +1,17 @@
 local_ssh_config_dir: "{{ lookup('env', 'HOME') }}/.ssh/config.d"
-local_ssh_config_file: "{{ local_ssh_config_dir }}/home-server-provisioner"
+
+# Per-environment SSH config file. Driven by the HSP_ENV environment
+# variable, which the Makefile exports from its own ENV variable, so
+# `make provision ENV=prod` and `make provision ENV=demo` write to
+# distinct files instead of clobbering each other.
+# Falls back to "default" when HSP_ENV is unset (direct ansible-playbook).
+local_ssh_config_env_name: "{{ lookup('env', 'HSP_ENV') | default('default', true) }}"
+local_ssh_config_file: "{{ local_ssh_config_dir }}/home-server-provisioner-{{ local_ssh_config_env_name }}"
+
+# Optional prefix prepended to every `Host` alias. Useful when several
+# environments share host names (e.g. `hsp-app` exists in both prod and
+# demo) and you want to address them as `ssh prod-hsp-app` vs
+# `ssh demo-hsp-app`. Default empty = no prefix, backward compatible.
+local_ssh_config_host_prefix: ""
+
 local_ssh_config_private_key: "{{ lookup('env', 'ANSIBLE_PRIVATE_KEY_FILE') | default('~/.ssh/id_ed25519', true) }}"

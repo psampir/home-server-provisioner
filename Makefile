@@ -26,6 +26,11 @@ ENV_DIR = configs/$(ENV)
 INVENTORY = $(ENV_DIR)/inventory
 VAULT_FILE ?= $(INVENTORY)/group_vars/all/vault.yml
 
+# Exported so roles that need to know which env they're running against
+# (e.g. local_ssh_config writes per-env files) can read it without
+# relying on Ansible magic vars that aren't always set on localhost plays.
+export HSP_ENV = $(ENV)
+
 # Always point Ansible at the per-env vault password file. The file may not
 # exist yet (e.g. before `make vault-init`); commands that need it will fail
 # loudly with a clear ansible-vault error in that case.
