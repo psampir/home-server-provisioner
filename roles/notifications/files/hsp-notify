@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# hsp-notify - send a notification via the configured backend (ntfy).
+#
+# Usage:
+#   hsp-notify [--priority PRIO] [--tags T1,T2,...] <subject> [body]
+#
+# Options:
+#   --priority   min | low | default | high | urgent (overrides default)
+#   --tags       comma-separated ntfy tags (e.g. floppy_disk,warning)
+#
+# Reads /etc/hsp-notify.env for backend configuration. If NTFY_URL is
+# empty or the env file is missing, the call becomes a no-op and the
+# subject is logged to the systemd journal under tag 'hsp-notify'.
+#
+# Managed by Ansible (roles/notifications) - do not edit by hand.
+
+set -euo pipefail
+
+ENV_FILE=/etc/hsp-notify.env
+
+# shellcheck source=/dev/null
+[[ -r "$ENV_FILE" ]] && . "$ENV_FILE"
+
+priority="${NTFY_PRIORITY_DEFAULT:-default}"
+tags=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --priority)
+            [[ $# -ge 2 ]] || { echo "hsp-notify: --priority requires a value" >&2; exit 2; }
+            priority="$2"
+            shift 2
+            ;;
+        --tags)
+            [[ $# -ge 2 ]] || { echo "hsp-notify: --tags requires a value" >&2; exit 2; }
+            tags="$2"
+            shift 2
+            ;;
+        --help|-h)
+            sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "hsp-notify: unknown option: $1" >&2
+            exit 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+subject="${1:-}"
+body="${2:-${subject}}"
+
+if [[ -z "$subject" ]]; then
+    echo "hsp-notify: <subject> is required" >&2
+    exit 2
+fi
+
+if [[ -z "${NTFY_URL:-}" ]]; then
+    logger -t hsp-notify "NTFY_URL not configured; would send: ${subject}"
+    exit 0
+fi
+
+curl_args=(
+    --fail
+    --silent
+    --show-error
+    --max-time 10
+    -H "Title: ${subject}"
+    -H "Priority: ${priority}"
+)
+[[ -n "$tags" ]] && curl_args+=(-H "Tags: ${tags}")
+[[ -n "${NTFY_TOKEN:-}" ]] && curl_args+=(-H "Authorization: Bearer ${NTFY_TOKEN}")
+
+if ! curl "${curl_args[@]}" -d "$body" "$NTFY_URL" >/dev/null; then
+    rc=$?
+    logger -t hsp-notify "delivery failed (curl exit ${rc}); subject: ${subject}"
+    exit "$rc"
+fi

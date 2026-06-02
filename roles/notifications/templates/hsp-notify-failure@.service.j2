@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Send hsp-notify alert for failed unit %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ notifications_bin_path }} \
+    --priority high \
+    --tags rotating_light,%i \
+    "systemd unit failed: %i on %H" \
+    "Unit %i entered failed state on host %H. Check: systemctl status %i ; journalctl -u %i -n 50 --no-pager"

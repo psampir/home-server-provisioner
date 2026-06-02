@@ -1,0 +1,25 @@
+# --- Backend ---
+# Single supported backend in M3.5: ntfy (https://ntfy.sh).
+# Self-hostable, mobile push, curl-friendly, topic-as-secret.
+#
+# Leave notifications_ntfy_url empty to keep the role installed but
+# inert: /usr/local/bin/hsp-notify still exists and is safe to call
+# from other roles and user scripts, but every call becomes a no-op
+# (logged to journal via `logger`). This lets other roles wire up
+# OnFailure= hooks unconditionally without breaking hosts that have
+# not opted into notifications yet.
+notifications_ntfy_url: ""
+
+# Optional bearer token, for self-hosted ntfy instances that require
+# auth. Pull from ansible-vault when set:
+#   notifications_ntfy_token: "{{ vault_notifications_ntfy_token }}"
+notifications_ntfy_token: ""
+
+# Default ntfy priority for notifications that do not pass --priority
+# explicitly. Valid values: min | low | default | high | urgent.
+notifications_ntfy_priority_default: default
+
+# --- File locations (rarely overridden) ---
+notifications_bin_path: /usr/local/bin/hsp-notify
+notifications_env_path: /etc/hsp-notify.env
+notifications_failure_unit_path: /etc/systemd/system/hsp-notify-failure@.service

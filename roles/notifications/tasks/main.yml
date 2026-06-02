@@ -1,0 +1,49 @@
+- name: Validate ntfy priority value
+  ansible.builtin.assert:
+    that:
+      - notifications_ntfy_priority_default in ['min', 'low', 'default', 'high', 'urgent']
+    fail_msg: >-
+      notifications_ntfy_priority_default must be one of:
+      min, low, default, high, urgent
+      (got: {{ notifications_ntfy_priority_default }})
+
+- name: Ensure curl is installed (hsp-notify dependency)
+  ansible.builtin.apt:
+    name: curl
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install hsp-notify CLI
+  ansible.builtin.copy:
+    src: hsp-notify
+    dest: "{{ notifications_bin_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write hsp-notify environment file
+  ansible.builtin.template:
+    src: hsp-notify.env.j2
+    dest: "{{ notifications_env_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Install hsp-notify-failure@.service template
+  ansible.builtin.template:
+    src: hsp-notify-failure@.service.j2
+    dest: "{{ notifications_failure_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Notice - notifications role installed but inert (notifications_ntfy_url empty)
+  ansible.builtin.debug:
+    msg: >-
+      hsp-notify is installed but no backend is configured.
+      Set notifications_ntfy_url (and optionally notifications_ntfy_token
+      via vault) to start delivering notifications. Calls to hsp-notify
+      will currently be no-ops logged to the journal.
+  when: notifications_ntfy_url | length == 0

@@ -9,6 +9,7 @@
     - admin_user
     - admin_dotfiles
     - ssh_hardening
+    - notifications
     - auto_updates
     - journal
     - fail2ban
