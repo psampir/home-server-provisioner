@@ -1,0 +1,5 @@
+---
+- name: Apply sysctl
+  ansible.builtin.command: sysctl --system
+  listen: base_sysctl_apply
+  changed_when: false

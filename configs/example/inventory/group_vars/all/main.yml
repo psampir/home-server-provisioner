@@ -52,6 +52,16 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # Override only if grub-pc auto-detection picks the wrong disk on a host.
 # Prefer setting per-host in hosts.yml when possible.
 # grub_install_device: /dev/sda
+#
+# Kernel sysctls written to /etc/sysctl.d/99-hsp.conf and applied via
+# `sysctl --system`. The defaults below cover the homelab essentials;
+# override the whole dict to replace, or extend it from a host_vars file.
+# base_sysctls:
+#   vm.swappiness: 10                  # honoured by the swap role too
+#   fs.inotify.max_user_watches: 524288
+#   fs.inotify.max_user_instances: 512
+#   net.core.rmem_max: 2621440
+#   net.core.wmem_max: 2621440
 
 # --- hostname role -------------------------------------------------------------
 # hostname_manage_etc_hosts: true

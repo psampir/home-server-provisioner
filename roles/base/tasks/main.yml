@@ -49,3 +49,12 @@
   ansible.builtin.apt:
     name: "{{ base_packages }}"
     state: present
+
+- name: Render kernel sysctls (/etc/sysctl.d/99-hsp.conf)
+  ansible.builtin.template:
+    src: 99-hsp.conf.j2
+    dest: /etc/sysctl.d/99-hsp.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: base_sysctl_apply
