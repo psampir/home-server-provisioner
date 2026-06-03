@@ -69,7 +69,7 @@
 - name: Determine units to remove (stale + explicitly absent)
   vars:
     _previous: >-
-      {{ (scheduled_jobs_old_manifest_raw.content | default('') | b64decode).split('\n')
+      {{ (scheduled_jobs_old_manifest_raw.content | default('') | b64decode).splitlines()
          | map('trim') | select | list }}
     _explicit_absent: >-
       {{ scheduled_jobs_absent_explicit

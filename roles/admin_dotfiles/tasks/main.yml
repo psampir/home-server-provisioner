@@ -76,7 +76,7 @@
     - name: Determine stale files to remove
       ansible.builtin.set_fact:
         admin_dotfiles_stale: >-
-          {{ ((admin_dotfiles_old_manifest_raw.content | default('') | b64decode).split('\n')
+          {{ ((admin_dotfiles_old_manifest_raw.content | default('') | b64decode).splitlines()
               | map('trim')
               | select
               | list)
