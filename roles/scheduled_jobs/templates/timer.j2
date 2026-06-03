@@ -1,0 +1,17 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Timer for {{ job.description | default('Scheduled job: ' ~ job.name) }}
+
+[Timer]
+OnCalendar={{ job.schedule }}
+Persistent={{ 'true' if (job.persistent | default(true)) else 'false' }}
+{% if job.randomized_delay is defined and job.randomized_delay | length > 0 %}
+RandomizedDelaySec={{ job.randomized_delay }}
+{% endif %}
+{% if job.accuracy is defined and job.accuracy | length > 0 %}
+AccuracySec={{ job.accuracy }}
+{% endif %}
+Unit={{ scheduled_jobs_unit_prefix }}{{ job.name }}.service
+
+[Install]
+WantedBy=timers.target

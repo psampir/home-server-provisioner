@@ -1,0 +1,187 @@
+- name: Validate scheduled_jobs entries
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name is match('^[a-z0-9][a-z0-9-]*$')
+      - item.command is defined or (item.state | default('present')) == 'absent'
+      - item.schedule is defined or (item.state | default('present')) == 'absent'
+      - (item.state | default('present')) in ['present', 'absent']
+    fail_msg: >-
+      Invalid scheduled_jobs entry: {{ item }}.
+      Required fields: name (lowercase, [a-z0-9-]+), command, schedule.
+      Optional state: present (default) | absent.
+  loop: "{{ scheduled_jobs_common + scheduled_jobs_host }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+
+- name: Merge common and host job lists (host wins per name)
+  vars:
+    _common_map: "{{ dict(scheduled_jobs_common | map(attribute='name') | zip(scheduled_jobs_common)) }}"
+    _host_map: "{{ dict(scheduled_jobs_host | map(attribute='name') | zip(scheduled_jobs_host)) }}"
+    _merged_map: "{{ _common_map | combine(_host_map) }}"
+  ansible.builtin.set_fact:
+    scheduled_jobs_effective: >-
+      {{ _merged_map | dict2items(key_name='__name', value_name='__job')
+                     | map(attribute='__job')
+                     | list
+                     | sort(attribute='name') }}
+
+- name: Split effective list into present and absent buckets
+  ansible.builtin.set_fact:
+    scheduled_jobs_present: >-
+      {{ scheduled_jobs_effective
+         | selectattr('state', 'undefined')
+         | list
+         + scheduled_jobs_effective
+         | selectattr('state', 'defined')
+         | selectattr('state', 'eq', 'present')
+         | list }}
+    scheduled_jobs_absent_explicit: >-
+      {{ scheduled_jobs_effective
+         | selectattr('state', 'defined')
+         | selectattr('state', 'eq', 'absent')
+         | list }}
+
+- name: Compute managed unit base names (without .service/.timer suffix)
+  ansible.builtin.set_fact:
+    scheduled_jobs_managed: >-
+      {{ scheduled_jobs_present
+         | map(attribute='name')
+         | map('regex_replace', '^', scheduled_jobs_unit_prefix)
+         | list
+         | sort }}
+
+- name: Ensure manifest parent directory exists
+  ansible.builtin.file:
+    path: "{{ scheduled_jobs_manifest_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Read previous manifest (if any)
+  ansible.builtin.slurp:
+    src: "{{ scheduled_jobs_manifest_path }}"
+  register: scheduled_jobs_old_manifest_raw
+  failed_when: false
+  changed_when: false
+
+- name: Determine units to remove (stale + explicitly absent)
+  vars:
+    _previous: >-
+      {{ (scheduled_jobs_old_manifest_raw.content | default('') | b64decode).split('\n')
+         | map('trim') | select | list }}
+    _explicit_absent: >-
+      {{ scheduled_jobs_absent_explicit
+         | map(attribute='name')
+         | map('regex_replace', '^', scheduled_jobs_unit_prefix)
+         | list }}
+  ansible.builtin.set_fact:
+    scheduled_jobs_to_remove: >-
+      {{ (_previous | difference(scheduled_jobs_managed) + _explicit_absent)
+         | unique | sort }}
+
+- name: Render service unit files (present)
+  ansible.builtin.template:
+    src: service.j2
+    dest: "/etc/systemd/system/{{ scheduled_jobs_unit_prefix }}{{ job.name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ scheduled_jobs_present }}"
+  loop_control:
+    loop_var: job
+    label: "{{ scheduled_jobs_unit_prefix }}{{ job.name }}.service"
+  notify: Reload systemd
+
+- name: Render timer unit files (present)
+  ansible.builtin.template:
+    src: timer.j2
+    dest: "/etc/systemd/system/{{ scheduled_jobs_unit_prefix }}{{ job.name }}.timer"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ scheduled_jobs_present }}"
+  loop_control:
+    loop_var: job
+    label: "{{ scheduled_jobs_unit_prefix }}{{ job.name }}.timer"
+  notify: Reload systemd
+
+- name: Pre-create log files for jobs that opted in
+  ansible.builtin.file:
+    path: "{{ job.log_file }}"
+    state: touch
+    owner: "{{ job.user | default('root') }}"
+    group: "{{ job.group | default(job.user | default('root')) }}"
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  loop: "{{ scheduled_jobs_present }}"
+  loop_control:
+    loop_var: job
+    label: "{{ job.name }}"
+  when:
+    - job.log_file is defined
+    - job.log_file | length > 0
+
+- name: Reload systemd before enabling/starting timers
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start timers (present)
+  ansible.builtin.systemd:
+    name: "{{ scheduled_jobs_unit_prefix }}{{ job.name }}.timer"
+    enabled: true
+    state: started
+  loop: "{{ scheduled_jobs_present }}"
+  loop_control:
+    loop_var: job
+    label: "{{ scheduled_jobs_unit_prefix }}{{ job.name }}.timer"
+
+- name: Stop and disable timers being removed
+  ansible.builtin.systemd:
+    name: "{{ unit_base }}.timer"
+    enabled: false
+    state: stopped
+  loop: "{{ scheduled_jobs_to_remove }}"
+  loop_control:
+    loop_var: unit_base
+    label: "{{ unit_base }}.timer"
+  failed_when: false
+
+- name: Stop services being removed (in case they're mid-run)
+  ansible.builtin.systemd:
+    name: "{{ unit_base }}.service"
+    state: stopped
+  loop: "{{ scheduled_jobs_to_remove }}"
+  loop_control:
+    loop_var: unit_base
+    label: "{{ unit_base }}.service"
+  failed_when: false
+
+- name: Remove timer unit files for stale/absent jobs
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ unit_base }}.timer"
+    state: absent
+  loop: "{{ scheduled_jobs_to_remove }}"
+  loop_control:
+    loop_var: unit_base
+    label: "{{ unit_base }}.timer"
+  notify: Reload systemd
+
+- name: Remove service unit files for stale/absent jobs
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ unit_base }}.service"
+    state: absent
+  loop: "{{ scheduled_jobs_to_remove }}"
+  loop_control:
+    loop_var: unit_base
+    label: "{{ unit_base }}.service"
+  notify: Reload systemd
+
+- name: Write current manifest
+  ansible.builtin.copy:
+    content: "{{ (scheduled_jobs_managed | join('\n')) ~ '\n' }}"
+    dest: "{{ scheduled_jobs_manifest_path }}"
+    owner: root
+    group: root
+    mode: "0644"

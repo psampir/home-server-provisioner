@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+[Unit]
+Description={{ job.description | default('Scheduled job: ' ~ job.name) }}
+{% if job.notify_on_failure | default(true) %}
+OnFailure=hsp-notify-failure@%n.service
+{% endif %}
+
+[Service]
+Type=oneshot
+User={{ job.user | default('root') }}
+Group={{ job.group | default(job.user | default('root')) }}
+{% if job.working_directory is defined %}
+WorkingDirectory={{ job.working_directory }}
+{% endif %}
+{% for k, v in (job.environment | default({})).items() %}
+Environment={{ k }}={{ v }}
+{% endfor %}
+{% if job.log_file is defined and job.log_file | length > 0 %}
+ExecStart=/bin/sh -c {{ (job.command ~ ' >> ' ~ job.log_file ~ ' 2>&1') | quote }}
+{% else %}
+ExecStart={{ job.command }}
+{% endif %}

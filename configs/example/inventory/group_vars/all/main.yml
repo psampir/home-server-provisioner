@@ -87,6 +87,35 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # ssh_hardening_permit_empty_passwords: "no"
 # ssh_hardening_x11_forwarding: "no"
 
+# --- notifications role --------------------------------------------------------
+# Single supported backend: ntfy (https://ntfy.sh).
+# Empty notifications_ntfy_url -> hsp-notify becomes a no-op (logged to
+# the journal under tag 'hsp-notify'). OnFailure= hooks in other roles
+# still wire up unconditionally - you can opt into a backend later
+# without re-provisioning.
+# notifications_ntfy_url: ""
+#
+# Example (not default):
+# notifications_ntfy_url: "https://ntfy.sh/hsp-CHANGEME-CHANGEME"
+# notifications_ntfy_token: "{{ vault_notifications_ntfy_token | default('') }}"
+# notifications_ntfy_priority_default: default
+
+# --- scheduled_jobs role -------------------------------------------------------
+# systemd timers + matching services. Two lists are merged at provision
+# time: scheduled_jobs_common (group-level baseline) and scheduled_jobs
+# (host-level, set in host_vars/<host>/). Host wins on collision.
+# Failure of any job pings the configured ntfy backend by default.
+# See roles/scheduled_jobs/README.md for the full field reference.
+# scheduled_jobs_common: []
+#
+# Example (not default):
+# scheduled_jobs_common:
+#   - name: tmpwatch-shared
+#     description: "Trim old files in /srv/shared/tmp"
+#     command: /usr/bin/find /srv/shared/tmp -type f -mtime +30 -delete
+#     schedule: "Sun *-*-* 04:00:00"
+#     persistent: false
+
 # --- journal role --------------------------------------------------------------
 # journal_storage: persistent
 # Empty strings keep systemd defaults.

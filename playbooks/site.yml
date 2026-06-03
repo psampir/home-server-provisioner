@@ -15,6 +15,7 @@
     - fail2ban
     - firewall
     - wireguard
+    - scheduled_jobs
 
 - name: VPN hub and resolver provisioning
   hosts: vpn_server

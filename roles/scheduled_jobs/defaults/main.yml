@@ -1,0 +1,58 @@
+# --- Job definitions ---
+#
+# Two lists are merged at provisioning time:
+#
+#   scheduled_jobs_common  intended for group_vars (e.g. group_vars/all/),
+#                          shared baseline across hosts
+#   scheduled_jobs_host    intended for host_vars/<host>/, host-specific
+#
+# A job named in `scheduled_jobs_host` overrides one with the same `name` in
+# `scheduled_jobs_common` (host wins on collision - entry-level override,
+# not field-level merge).
+#
+# Each item supports:
+#   name:               (required) Short identifier. Becomes the unit name as
+#                       sched-<name>.{service,timer}. Must match [a-z0-9-]+.
+#   command:            (required) Absolute path to the executable plus
+#                       arguments. Rendered into ExecStart= verbatim.
+#   schedule:           (required) systemd OnCalendar= expression
+#                       (e.g. "*-*-* 03:00:00", "Mon *-*-* 02:30:00").
+#   description:        (optional) Human-readable Description= for the
+#                       service unit. Default: "Scheduled job: <name>".
+#   user:               (optional) User= for the service. Default: root.
+#   group:              (optional) Group= for the service. Default: same as user.
+#   working_directory:  (optional) WorkingDirectory= for the service.
+#   environment:        (optional) Dict of env vars rendered as Environment=
+#                       lines on the service unit.
+#   log_file:           (optional) Absolute path. When set, ExecStart wraps
+#                       the command with `sh -c '... >> <log_file> 2>&1'`
+#                       and the file is pre-created with mode 0640 owned by
+#                       <user>:<group>. Independent of journal logging.
+#   persistent:         (optional, default true) Persistent= on the timer:
+#                       runs the job at next boot if it was missed during
+#                       downtime.
+#   randomized_delay:   (optional) RandomizedDelaySec= on the timer
+#                       (e.g. "5m"). Spreads the load across the start time.
+#   accuracy:           (optional) AccuracySec= on the timer (e.g. "1min").
+#                       Default unset (systemd default = 1min).
+#   notify_on_failure:  (optional, default true) When true, the service
+#                       gets OnFailure=hsp-notify-failure@%n.service so a
+#                       failed run pings the configured ntfy backend.
+#                       Set to false to silence specific noisy jobs.
+#   state:              (optional, default "present") "present" or "absent".
+#                       Use "absent" to retire a job without deleting its
+#                       definition (preferred over silently deleting).
+scheduled_jobs_common: []
+scheduled_jobs_host: []
+
+# --- Manifest ---
+# Per-host file listing the unit base names this role currently owns.
+# Units listed here but not in the merged effective list are removed on
+# the next run (stop+disable timer, stop service, rm unit files,
+# daemon-reload).
+scheduled_jobs_manifest_path: /var/lib/home-server-provisioner/scheduled_jobs.manifest
+
+# --- Unit name prefix (rarely overridden) ---
+# All units this role creates are prefixed so they do not collide with
+# anything shipped by Debian or installed manually.
+scheduled_jobs_unit_prefix: sched-
