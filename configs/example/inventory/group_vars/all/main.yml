@@ -102,7 +102,7 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 
 # --- scheduled_jobs role -------------------------------------------------------
 # systemd timers + matching services. Two lists are merged at provision
-# time: scheduled_jobs_common (group-level baseline) and scheduled_jobs
+# time: scheduled_jobs_common (group-level baseline) and scheduled_jobs_host
 # (host-level, set in host_vars/<host>/). Host wins on collision.
 # Failure of any job pings the configured ntfy backend by default.
 # See roles/scheduled_jobs/README.md for the full field reference.
@@ -115,6 +115,15 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #     command: /usr/bin/find /srv/shared/tmp -type f -mtime +30 -delete
 #     schedule: "Sun *-*-* 04:00:00"
 #     persistent: false
+
+# --- custom_scripts role -------------------------------------------------------
+# Ships arbitrary user scripts from configs/<env>/scripts/{_common,<host>}/
+# to /usr/local/bin/ on every host. Files copied verbatim, mode 0755.
+# Manifest at /var/lib/home-server-provisioner/custom_scripts.manifest
+# tracks managed paths; removing a script from the source tree removes
+# it from the host on the next provision.
+# custom_scripts_install_dir: /usr/local/bin
+# custom_scripts_prefix: ""    # e.g. "hsp-" to namespace every script
 
 # --- journal role --------------------------------------------------------------
 # journal_storage: persistent

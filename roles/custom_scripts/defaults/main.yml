@@ -1,0 +1,27 @@
+# Where on the controller user-supplied scripts live. Two trees,
+# overlay-style:
+#
+#   <src_root>/_common/<script>     baseline, every host
+#   <src_root>/<inventory_hostname>/<script>     host-specific overlay
+#
+# The host overlay wins per file name (full file replace, no merging).
+#
+# Set custom_scripts_src_root to "" to disable the role entirely on
+# this host (managed scripts will be cleaned up via the manifest).
+custom_scripts_src_root: "{{ inventory_dir }}/../scripts"
+custom_scripts_common_subdir: _common
+custom_scripts_host_subdir: "{{ inventory_hostname }}"
+
+# Where scripts land on the target. Always system-wide, always 0755.
+custom_scripts_install_dir: /usr/local/bin
+
+# Optional prefix prepended to every installed script's filename. Useful
+# if you want to namespace your scripts (e.g. set to "hsp-" to install
+# my-tool as /usr/local/bin/hsp-my-tool). File suffixes (.sh, .py, etc.)
+# are preserved as-is - they become part of the user-facing command name.
+custom_scripts_prefix: ""
+
+# Per-host manifest tracking which destination paths this role owns.
+# Files in the previous manifest but missing from the merged source are
+# removed on the next run.
+custom_scripts_manifest_path: /var/lib/home-server-provisioner/custom_scripts.manifest

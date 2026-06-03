@@ -15,6 +15,7 @@
     - fail2ban
     - firewall
     - wireguard
+    - custom_scripts
     - scheduled_jobs
 
 - name: VPN hub and resolver provisioning

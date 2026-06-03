@@ -28,6 +28,31 @@ VAULT_PASS_FILE="$ENV_DIR/.vault_pass"
 # and recreated on every test cycle.
 TEST_VAULT_PASSWORD="test-password"
 
+# --- Test fixtures --------------------------------------------------------
+#
+# Each built-in role that takes user payload from configs/<env>/ should
+# have at least one fixture here so the test-provision smoke run covers
+# its happy path. Keep fixtures minimal: the goal is "did the role
+# install/render/clean up something" - not full integration coverage.
+
+seed_test_fixtures() {
+    # custom_scripts: one common script for every host, plus one
+    # host-specific script that should land only on hsp-app.
+    mkdir -p "$ENV_DIR/scripts/_common" "$ENV_DIR/scripts/hsp-app"
+
+    cat > "$ENV_DIR/scripts/_common/hsp-test-common.sh" <<'FIXTURE_EOF'
+#!/usr/bin/env bash
+echo "common script on $(hostname)"
+FIXTURE_EOF
+    chmod 0755 "$ENV_DIR/scripts/_common/hsp-test-common.sh"
+
+    cat > "$ENV_DIR/scripts/hsp-app/hsp-test-app-only.sh" <<'FIXTURE_EOF'
+#!/usr/bin/env bash
+echo "host-only script on $(hostname)"
+FIXTURE_EOF
+    chmod 0755 "$ENV_DIR/scripts/hsp-app/hsp-test-app-only.sh"
+}
+
 # --- Config tree seeding ---------------------------------------------------
 
 seed_env_dir() {
@@ -77,9 +102,14 @@ EOF
 
     # Stacks + dotfiles come straight from configs/example/ so a test
     # provision exercises the exact same code paths as a prod provision.
-    rm -rf "$ENV_DIR/stacks" "$ENV_DIR/dotfiles" "$ENV_DIR/caddy"
+    rm -rf "$ENV_DIR/stacks" "$ENV_DIR/dotfiles" "$ENV_DIR/caddy" "$ENV_DIR/scripts"
     cp -a "$EXAMPLE_DIR/stacks" "$ENV_DIR/stacks"
     cp -a "$EXAMPLE_DIR/dotfiles" "$ENV_DIR/dotfiles"
+
+    # Fixtures for built-in user-payload roles (custom_scripts, etc.).
+    # Each one exercises a code path the role advertises, so a successful
+    # `make test-provision` proves the role works end-to-end.
+    seed_test_fixtures
 
     # Caddy config: example/caddy/Caddyfile is just a documented template
     # (everything commented out) - write a real test-specific one that
