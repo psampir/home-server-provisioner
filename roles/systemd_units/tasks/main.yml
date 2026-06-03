@@ -1,0 +1,177 @@
+---
+- name: Set systemd_units enabled fact
+  ansible.builtin.set_fact:
+    systemd_units_enabled: "{{ systemd_units_src_root | length > 0 }}"
+
+- name: Notice - systemd_units disabled (systemd_units_src_root is empty)
+  ansible.builtin.debug:
+    msg: "systemd_units_src_root is empty; managed unit files will be cleaned up via manifest."
+  when: not systemd_units_enabled
+
+- name: Resolve src_root to a canonical absolute path
+  when: systemd_units_enabled
+  delegate_to: localhost
+  become: false
+  ansible.builtin.command:
+    cmd: "realpath -m -- {{ systemd_units_src_root }}"
+  register: systemd_units_src_root_realpath
+  changed_when: false
+
+- name: Set resolved overlay source paths - _common then host (order matters)
+  when: systemd_units_enabled
+  ansible.builtin.set_fact:
+    systemd_units_overlays:
+      - "{{ systemd_units_src_root_realpath.stdout }}/{{ systemd_units_common_subdir }}"
+      - "{{ systemd_units_src_root_realpath.stdout }}/{{ systemd_units_host_subdir }}"
+
+- name: Discover unit files in each overlay
+  when: systemd_units_enabled
+  delegate_to: localhost
+  become: false
+  ansible.builtin.find:
+    paths: "{{ item }}"
+    recurse: false
+    file_type: file
+    hidden: false
+    patterns: "{{ systemd_units_supported_suffixes | map('regex_replace', '^', '*') | list }}"
+  register: systemd_units_finds
+  failed_when: false
+  loop: "{{ systemd_units_overlays }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Build merged source map (host overrides _common per file name)
+  when: systemd_units_enabled
+  vars:
+    _common_files: "{{ systemd_units_finds.results[0].files | default([]) | map(attribute='path') | list }}"
+    _host_files: "{{ systemd_units_finds.results[1].files | default([]) | map(attribute='path') | list }}"
+    _common_map: "{{ dict(_common_files | map('basename') | zip(_common_files)) }}"
+    _host_map: "{{ dict(_host_files | map('basename') | zip(_host_files)) }}"
+    _merged: "{{ _common_map | combine(_host_map) }}"
+  ansible.builtin.set_fact:
+    systemd_units_effective: "{{ _merged }}"
+
+- name: Compute managed destination paths
+  ansible.builtin.set_fact:
+    systemd_units_managed: >-
+      {{ (systemd_units_effective | default({})).keys()
+         | map('regex_replace', '^', systemd_units_install_dir ~ '/')
+         | list | sort }}
+
+- name: Ensure manifest parent directory exists
+  ansible.builtin.file:
+    path: "{{ systemd_units_manifest_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Read previous manifest (if any)
+  ansible.builtin.slurp:
+    src: "{{ systemd_units_manifest_path }}"
+  register: systemd_units_old_manifest_raw
+  failed_when: false
+  changed_when: false
+
+- name: Determine destination paths to remove (stale)
+  vars:
+    _previous: >-
+      {{ (systemd_units_old_manifest_raw.content | default('') | b64decode).splitlines()
+         | map('trim') | select | list }}
+  ansible.builtin.set_fact:
+    systemd_units_to_remove: "{{ _previous | difference(systemd_units_managed) | sort }}"
+
+- name: Stop + disable stale units (skip template units, errors ignored)
+  ansible.builtin.systemd:
+    name: "{{ item | basename }}"
+    state: stopped
+    enabled: false
+  loop: "{{ systemd_units_to_remove }}"
+  loop_control:
+    label: "{{ item | basename }}"
+  when: "'@.' not in (item | basename)"
+  failed_when: false
+  changed_when: false
+
+- name: Remove stale unit files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ systemd_units_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
+  notify: systemd_units_daemon_reload
+
+- name: Install unit files (mode 0644, root-owned)
+  ansible.builtin.copy:
+    src: "{{ item.value }}"
+    dest: "{{ systemd_units_install_dir }}/{{ item.key }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ (systemd_units_effective | default({})) | dict2items }}"
+  loop_control:
+    label: "{{ systemd_units_install_dir }}/{{ item.key }}"
+  register: systemd_units_copy_result
+  notify: systemd_units_daemon_reload
+
+- name: Flush handlers so systemd sees new/removed units before enable/start
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify managed units (systemd-analyze verify; warning-only)
+  ansible.builtin.command:
+    cmd: "systemd-analyze verify {{ item }}"
+  loop: "{{ systemd_units_managed }}"
+  loop_control:
+    label: "{{ item }}"
+  register: systemd_units_verify
+  changed_when: false
+  failed_when: false
+
+- name: Warn on systemd-analyze verify findings
+  ansible.builtin.debug:
+    msg: |-
+      systemd-analyze verify reported issues for {{ item.item }}:
+      {{ item.stderr | default('') }}
+  loop: "{{ systemd_units_verify.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when:
+    - item.rc is defined
+    - item.rc != 0
+
+- name: Enable non-template units
+  ansible.builtin.systemd:
+    name: "{{ item | basename }}"
+    enabled: true
+  loop: "{{ systemd_units_managed }}"
+  loop_control:
+    label: "{{ item | basename }}"
+  when:
+    - systemd_units_auto_enable | bool
+    - "'@.' not in (item | basename)"
+
+# Only start a unit on the run that installed (or changed) its file.
+# This keeps the role idempotent for Type=oneshot units, which are
+# 'inactive' between runs and would otherwise re-trigger every play.
+# It also matches our 'no auto-restart on change' contract: bumping a
+# running daemon's ExecStart still needs an explicit `systemctl restart`.
+- name: Start non-template units (only on first install / file change)
+  ansible.builtin.systemd:
+    name: "{{ item.item.key }}"
+    state: started
+  loop: "{{ systemd_units_copy_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when:
+    - systemd_units_auto_enable | bool
+    - item.changed | default(false)
+    - "'@.' not in item.item.key"
+
+- name: Write current manifest
+  ansible.builtin.copy:
+    content: "{{ (systemd_units_managed | join('\n')) ~ '\n' }}"
+    dest: "{{ systemd_units_manifest_path }}"
+    owner: root
+    group: root
+    mode: "0644"

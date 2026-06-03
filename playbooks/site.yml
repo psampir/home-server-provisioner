@@ -16,6 +16,7 @@
     - firewall
     - wireguard
     - custom_scripts
+    - systemd_units
     - scheduled_jobs
 
 - name: VPN hub and resolver provisioning

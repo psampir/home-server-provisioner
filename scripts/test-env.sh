@@ -51,6 +51,27 @@ FIXTURE_EOF
 echo "host-only script on $(hostname)"
 FIXTURE_EOF
     chmod 0755 "$ENV_DIR/scripts/hsp-app/hsp-test-app-only.sh"
+
+    # systemd_units: a one-shot oneshot service that calls the common
+    # custom_scripts fixture. Exercises both the common-overlay copy
+    # path and the auto-enable logic; running 'systemctl start
+    # hsp-test-unit.service' on a host should print the script's
+    # output to the journal.
+    mkdir -p "$ENV_DIR/systemd/_common"
+    cat > "$ENV_DIR/systemd/_common/hsp-test-unit.service" <<'FIXTURE_EOF'
+[Unit]
+Description=home-server-provisioner test unit (oneshot)
+After=network-online.target
+OnFailure=hsp-notify-failure@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/hsp-test-common.sh
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
+FIXTURE_EOF
 }
 
 # --- Config tree seeding ---------------------------------------------------
@@ -102,7 +123,7 @@ EOF
 
     # Stacks + dotfiles come straight from configs/example/ so a test
     # provision exercises the exact same code paths as a prod provision.
-    rm -rf "$ENV_DIR/stacks" "$ENV_DIR/dotfiles" "$ENV_DIR/caddy" "$ENV_DIR/scripts"
+    rm -rf "$ENV_DIR/stacks" "$ENV_DIR/dotfiles" "$ENV_DIR/caddy" "$ENV_DIR/scripts" "$ENV_DIR/systemd"
     cp -a "$EXAMPLE_DIR/stacks" "$ENV_DIR/stacks"
     cp -a "$EXAMPLE_DIR/dotfiles" "$ENV_DIR/dotfiles"
 

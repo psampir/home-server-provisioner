@@ -125,6 +125,18 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # custom_scripts_install_dir: /usr/local/bin
 # custom_scripts_prefix: ""    # e.g. "hsp-" to namespace every script
 
+# --- systemd_units role --------------------------------------------------------
+# Drops fully-formed systemd unit files from
+# configs/<env>/systemd/{_common,<host>}/ to /etc/systemd/system/.
+# Use for daemons / sockets / template units that don't fit
+# scheduled_jobs. Non-template units are auto-enabled and started;
+# template units (foo@.service) are installed but not enabled.
+# Add 'OnFailure=hsp-notify-failure@%n.service' to your unit's [Unit]
+# section yourself if you want failure notifications - unlike
+# scheduled_jobs, this role copies your file verbatim.
+# systemd_units_auto_enable: true   # set false to install but skip start
+
+
 # --- journal role --------------------------------------------------------------
 # journal_storage: persistent
 # Empty strings keep systemd defaults.

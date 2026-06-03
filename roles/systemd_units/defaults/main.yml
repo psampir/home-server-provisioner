@@ -1,0 +1,33 @@
+---
+# Source tree (controller-side) for raw systemd unit files.
+# Layout:
+#   <src_root>/<common_subdir>/*.{service,timer,socket,target,mount,path,slice}
+#   <src_root>/<host_subdir>/*  (host-specific overlay; host wins by basename)
+systemd_units_src_root: "{{ inventory_dir }}/../systemd"
+systemd_units_common_subdir: "_common"
+systemd_units_host_subdir: "{{ inventory_hostname }}"
+
+# Where unit files land on managed hosts. /etc/systemd/system overrides
+# anything shipped by distro packages (in /usr/lib/systemd/system).
+systemd_units_install_dir: "/etc/systemd/system"
+
+# Per-host manifest used to clean up units removed from the source tree.
+systemd_units_manifest_path: "/var/lib/home-server-provisioner/systemd_units.manifest"
+
+# When true (default), non-template units are enabled + started after
+# render. Template units (basename like 'foo@.service') are NEVER
+# enabled/started - they only become useful when instantiated as
+# 'foo@instance.service' by something else (e.g. a scheduled_jobs
+# OnFailure= reference).
+systemd_units_auto_enable: true
+
+# Filename suffixes the role accepts. Anything else in the source dirs
+# is ignored (so README.md, .gitkeep, etc. are silently skipped).
+systemd_units_supported_suffixes:
+  - ".service"
+  - ".timer"
+  - ".socket"
+  - ".target"
+  - ".mount"
+  - ".path"
+  - ".slice"
