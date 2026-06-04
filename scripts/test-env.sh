@@ -42,6 +42,11 @@ TEST_DATA_DISK_BYID="virtio-incus_${TEST_DATA_DISK_DEVNAME}"
 # and recreated on every test cycle.
 TEST_VAULT_PASSWORD="test-password"
 
+# Throwaway credentials for the test Samba share served by hsp-vpn (see
+# seed_test_nfs_server). Only ever used by ephemeral test VMs.
+TEST_SMB_USER="smbtest"
+TEST_SMB_PASS="smbpass123"
+
 # --- Test fixtures --------------------------------------------------------
 #
 # Each built-in role that takes user payload from configs/<env>/ should
@@ -99,6 +104,62 @@ seed_test_disks() {
     echo "  WARNING: /dev/disk/by-id/${TEST_DATA_DISK_BYID} not visible after 15s." >&2
     echo "  The storage role will fail. Inspect with: incus exec $vm_name -- ls -l /dev/disk/by-id/" >&2
     return 1
+}
+
+# --- Test NFS / Samba server ----------------------------------------------
+#
+# Stand up an NFS export and a Samba share on hsp-vpn so the
+# network_mounts role can be exercised against real servers over the
+# WireGuard tunnel. hsp-app mounts both (see host_vars/hsp-app.yml). The
+# server listens on all interfaces but the NFS export is restricted to
+# the WG subnet; mounts only succeed once WireGuard is up (i.e. after
+# `make test-provision`). Firewall ports are opened by the firewall role
+# via firewall_allow_rules (see seed_env_dir).
+seed_test_nfs_server() {
+    local vm_name="hsp-vpn"
+
+    if ! incus info "$vm_name" >/dev/null 2>&1; then
+        echo "  Skipping NFS/Samba test server: $vm_name not present."
+        return 0
+    fi
+
+    echo "Setting up NFS + Samba test server on $vm_name ..."
+    incus exec "$vm_name" -- env \
+        SMB_USER="$TEST_SMB_USER" SMB_PASS="$TEST_SMB_PASS" \
+        bash -euo pipefail <<'REMOTE'
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq nfs-kernel-server samba >/dev/null
+
+mkdir -p /srv/test-nfs /srv/test-cifs
+echo "hello-from-nfs"  > /srv/test-nfs/marker.txt
+echo "hello-from-cifs" > /srv/test-cifs/marker.txt
+chmod -R 0777 /srv/test-nfs /srv/test-cifs
+
+# NFS export, restricted to the WireGuard subnet.
+echo "/srv/test-nfs 10.10.0.0/24(rw,sync,no_subtree_check,no_root_squash)" > /etc/exports
+exportfs -ra
+systemctl enable --now nfs-kernel-server >/dev/null 2>&1
+
+# Samba share (idempotent: only append the block once).
+if ! grep -q '^\[testshare\]' /etc/samba/smb.conf; then
+    cat >> /etc/samba/smb.conf <<EOF
+
+[testshare]
+   path = /srv/test-cifs
+   browseable = yes
+   read only = no
+   guest ok = no
+   valid users = ${SMB_USER}
+EOF
+fi
+id "${SMB_USER}" >/dev/null 2>&1 || useradd -M -s /usr/sbin/nologin "${SMB_USER}"
+printf '%s\n%s\n' "${SMB_PASS}" "${SMB_PASS}" | smbpasswd -s -a "${SMB_USER}" >/dev/null
+smbpasswd -e "${SMB_USER}" >/dev/null
+systemctl enable --now smbd >/dev/null 2>&1
+systemctl restart smbd
+REMOTE
+    echo "  NFS export /srv/test-nfs and Samba //$vm_name/testshare ready."
 }
 
 seed_test_fixtures() {
@@ -167,6 +228,12 @@ admin_user_extra_packages:
 # --- firewall role --- open whoami port for smoke testing
 firewall_allow_rules:
   - { port: 8080, proto: tcp, comment: "whoami (test stack, direct)" }
+  # network_mounts role test: hsp-vpn serves an NFS export and a Samba
+  # share to hsp-app over the WG subnet (see seed_test_nfs_server()).
+  - { port: 111, proto: tcp, from: "10.10.0.0/24", comment: "test NFS rpcbind" }
+  - { port: 2049, proto: tcp, from: "10.10.0.0/24", comment: "test NFS" }
+  - { port: 445, proto: tcp, from: "10.10.0.0/24", comment: "test SMB" }
+  - { port: 139, proto: tcp, from: "10.10.0.0/24", comment: "test SMB (netbios)" }
 
 # --- dnsmasq role --- map whoami.home → hub IP so 'curl https://whoami.home/'
 # from any WG peer transparently hits Caddy on the hub.
@@ -214,6 +281,23 @@ storage_volumes:
     mount: /mnt/test-data
     fstype: ext4
     mount_opts: "defaults,nofail,noatime"
+
+# --- network_mounts role ---
+# NFS export + Samba share served from hsp-vpn (10.10.0.1) over the
+# WireGuard tunnel, set up by seed_test_nfs_server(). CIFS credentials
+# are throwaway test values for the ephemeral VM; in prod they come
+# from ansible-vault.
+network_mounts_shares:
+  - type: nfs
+    source: "10.10.0.1:/srv/test-nfs"
+    mount: /mnt/test-nfs
+    mount_opts: "vers=4.2"
+  - type: cifs
+    source: "//10.10.0.1/testshare"
+    mount: /mnt/test-cifs
+    mount_opts: "uid=root,gid=root"
+    credentials_username: $TEST_SMB_USER
+    credentials_password: $TEST_SMB_PASS
 EOF
 
     # Caddy config: example/caddy/Caddyfile is just a documented template
@@ -246,6 +330,7 @@ cmd_create() {
     seed_env_dir
     "$SCRIPT_DIR/incus-env.sh" "$ENV_NAME" create
     seed_test_disks
+    seed_test_nfs_server
 }
 
 cmd_destroy() {
