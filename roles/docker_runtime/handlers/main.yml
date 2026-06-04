@@ -1,3 +1,22 @@
 - name: Refresh apt cache
   ansible.builtin.apt:
     update_cache: true
+
+# SIGHUP reload - applies daemon.json changes (log opts, etc.) without
+# restarting the daemon, so running containers stay up. Note: existing
+# containers keep the log settings they were created with; new log
+# options only affect containers created/recreated after the reload.
+- name: Reload docker
+  ansible.builtin.systemd:
+    name: docker
+    state: reloaded
+
+- name: Notice docker container recreate
+  ansible.builtin.debug:
+    msg: >-
+      /etc/docker/daemon.json changed and the daemon was reloaded, but
+      already-running containers keep the log options they were created
+      with. To apply the new rotation settings to existing stacks, run
+      `docker compose up -d --force-recreate` in each /opt/stacks/<name>/
+      directory. Stacks deployed via compose_deploy after this point
+      inherit the new settings automatically; no action needed for them.

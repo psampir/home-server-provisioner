@@ -50,6 +50,28 @@
     update_cache: true
     cache_valid_time: 3600
 
+- name: Ensure /etc/docker exists
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: docker_runtime_manage_daemon_json
+
+- name: Configure Docker daemon (log rotation and options)
+  ansible.builtin.copy:
+    content: "{{ docker_runtime_daemon_config | to_nice_json }}\n"
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  when: docker_runtime_manage_daemon_json
+  register: docker_runtime_daemon_json
+  notify:
+    - Reload docker
+    - Notice docker container recreate
+
 - name: Ensure docker service is enabled and running
   ansible.builtin.systemd:
     name: docker

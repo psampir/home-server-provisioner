@@ -22,6 +22,32 @@ docker_runtime_packages:
 docker_runtime_service_enabled: true
 docker_runtime_service_state: started
 
+# --- Daemon configuration (/etc/docker/daemon.json) ---
+# Set to false to leave /etc/docker/daemon.json entirely unmanaged
+# (e.g. if you hand-tune it outside Ansible).
+docker_runtime_manage_daemon_json: true
+
+# Container log rotation. Without this, json-file logs grow unbounded
+# until they fill the disk - a classic self-hosting footgun. These
+# defaults cap each container at 3 × 10 MiB = 30 MiB of logs.
+docker_runtime_log_driver: json-file
+docker_runtime_log_opts:
+  max-size: "10m"
+  max-file: "3"
+
+# Extra daemon.json keys merged on top of the log settings above.
+# Override to add e.g. {"default-address-pools": [...], "dns": [...]}.
+# Keys here win over the generated log-driver/log-opts.
+docker_runtime_daemon_extra: {}
+
+# The effective daemon.json document. Rarely overridden directly -
+# prefer the granular vars above. Exposed so advanced users can
+# replace the whole document if needed.
+docker_runtime_daemon_config: >-
+  {{ {'log-driver': docker_runtime_log_driver,
+      'log-opts': docker_runtime_log_opts}
+     | combine(docker_runtime_daemon_extra) }}
+
 # --- Users granted access to the docker socket ---
 # Defaults to the interactive admin user (if admin_user role is in play).
 # Override with an explicit list to grant access to other accounts.
