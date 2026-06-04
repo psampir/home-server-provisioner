@@ -1,0 +1,95 @@
+---
+- name: Set storage enabled fact
+  ansible.builtin.set_fact:
+    storage_enabled: "{{ (storage_volumes | default([])) | length > 0 }}"
+
+- name: Ensure manifest parent directory exists
+  ansible.builtin.file:
+    path: "{{ storage_manifest_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Read previous storage manifest (if any)
+  ansible.builtin.slurp:
+    src: "{{ storage_manifest_path }}"
+  register: storage_old_manifest_raw
+  failed_when: false
+  changed_when: false
+
+- name: Compute current managed mountpoints
+  ansible.builtin.set_fact:
+    storage_managed_mounts: >-
+      {{ (storage_volumes | default([])) | map(attribute='mount') | list | sort }}
+
+- name: Compute mountpoints to clean up (in previous manifest, no longer wanted)
+  vars:
+    _previous: >-
+      {{ (storage_old_manifest_raw.content | default('') | b64decode).splitlines()
+         | map('trim') | select | list }}
+  ansible.builtin.set_fact:
+    storage_mounts_to_remove: "{{ _previous | difference(storage_managed_mounts) | sort }}"
+
+# Per-volume provisioning. We use include_tasks rather than a giant
+# loop so each volume gets its own clean local fact namespace
+# (blkid output, UUID, etc.).
+- name: Provision configured volumes
+  ansible.builtin.include_tasks: volume.yml
+  loop: "{{ storage_volumes | default([]) }}"
+  loop_control:
+    loop_var: storage_volume
+    label: "{{ storage_volume.device }} -> {{ storage_volume.mount }}"
+
+# Cleanup: stale mountpoints (volumes that disappeared from
+# storage_volumes between runs). Symmetric with provisioning:
+# umount, drop fstab entry, rmdir mountpoint as fail-safe (won't
+# remove non-empty dirs - protects against destroying data on a
+# failed umount).
+- name: Cleanup - unmount stale managed mountpoints
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: unmounted
+  loop: "{{ storage_mounts_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Cleanup - remove fstab entries for stale managed mountpoints
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: absent_from_fstab
+  loop: "{{ storage_mounts_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Cleanup - rmdir stale mountpoints (fail-safe; non-empty dirs are left alone)
+  ansible.builtin.command:
+    cmd: "rmdir -- {{ item }}"
+  register: storage_rmdir_results
+  changed_when: storage_rmdir_results.rc == 0
+  failed_when: false
+  loop: "{{ storage_mounts_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Cleanup - note mountpoints that could not be rmdir'd (non-empty)
+  ansible.builtin.debug:
+    msg: |-
+      Mountpoint {{ item.item }} was not removed (rmdir failed):
+        {{ item.stderr | default('') | trim }}
+      This is intentional: the role only rmdirs empty directories,
+      so left-behind data after a failed umount is preserved.
+  loop: "{{ storage_rmdir_results.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when:
+    - item.rc is defined
+    - item.rc != 0
+
+- name: Write current storage manifest
+  ansible.builtin.copy:
+    content: "{{ (storage_managed_mounts | join('\n')) ~ '\n' }}"
+    dest: "{{ storage_manifest_path }}"
+    owner: root
+    group: root
+    mode: "0644"

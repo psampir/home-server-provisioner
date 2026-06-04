@@ -156,6 +156,27 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # swap_fstab_options: sw,nofail
 # swap_min_file_bytes: 67108864 # below 64 MiB, role drops file instead
 
+# --- storage role --------------------------------------------------------------
+# Disabled by default (storage_volumes: []). Mount + format-on-empty for
+# block devices. The role refuses to overwrite an existing filesystem
+# unless force_format: true is set on a volume - see roles/storage/README.md
+# for the full safety contract.
+#
+# storage_volumes:
+#   - device: /dev/disk/by-id/ata-WDC_WD40EFRX-68N32N0_WD-WCC7K0XYZ
+#     mount: /srv/data
+#     fstype: ext4              # ext4 | xfs | btrfs
+#     mkfs_opts: []             # extra args to mkfs.<fstype>
+#     mount_opts: "defaults,nofail,noatime"
+#     owner: root
+#     group: root
+#     mode: "0755"
+#     force_format: false       # set true to wipe-and-reformat on fstype mismatch
+#
+# IMPORTANT: always reference disks via /dev/disk/by-id/... - kernel
+# names like /dev/sda are not stable across reboots.
+
+
 
 # --- journal role --------------------------------------------------------------
 # journal_storage: persistent

@@ -21,3 +21,9 @@ configs/*
 
 # WireGuard build artifacts (client .conf + QR codes)
 build/
+
+# Test data disks (persistent across test create/destroy cycles).
+# Incus attaches these as virtual disks to test VMs so the storage role
+# can be exercised end-to-end against a real /dev/disk/by-id/ path.
+.test-disks/
+

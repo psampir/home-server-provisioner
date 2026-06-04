@@ -1,0 +1,31 @@
+---
+# Disabled by default. Opt in by populating storage_volumes (typically
+# in host_vars). Each entry describes ONE block device that the role
+# will format (if empty) and mount.
+#
+# Required keys per volume:
+#   device      Stable path to the block device. ALWAYS prefer
+#               /dev/disk/by-id/... over /dev/sdX (renumbered on
+#               kernel boot). For loop devices in tests, /dev/loopN.
+#   mount       Absolute mountpoint path.
+#   fstype      One of: ext4, xfs, btrfs.
+#
+# Optional keys (with their defaults):
+#   mkfs_opts: []                # extra args to mkfs.<fstype>
+#   mount_opts: "defaults,nofail"# nofail keeps boot working when disk
+#                                 # is missing or fails
+#   owner: root
+#   group: root
+#   mode: "0755"
+#   force_format: false          # explicitly opt in to wiping a disk
+#                                 # that already has a *different*
+#                                 # filesystem on it. The role NEVER
+#                                 # overwrites an existing filesystem
+#                                 # without this flag - by design.
+storage_volumes: []
+
+# Per-host manifest of mountpoints currently managed by the role.
+# Drives idempotent cleanup: removing a volume from storage_volumes
+# unmounts it, removes the fstab line, and rmdirs the mountpoint
+# (fail-safe - non-empty dirs are left alone).
+storage_manifest_path: "/var/lib/home-server-provisioner/storage.manifest"

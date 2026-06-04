@@ -1,0 +1,150 @@
+---
+# Per-volume provisioning, included once per entry in storage_volumes.
+# Inputs: storage_volume (the loop item).
+
+- name: "Validate required keys: {{ storage_volume.mount }}"
+  ansible.builtin.assert:
+    that:
+      - storage_volume.device is defined and (storage_volume.device | length) > 0
+      - storage_volume.mount is defined and (storage_volume.mount | string).startswith('/')
+      - storage_volume.fstype is defined and storage_volume.fstype in ['ext4', 'xfs', 'btrfs']
+    fail_msg: >-
+      Invalid storage_volumes entry: {{ storage_volume }}.
+      Required: device (non-empty), mount (absolute path),
+      fstype (one of ext4, xfs, btrfs).
+
+- name: "Set per-volume facts with defaults: {{ storage_volume.mount }}"
+  ansible.builtin.set_fact:
+    storage_v_device: "{{ storage_volume.device }}"
+    storage_v_mount: "{{ storage_volume.mount }}"
+    storage_v_fstype: "{{ storage_volume.fstype }}"
+    storage_v_mkfs_opts: "{{ storage_volume.mkfs_opts | default([]) }}"
+    storage_v_mount_opts: "{{ storage_volume.mount_opts | default('defaults,nofail') }}"
+    storage_v_owner: "{{ storage_volume.owner | default('root') }}"
+    storage_v_group: "{{ storage_volume.group | default('root') }}"
+    storage_v_mode: "{{ storage_volume.mode | default('0755') }}"
+    storage_v_force_format: "{{ storage_volume.force_format | default(false) | bool }}"
+
+- name: "Verify device exists: {{ storage_v_mount }}"
+  ansible.builtin.stat:
+    path: "{{ storage_v_device }}"
+  register: storage_v_dev_stat
+
+- name: "Fail if device missing: {{ storage_v_mount }}"
+  ansible.builtin.fail:
+    msg: >-
+      storage volume device {{ storage_v_device }} does not exist on
+      {{ inventory_hostname }}. Use a stable path under
+      /dev/disk/by-id/ and verify the disk is attached.
+  when: not storage_v_dev_stat.stat.exists
+
+# blkid exits 2 when there is no recognisable filesystem signature.
+# We rely on -o export for stable key=value parsing.
+- name: "Probe existing filesystem with blkid: {{ storage_v_mount }}"
+  ansible.builtin.command:
+    cmd: "blkid -o export -- {{ storage_v_device }}"
+  register: storage_v_blkid
+  changed_when: false
+  failed_when:
+    - storage_v_blkid.rc != 0
+    - storage_v_blkid.rc != 2
+
+- name: "Parse blkid output: {{ storage_v_mount }}"
+  vars:
+    _kv: >-
+      {{ dict(
+           storage_v_blkid.stdout_lines
+           | default([])
+           | map('regex_replace', '^([^=]+)=(.*)$', '\1|\2')
+           | map('split', '|')
+           | list
+         ) }}
+  ansible.builtin.set_fact:
+    storage_v_existing_fstype: "{{ _kv.TYPE | default('') }}"
+    storage_v_existing_uuid: "{{ _kv.UUID | default('') }}"
+
+- name: "Fail on filesystem mismatch (no auto-wipe): {{ storage_v_mount }}"
+  ansible.builtin.fail:
+    msg: |-
+      Device {{ storage_v_device }} already has filesystem
+      "{{ storage_v_existing_fstype }}", but storage_volumes requests
+      "{{ storage_v_fstype }}". The role refuses to overwrite an existing
+      filesystem by default. To wipe and re-format this disk, set
+      `force_format: true` on this volume entry - and be sure the
+      data is expendable.
+  when:
+    - storage_v_existing_fstype | length > 0
+    - storage_v_existing_fstype != storage_v_fstype
+    - not storage_v_force_format
+
+- name: "Unmount before forced reformat: {{ storage_v_mount }}"
+  ansible.posix.mount:
+    path: "{{ storage_v_mount }}"
+    state: unmounted
+  when:
+    - storage_v_existing_fstype | length > 0
+    - storage_v_existing_fstype != storage_v_fstype
+    - storage_v_force_format
+
+- name: "Wipefs before forced reformat: {{ storage_v_mount }}"
+  ansible.builtin.command:
+    cmd: "wipefs -a -- {{ storage_v_device }}"
+  when:
+    - storage_v_existing_fstype | length > 0
+    - storage_v_existing_fstype != storage_v_fstype
+    - storage_v_force_format
+  changed_when: true
+
+- name: "Create filesystem (only when device is empty or forced): {{ storage_v_mount }}"
+  ansible.builtin.command:
+    cmd: "mkfs.{{ storage_v_fstype }} {{ storage_v_mkfs_opts | join(' ') }} {{ storage_v_device }}"
+  when: >-
+    (storage_v_existing_fstype | length) == 0
+    or (storage_v_existing_fstype != storage_v_fstype and storage_v_force_format)
+  changed_when: true
+  register: storage_v_mkfs
+
+- name: "Re-probe UUID after format: {{ storage_v_mount }}"
+  ansible.builtin.command:
+    cmd: "blkid -o export -- {{ storage_v_device }}"
+  register: storage_v_blkid_post
+  changed_when: false
+  when: storage_v_mkfs is defined and (storage_v_mkfs is changed)
+
+- name: "Refresh parsed UUID after format: {{ storage_v_mount }}"
+  vars:
+    _kv: >-
+      {{ dict(
+           storage_v_blkid_post.stdout_lines
+           | default([])
+           | map('regex_replace', '^([^=]+)=(.*)$', '\1|\2')
+           | map('split', '|')
+           | list
+         ) }}
+  ansible.builtin.set_fact:
+    storage_v_existing_uuid: "{{ _kv.UUID | default('') }}"
+  when: storage_v_mkfs is defined and (storage_v_mkfs is changed)
+
+- name: "Sanity check: UUID known: {{ storage_v_mount }}"
+  ansible.builtin.fail:
+    msg: >-
+      Could not determine UUID for {{ storage_v_device }} after format/probe.
+      blkid output: {{ storage_v_blkid.stdout | default('') }} /
+      {{ storage_v_blkid_post.stdout | default('') }}
+  when: (storage_v_existing_uuid | length) == 0
+
+- name: "Ensure mountpoint directory exists: {{ storage_v_mount }}"
+  ansible.builtin.file:
+    path: "{{ storage_v_mount }}"
+    state: directory
+    owner: "{{ storage_v_owner }}"
+    group: "{{ storage_v_group }}"
+    mode: "{{ storage_v_mode }}"
+
+- name: "Ensure fstab entry and mount: {{ storage_v_mount }}"
+  ansible.posix.mount:
+    path: "{{ storage_v_mount }}"
+    src: "UUID={{ storage_v_existing_uuid }}"
+    fstype: "{{ storage_v_fstype }}"
+    opts: "{{ storage_v_mount_opts }}"
+    state: mounted
