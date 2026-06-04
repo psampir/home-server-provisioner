@@ -13,3 +13,10 @@ firewall_ssh_port: 22
 #     - { port: 51820, proto: udp, comment: "WireGuard" }
 #     - { port: 9090,  proto: tcp, from: "10.0.0.0/24", comment: "Internal admin" }
 firewall_allow_rules: []
+
+# Per-host manifest of the allow rules this role manages. Drives
+# idempotent reconciliation: a rule removed from firewall_allow_rules
+# between runs is deleted from ufw on the next run. Only rules added by
+# THIS role are tracked - rules added by other roles (caddy, dnsmasq,
+# wireguard) or the always-on SSH rule are never touched.
+firewall_manifest_path: "/var/lib/home-server-provisioner/firewall.manifest"

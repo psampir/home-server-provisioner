@@ -35,6 +35,77 @@
   loop_control:
     label: "{{ item.comment | default(item.port) }}"
 
+# --- Reconciliation: prune rules removed from firewall_allow_rules ----------
+#
+# A canonical key "rule;port;proto;from" identifies each managed rule
+# independently of its comment (so editing a comment is not a churn).
+# Comparing the current set against a per-host manifest lets us delete
+# exactly the rules this role previously added but no longer wants -
+# without disturbing rules added by other roles or the SSH rule.
+
+- name: Initialize the managed-rule key list
+  ansible.builtin.set_fact:
+    firewall_managed_keys: []
+
+- name: Compute canonical keys for the rules this role manages
+  ansible.builtin.set_fact:
+    firewall_managed_keys: >-
+      {{ firewall_managed_keys + [
+           (item.rule | default('allow')) ~ ';' ~
+           (item.port | string) ~ ';' ~
+           (item.proto | default('tcp')) ~ ';' ~
+           (item.from | default(''))
+         ] }}
+  loop: "{{ firewall_allow_rules }}"
+  loop_control:
+    label: "{{ item.comment | default(item.port) }}"
+
+- name: Ensure manifest parent directory exists
+  ansible.builtin.file:
+    path: "{{ firewall_manifest_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Read previous firewall manifest (if any)
+  ansible.builtin.slurp:
+    src: "{{ firewall_manifest_path }}"
+  register: firewall_old_manifest_raw
+  failed_when: false
+  changed_when: false
+
+- name: Compute managed rules to delete (in previous manifest, no longer wanted)
+  vars:
+    _previous: >-
+      {{ (firewall_old_manifest_raw.content | default('') | b64decode).splitlines()
+         | map('trim') | select | list }}
+  ansible.builtin.set_fact:
+    firewall_rules_to_remove: "{{ _previous | difference(firewall_managed_keys) | sort }}"
+
+- name: Delete firewall rules removed from firewall_allow_rules
+  community.general.ufw:
+    rule: "{{ (item.split(';'))[0] }}"
+    port: "{{ (item.split(';'))[1] }}"
+    proto: "{{ (item.split(';'))[2] }}"
+    from_ip: "{{ (item.split(';'))[3] if ((item.split(';'))[3] | length > 0) else omit }}"
+    delete: true
+  loop: "{{ firewall_rules_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
+  # Never prune a rule on the SSH port - the "Always allow SSH" task owns
+  # lockout protection, so we refuse to delete it even if a user removes
+  # an overlapping entry from firewall_allow_rules.
+  when: (item.split(';'))[1] != (firewall_ssh_port | string)
+
+- name: Write current firewall manifest
+  ansible.builtin.copy:
+    content: "{{ (firewall_managed_keys | sort | join('\n')) ~ '\n' }}"
+    dest: "{{ firewall_manifest_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Enable UFW
   community.general.ufw:
     state: enabled
