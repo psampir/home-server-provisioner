@@ -37,6 +37,17 @@
           + ['_netdev', 'nofail'])
          | unique | join(',') }}
 
+- name: Check mountpoint status for {{ nm.mount }}
+  ansible.builtin.command:
+    cmd: mountpoint -q {{ nm.mount }}
+  register: network_mounts_is_mounted
+  changed_when: false
+  failed_when: false
+
+# Only manage the directory's ownership/permissions while nothing is mounted
+# there. Once a share is mounted, the path reflects the remote export's
+# attributes; re-applying owner/group/mode would churn every run (and would
+# attempt to alter the remote share root).
 - name: Ensure mountpoint directory exists ({{ nm.mount }})
   ansible.builtin.file:
     path: "{{ nm.mount }}"
@@ -44,6 +55,7 @@
     owner: "{{ nm.owner | default('root') }}"
     group: "{{ nm.group | default('root') }}"
     mode: "{{ nm.mode | default('0755') }}"
+  when: network_mounts_is_mounted.rc != 0
 
 - name: Mount network share {{ nm.mount }}
   ansible.posix.mount:
