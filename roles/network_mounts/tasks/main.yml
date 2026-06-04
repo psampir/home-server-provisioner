@@ -1,0 +1,137 @@
+---
+- name: Validate network_mounts_shares entries
+  ansible.builtin.assert:
+    that:
+      - item.type is defined
+      - item.type in ['nfs', 'cifs']
+      - item.source is defined and (item.source | length > 0)
+      - item.mount is defined and item.mount is match('^/.+')
+      - (item.type != 'cifs') or (item.credentials_username is defined and item.credentials_password is defined)
+    fail_msg: >-
+      Invalid network_mounts_shares entry for mount '{{ item.mount | default('<unset>') }}'.
+      Required: type (nfs|cifs), source, mount (absolute path).
+      CIFS additionally requires credentials_username and
+      credentials_password (pull from ansible-vault).
+    quiet: true
+  loop: "{{ network_mounts_shares | default([]) }}"
+  loop_control:
+    label: "{{ item.mount | default('<unset>') }}"
+  no_log: true
+
+- name: Compute set of configured mount types
+  ansible.builtin.set_fact:
+    network_mounts_types: >-
+      {{ (network_mounts_shares | default([])) | map(attribute='type') | list | unique }}
+
+- name: Install NFS client packages
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: "'nfs' in network_mounts_types"
+
+- name: Install CIFS client packages
+  ansible.builtin.apt:
+    name: cifs-utils
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: "'cifs' in network_mounts_types"
+
+- name: Ensure manifest parent directory exists
+  ansible.builtin.file:
+    path: "{{ network_mounts_manifest_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Read previous network_mounts_shares manifest (if any)
+  ansible.builtin.slurp:
+    src: "{{ network_mounts_manifest_path }}"
+  register: network_mounts_old_manifest_raw
+  failed_when: false
+  changed_when: false
+
+- name: Compute currently managed mountpoints
+  ansible.builtin.set_fact:
+    network_mounts_managed: >-
+      {{ (network_mounts_shares | default([])) | map(attribute='mount') | list | sort }}
+
+- name: Compute mountpoints to clean up (in previous manifest, no longer wanted)
+  vars:
+    _previous: >-
+      {{ (network_mounts_old_manifest_raw.content | default('') | b64decode).splitlines()
+         | map('trim') | select | list }}
+  ansible.builtin.set_fact:
+    network_mounts_to_remove: "{{ _previous | difference(network_mounts_managed) | sort }}"
+
+# Per-mount provisioning via include_tasks so each entry gets a clean
+# local fact namespace (credentials file path, effective opts).
+- name: Provision configured network mounts
+  ansible.builtin.include_tasks: mount_one.yml
+  loop: "{{ network_mounts_shares | default([]) }}"
+  loop_control:
+    loop_var: nm
+    label: "{{ nm.type }} {{ nm.source }} -> {{ nm.mount }}"
+
+# Cleanup of stale mounts (removed from network_mounts_shares between runs).
+# Symmetric with provisioning: unmount, drop fstab entry, rmdir the
+# mountpoint as a fail-safe (non-empty dirs are preserved), and delete
+# the generated CIFS credentials file if one exists.
+- name: Cleanup - unmount stale managed mountpoints
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: unmounted
+  loop: "{{ network_mounts_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Cleanup - remove fstab entries for stale managed mountpoints
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: absent_from_fstab
+  loop: "{{ network_mounts_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Cleanup - remove generated credentials files for stale mountpoints
+  ansible.builtin.file:
+    path: "{{ network_mounts_credentials_dir }}/{{ item | regex_replace('^/+', '') | regex_replace('[^A-Za-z0-9]+', '-') }}"
+    state: absent
+  loop: "{{ network_mounts_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Cleanup - rmdir stale mountpoints (fail-safe; non-empty dirs are left alone)
+  ansible.builtin.command:
+    cmd: "rmdir -- {{ item }}"
+  register: network_mounts_rmdir_results
+  changed_when: network_mounts_rmdir_results.rc == 0
+  failed_when: false
+  loop: "{{ network_mounts_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Cleanup - note mountpoints that could not be rmdir'd (non-empty)
+  ansible.builtin.debug:
+    msg: |-
+      Mountpoint {{ item.item }} was not removed (rmdir failed):
+        {{ item.stderr | default('') | trim }}
+      This is intentional: the role only rmdirs empty directories, so
+      anything left behind after a failed unmount is preserved.
+  loop: "{{ network_mounts_rmdir_results.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when:
+    - item.rc is defined
+    - item.rc != 0
+
+- name: Write current network_mounts_shares manifest
+  ansible.builtin.copy:
+    content: "{{ (network_mounts_managed | join('\n')) ~ '\n' }}"
+    dest: "{{ network_mounts_manifest_path }}"
+    owner: root
+    group: root
+    mode: "0644"

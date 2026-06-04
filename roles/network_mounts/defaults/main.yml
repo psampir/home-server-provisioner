@@ -1,0 +1,53 @@
+# Disabled by default. Opt in by populating network_mounts_shares (typically
+# in host_vars or group_vars). Each entry describes ONE remote share to
+# mount on the host. Supports NFS and CIFS/SMB clients only - this role
+# is a *client*; it does not run an NFS or Samba server.
+#
+# Required keys per mount:
+#   type      One of: nfs, cifs.
+#   source    Remote share. NFS: "host:/export/path".
+#             CIFS: "//host/share".
+#   mount     Absolute local mountpoint path.
+#
+# Optional keys (with their defaults):
+#   fstype: "<type>"             # filesystem passed to mount(8); defaults
+#                                # to the value of `type`. Override to e.g.
+#                                # "nfs4" if you need the nfs4-specific
+#                                # mount helper.
+#   mount_opts: ""               # comma-separated extra options. The role
+#                                # always appends `_netdev` and `nofail`
+#                                # (so a missing share never blocks boot),
+#                                # and for CIFS also `credentials=<file>`.
+#   owner: root                  # mountpoint directory ownership/perms,
+#   group: root                  # applied before mounting (the live perms
+#   mode: "0755"                 # of a network share come from the server).
+#
+# CIFS-only keys (pull the secrets from ansible-vault):
+#   credentials_username: "..."  # required for cifs
+#   credentials_password: "..."  # required for cifs
+#   credentials_domain: "..."    # optional workgroup/AD domain
+#
+# Example:
+#   network_mounts_shares:
+#     - type: nfs
+#       source: "10.10.0.1:/srv/media"
+#       mount: /mnt/media
+#       mount_opts: "ro,vers=4.2"
+#     - type: cifs
+#       source: "//nas.home/backups"
+#       mount: /mnt/backups
+#       owner: borg
+#       group: borg
+#       mount_opts: "uid=borg,gid=borg,file_mode=0640,dir_mode=0750"
+#       credentials_username: "{{ vault_nas_backup_user }}"
+#       credentials_password: "{{ vault_nas_backup_pass }}"
+network_mounts_shares: []
+
+# Directory holding generated CIFS credential files (mode 0600 each).
+network_mounts_credentials_dir: /etc/credentials
+
+# Per-host manifest of mountpoints currently managed by the role.
+# Drives idempotent cleanup: removing an entry from network_mounts_shares
+# unmounts it, removes the fstab line, rmdirs the mountpoint (fail-safe),
+# and deletes any generated CIFS credentials file.
+network_mounts_manifest_path: "/var/lib/home-server-provisioner/network_mounts_shares.manifest"

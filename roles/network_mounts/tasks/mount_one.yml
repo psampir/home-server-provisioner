@@ -1,0 +1,54 @@
+---
+# Provision a single network mount (NFS or CIFS). Runs in its own fact
+# namespace via include_tasks; `nm` is the current entry.
+
+- name: Compute generated credentials file path for {{ nm.mount }}
+  ansible.builtin.set_fact:
+    network_mounts_credfile: >-
+      {{ network_mounts_credentials_dir }}/{{ nm.mount | regex_replace('^/+', '') | regex_replace('[^A-Za-z0-9]+', '-') }}
+
+- name: Ensure credentials directory exists ({{ nm.mount }})
+  ansible.builtin.file:
+    path: "{{ network_mounts_credentials_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: nm.type == 'cifs'
+
+- name: Write CIFS credentials file for {{ nm.mount }}
+  ansible.builtin.copy:
+    content: |
+      username={{ nm.credentials_username }}
+      password={{ nm.credentials_password }}
+      {{ ('domain=' ~ nm.credentials_domain) if nm.credentials_domain is defined else '' }}
+    dest: "{{ network_mounts_credfile }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: nm.type == 'cifs'
+  no_log: true
+
+- name: Build effective mount options for {{ nm.mount }}
+  ansible.builtin.set_fact:
+    network_mounts_opts: >-
+      {{ ((nm.mount_opts | default('')).split(',') | map('trim') | select | list
+          + (['credentials=' ~ network_mounts_credfile] if nm.type == 'cifs' else [])
+          + ['_netdev', 'nofail'])
+         | unique | join(',') }}
+
+- name: Ensure mountpoint directory exists ({{ nm.mount }})
+  ansible.builtin.file:
+    path: "{{ nm.mount }}"
+    state: directory
+    owner: "{{ nm.owner | default('root') }}"
+    group: "{{ nm.group | default('root') }}"
+    mode: "{{ nm.mode | default('0755') }}"
+
+- name: Mount network share {{ nm.mount }}
+  ansible.posix.mount:
+    path: "{{ nm.mount }}"
+    src: "{{ nm.source }}"
+    fstype: "{{ nm.fstype | default(nm.type) }}"
+    opts: "{{ network_mounts_opts }}"
+    state: mounted

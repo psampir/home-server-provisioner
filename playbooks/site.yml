@@ -17,6 +17,7 @@
     - wireguard
     - swap
     - storage
+    - network_mounts
     - custom_scripts
     - systemd_units
     - scheduled_jobs
