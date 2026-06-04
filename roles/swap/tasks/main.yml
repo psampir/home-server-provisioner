@@ -1,0 +1,190 @@
+---
+- name: Set swap enabled fact
+  ansible.builtin.set_fact:
+    swap_enabled: "{{ swap_size | length > 0 }}"
+
+# Walk active swap areas and compute how much "external" swap (everything
+# the role does NOT own - installer-created partitions, zram, hand-rolled
+# swapfiles at other paths) is already in place. The role's target file
+# is sized to top up to swap_size; if external already meets or exceeds
+# the target, no role-managed file is created.
+- name: Inspect currently active swap areas
+  ansible.builtin.command:
+    cmd: "swapon --show=NAME,TYPE,SIZE --noheadings --bytes"
+  register: swap_active_raw
+  changed_when: false
+
+- name: Parse active swap areas
+  ansible.builtin.set_fact:
+    swap_active_entries: >-
+      {{ swap_active_raw.stdout_lines
+         | map('split')
+         | map('list')
+         | list }}
+
+- name: Compute external (non-role-owned) swap total in bytes
+  ansible.builtin.set_fact:
+    swap_external_bytes: >-
+      {{ swap_active_entries
+         | rejectattr('0', 'eq', swap_file_path)
+         | map(attribute='2')
+         | map('int')
+         | sum }}
+
+- name: Note pre-existing external swap (informational)
+  ansible.builtin.debug:
+    msg: |-
+      Pre-existing swap not managed by this role (total
+      {{ swap_external_bytes }} bytes):
+      {% for entry in swap_active_entries %}
+      {% if entry[0] != swap_file_path %}
+        - {{ entry[0] }} ({{ entry[1] }}, {{ entry[2] }} bytes)
+      {% endif %}
+      {% endfor %}
+  when:
+    - swap_active_entries | length > 0
+    - swap_active_entries | rejectattr('0', 'eq', swap_file_path) | list | length > 0
+
+- name: Disable + remove managed swapfile (when swap_size is empty)
+  when: not swap_enabled
+  block:
+    - name: Check whether managed swapfile exists
+      ansible.builtin.stat:
+        path: "{{ swap_file_path }}"
+      register: swap_existing_when_disabled
+
+    - name: Swapoff managed swapfile (best-effort)
+      ansible.builtin.command:
+        cmd: "swapoff {{ swap_file_path }}"
+      when: swap_existing_when_disabled.stat.exists
+      changed_when: false
+      failed_when: false
+
+    - name: Remove fstab entry for managed swapfile
+      ansible.posix.mount:
+        path: none
+        src: "{{ swap_file_path }}"
+        fstype: swap
+        state: absent
+
+    - name: Delete managed swapfile
+      ansible.builtin.file:
+        path: "{{ swap_file_path }}"
+        state: absent
+
+- name: Provision swapfile (when swap_size is set)
+  when: swap_enabled
+  block:
+    - name: Convert swap_size to bytes
+      ansible.builtin.set_fact:
+        swap_size_bytes: "{{ swap_size | human_to_bytes }}"
+
+    # Top-up target: the role-managed file should be exactly large
+    # enough to bring (external + role) up to swap_size. Below
+    # swap_min_file_bytes we drop the role file entirely - mkswap
+    # rejects very small files anyway, and a tiny top-up serves no
+    # real purpose.
+    - name: Compute target role-managed swapfile size
+      ansible.builtin.set_fact:
+        swap_target_file_bytes: >-
+          {{ [(swap_size_bytes | int) - (swap_external_bytes | int), 0] | max }}
+
+    - name: Note when external swap already exceeds the requested target
+      ansible.builtin.debug:
+        msg: |-
+          External swap ({{ swap_external_bytes }} bytes) already covers
+          the requested swap_size ({{ swap_size_bytes }} bytes). Total
+          active swap will exceed swap_size; the role-managed swapfile
+          is not needed and will be removed if previously installed.
+      when: (swap_external_bytes | int) >= (swap_size_bytes | int)
+
+    - name: Stat existing role-managed swapfile
+      ansible.builtin.stat:
+        path: "{{ swap_file_path }}"
+      register: swap_existing
+
+    # Branch A: target dropped to zero (or below the minimum useful
+    # size) - tear down the role-managed file if it still exists.
+    - name: Tear down role-managed swapfile (target satisfied externally)
+      when: (swap_target_file_bytes | int) < (swap_min_file_bytes | int)
+      block:
+        - name: Swapoff role-managed swapfile (best-effort)
+          ansible.builtin.command:
+            cmd: "swapoff {{ swap_file_path }}"
+          when: swap_existing.stat.exists
+          changed_when: false
+          failed_when: false
+
+        - name: Remove fstab entry for role-managed swapfile
+          ansible.posix.mount:
+            path: none
+            src: "{{ swap_file_path }}"
+            fstype: swap
+            state: absent
+
+        - name: Delete role-managed swapfile
+          ansible.builtin.file:
+            path: "{{ swap_file_path }}"
+            state: absent
+
+    # Branch B: we need a role-managed file. Create or resize it.
+    - name: Create or resize role-managed swapfile to target
+      when: (swap_target_file_bytes | int) >= (swap_min_file_bytes | int)
+      block:
+        - name: Detect whether existing swapfile is the wrong size
+          ansible.builtin.set_fact:
+            swap_size_mismatch: >-
+              {{ swap_existing.stat.exists
+                 and (swap_existing.stat.size | int) != (swap_target_file_bytes | int) }}
+
+        - name: Swapoff before resize / recreate
+          ansible.builtin.command:
+            cmd: "swapoff {{ swap_file_path }}"
+          when: swap_size_mismatch
+          changed_when: true
+          failed_when: false
+
+        - name: Remove undersized / oversized swapfile so it can be recreated
+          ansible.builtin.file:
+            path: "{{ swap_file_path }}"
+            state: absent
+          when: swap_size_mismatch
+
+        - name: Allocate swapfile
+          ansible.builtin.command:
+            cmd: "fallocate -l {{ swap_target_file_bytes }} {{ swap_file_path }}"
+            creates: "{{ swap_file_path }}"
+
+        - name: Lock down swapfile permissions (root-only, 0600)
+          ansible.builtin.file:
+            path: "{{ swap_file_path }}"
+            owner: root
+            group: root
+            mode: "0600"
+
+        - name: Format swapfile (only when freshly created)
+          ansible.builtin.command:
+            cmd: "mkswap {{ swap_file_path }}"
+          register: swap_mkswap
+          changed_when: "'no label' in swap_mkswap.stderr or swap_mkswap.rc == 0"
+          when: swap_size_mismatch or not swap_existing.stat.exists
+
+        - name: Ensure fstab entry for swapfile
+          ansible.posix.mount:
+            path: none
+            src: "{{ swap_file_path }}"
+            fstype: swap
+            opts: "{{ swap_fstab_options }}"
+            state: present
+
+        - name: Re-check active swap after potential swapoff/recreate
+          ansible.builtin.command:
+            cmd: "swapon --show=NAME --noheadings"
+          register: swap_active_after
+          changed_when: false
+
+        - name: Activate swapfile
+          ansible.builtin.command:
+            cmd: "swapon {{ swap_file_path }}"
+          when: swap_file_path not in (swap_active_after.stdout_lines | default([]))
+          changed_when: true

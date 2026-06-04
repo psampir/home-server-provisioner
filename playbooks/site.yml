@@ -15,6 +15,7 @@
     - fail2ban
     - firewall
     - wireguard
+    - swap
     - custom_scripts
     - systemd_units
     - scheduled_jobs

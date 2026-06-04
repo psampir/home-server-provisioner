@@ -1,0 +1,22 @@
+---
+# Disabled by default - opt in by setting swap_size on a host (or group)
+# that needs swap. We don't drop a multi-GB file on every host without
+# explicit consent.
+#
+# Set swap_size to a non-empty value to enable, e.g.:
+#   swap_size: "1G"
+#   swap_size: "2048M"
+swap_size: ""
+
+# Path of the swap file. /swapfile is the systemd-recommended location.
+swap_file_path: "/swapfile"
+
+# fstab options. nofail means a missing/corrupt swapfile won't keep the
+# host from booting; sw is the canonical 'swap' entry.
+swap_fstab_options: "sw,nofail"
+
+# When the top-up algorithm computes a target file size below this
+# threshold (e.g. external swap is just shy of swap_size) the role
+# drops the file entirely instead of creating something tiny and
+# useless. mkswap rejects very small files anyway. 64 MiB by default.
+swap_min_file_bytes: 67108864

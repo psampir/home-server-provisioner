@@ -146,6 +146,16 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # scheduled_jobs, this role copies your file verbatim.
 # systemd_units_auto_enable: true   # set false to install but skip start
 
+# --- swap role -----------------------------------------------------------------
+# Disabled by default. swap_size is a declarative TOTAL active swap
+# target - the role inspects pre-existing swap (installer partitions,
+# zram, etc.) and creates a top-up swapfile only as needed. Setting
+# swap_size: "" tears down any role-managed swapfile.
+# swap_size: "1G"               # e.g. "512M", "2G"
+# swap_file_path: /swapfile
+# swap_fstab_options: sw,nofail
+# swap_min_file_bytes: 67108864 # below 64 MiB, role drops file instead
+
 
 # --- journal role --------------------------------------------------------------
 # journal_storage: persistent
