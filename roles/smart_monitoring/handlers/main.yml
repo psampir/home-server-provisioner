@@ -1,0 +1,18 @@
+---
+- name: Restart smartd
+  ansible.builtin.systemd:
+    name: "{{ smart_monitoring_service }}"
+    state: restarted
+
+# Confirms the smartd -> hsp-notify path is wired up whenever the config
+# changes. Best-effort: a no-op hsp-notify (no backend configured) just
+# logs to the journal.
+- name: Send smartd configuration notice
+  ansible.builtin.command:
+    cmd: >-
+      {{ smart_monitoring_notify_bin }}
+      --priority low --tags floppy_disk
+      SMART monitoring active on {{ inventory_hostname }}
+  changed_when: false
+  failed_when: false
+  when: smart_monitoring_notify_on_change

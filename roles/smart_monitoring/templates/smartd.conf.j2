@@ -1,0 +1,10 @@
+# /etc/smartd.conf - managed by Ansible (roles/smart_monitoring), do not edit.
+#
+# DEVICESCAN auto-detects every SMART-capable device. Devices without SMART
+# support (e.g. virtual disks) are skipped gracefully. Alerts run the
+# hsp-notify wrapper via "-M exec"; "-m root" is required syntactically but
+# no mail is sent because -M exec replaces the mailer.
+DEVICESCAN {{ smart_monitoring_devicescan_opts }} -m root -M exec {{ smart_monitoring_wrapper_path }}
+{% for line in smart_monitoring_extra_directives %}
+{{ line }}
+{% endfor %}

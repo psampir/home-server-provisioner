@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# hsp-notify-smartd - smartd "-M exec" hook. Formats the SMARTD_* environment
+# variables smartd exports on an alert and forwards them to hsp-notify.
+#
+# Managed by Ansible (roles/smart_monitoring) - do not edit by hand.
+
+set -euo pipefail
+
+NOTIFY="{{ smart_monitoring_notify_bin }}"
+
+device="${SMARTD_DEVICESTRING:-${SMARTD_DEVICE:-unknown device}}"
+failtype="${SMARTD_FAILTYPE:-SMART alert}"
+host="$(hostname -s 2>/dev/null || hostname || echo localhost)"
+
+subject="SMART alert on ${host}: ${device} (${failtype})"
+body="${SMARTD_FULLMESSAGE:-${SMARTD_MESSAGE:-${failtype}}}"
+
+if [[ -x "$NOTIFY" ]]; then
+    "$NOTIFY" \
+        --priority {{ smart_monitoring_notify_priority }} \
+        --tags {{ smart_monitoring_notify_tags }} \
+        "$subject" "$body"
+else
+    logger -t hsp-notify-smartd "smartd alert (hsp-notify missing): ${subject} - ${body}"
+fi

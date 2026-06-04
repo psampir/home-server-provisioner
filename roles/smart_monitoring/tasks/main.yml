@@ -1,0 +1,61 @@
+---
+# Disk health monitoring with smartd. Alerts are forwarded to hsp-notify.
+
+- name: Install smartmontools
+  ansible.builtin.apt:
+    name: smartmontools
+    state: present
+
+# ---------------------------------------------------------------------------
+# Disabled path: tear our managed bits down but keep the package installed.
+# ---------------------------------------------------------------------------
+- name: Stop and disable smartd when monitoring is disabled
+  ansible.builtin.systemd:
+    name: "{{ smart_monitoring_service }}"
+    state: stopped
+    enabled: false
+  when: not smart_monitoring_enabled
+
+- name: Remove managed smartd configuration and wrapper when disabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ smart_monitoring_conf_path }}"
+    - "{{ smart_monitoring_wrapper_path }}"
+  when: not smart_monitoring_enabled
+
+# ---------------------------------------------------------------------------
+# Enabled path.
+# ---------------------------------------------------------------------------
+- name: Install smartd notification wrapper
+  ansible.builtin.template:
+    src: hsp-notify-smartd.j2
+    dest: "{{ smart_monitoring_wrapper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: smart_monitoring_enabled
+
+- name: Configure smartd
+  ansible.builtin.template:
+    src: smartd.conf.j2
+    dest: "{{ smart_monitoring_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: smart_monitoring_enabled
+  notify:
+    - Restart smartd
+    - Send smartd configuration notice
+
+# Debian's smartmontools.service carries ConditionVirtualization=no, so smartd
+# never runs under virtualization (VMs/containers). Mirror that here: only
+# request 'started' on physical hosts, otherwise just enable it. This keeps
+# the role idempotent in virtualized test environments.
+- name: Ensure smartd is enabled and running
+  ansible.builtin.systemd:
+    name: "{{ smart_monitoring_service }}"
+    state: "{{ 'started' if ansible_virtualization_role != 'guest' else omit }}"
+    enabled: true
+  when: smart_monitoring_enabled

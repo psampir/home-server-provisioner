@@ -1,0 +1,39 @@
+---
+# smart_monitoring - disk health monitoring via smartd, with alerts routed
+# through hsp-notify (roles/notifications). Deliberately bare: no Scrutiny,
+# no web UI. smartd skips gracefully on devices without SMART support
+# (e.g. virtual disks), so it is safe to enable everywhere.
+
+# Master switch. When false the role removes its config + wrapper and
+# stops/disables smartd, leaving the package in place.
+smart_monitoring_enabled: true
+
+# smartd self-test schedule and monitoring directives applied to every
+# auto-detected device via DEVICESCAN. Format of -s is T/MM/DD/d/HH:
+#   S/../.././02  -> short test daily at 02:00
+#   L/../../6/03  -> long  test weekly on Saturday at 03:00
+# -a       monitor all attributes
+# -o on    enable automatic offline data collection
+# -S on    enable attribute autosave
+smart_monitoring_devicescan_opts: >-
+  -a -o on -S on -s (S/../.././02|L/../../6/03)
+
+# Extra raw lines appended verbatim to smartd.conf (e.g. per-device
+# overrides). Each list item is one line.
+smart_monitoring_extra_directives: []
+
+# Alert routing (passed to hsp-notify by the wrapper).
+smart_monitoring_notify_priority: urgent
+smart_monitoring_notify_tags: "warning,floppy_disk"
+
+# Send an informational notification when the configuration changes, to
+# confirm the alerting path is wired up end to end.
+smart_monitoring_notify_on_change: true
+
+# --- File locations (rarely overridden) ---
+smart_monitoring_conf_path: /etc/smartd.conf
+smart_monitoring_wrapper_path: /usr/local/bin/hsp-notify-smartd
+smart_monitoring_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
+
+# systemd unit name for smartd (Debian ships smartmontools.service).
+smart_monitoring_service: smartmontools

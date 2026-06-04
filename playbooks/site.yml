@@ -18,6 +18,7 @@
     - swap
     - storage
     - network_mounts
+    - smart_monitoring
     - custom_scripts
     - systemd_units
     - scheduled_jobs
