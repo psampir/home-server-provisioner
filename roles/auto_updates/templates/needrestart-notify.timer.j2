@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Daily needrestart check with hsp-notify alerting
+
+[Timer]
+OnCalendar={{ auto_updates_needrestart_notify_schedule }}
+Persistent=true
+RandomizedDelaySec=300
+Unit={{ auto_updates_needrestart_notify_unit }}.service
+
+[Install]
+WantedBy=timers.target

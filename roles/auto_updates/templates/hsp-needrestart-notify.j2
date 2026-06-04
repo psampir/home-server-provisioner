@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# hsp-needrestart-notify - run needrestart in batch mode, and if any
+# services or the kernel need a restart, send an alert via hsp-notify.
+#
+# Managed by Ansible (roles/auto_updates) - do not edit by hand.
+
+set -euo pipefail
+
+NOTIFY="{{ auto_updates_notify_bin }}"
+{% raw %}
+host="$(hostname -s 2>/dev/null || hostname || echo localhost)"
+
+# Batch output is line-oriented:
+#   NEEDRESTART-KSTA: <n>   kernel status (1 = current, 2 = ABI upgrade
+#                           available, 3 = newer version pending)
+#   NEEDRESTART-SVC: <unit> one line per service running outdated code
+out="$(needrestart -b 2>/dev/null || true)"
+
+ksta="$(printf '%s\n' "$out" | awk -F': ' '/^NEEDRESTART-KSTA:/ {print $2; exit}')"
+mapfile -t svcs < <(printf '%s\n' "$out" | awk -F': ' '/^NEEDRESTART-SVC:/ {print $2}')
+
+kernel_pending=0
+[[ -n "${ksta:-}" && "$ksta" -ge 2 ]] && kernel_pending=1
+
+if [[ "$kernel_pending" -eq 0 && "${#svcs[@]}" -eq 0 ]]; then
+    # Nothing to do - stay quiet.
+    exit 0
+fi
+
+parts=()
+[[ "$kernel_pending" -eq 1 ]] && parts+=("kernel reboot pending")
+[[ "${#svcs[@]}" -gt 0 ]] && parts+=("${#svcs[@]} service(s) need restart")
+summary="$(IFS='; '; echo "${parts[*]}")"
+
+subject="needrestart on ${host}: ${summary}"
+
+body="Host ${host} has outdated running code after package upgrades."
+if [[ "$kernel_pending" -eq 1 ]]; then
+    body+=$'\n'"Kernel: a reboot is required to run the newest installed kernel."
+fi
+if [[ "${#svcs[@]}" -gt 0 ]]; then
+    body+=$'\n'"Services: ${svcs[*]}"
+    body+=$'\n'"Restart with: systemctl restart <unit>  (or reboot)."
+fi
+
+if [[ -x "$NOTIFY" ]]; then
+    "$NOTIFY" --priority high --tags warning,arrows_counterclockwise \
+        "$subject" "$body"
+else
+    logger -t hsp-needrestart-notify "${subject} - ${body}"
+fi
+{% endraw %}

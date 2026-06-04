@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+# Pin needrestart to a non-interactive restart mode so it never blocks
+# unattended-upgrades. Managed by Ansible (roles/auto_updates).
+$nrconf{restart} = '{{ auto_updates_needrestart_mode }}';

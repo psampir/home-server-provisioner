@@ -30,3 +30,92 @@
     name: unattended-upgrades
     enabled: true
     state: started
+# ---------------------------------------------------------------------------
+# needrestart - detect daemons/kernel running outdated code after upgrades.
+# ---------------------------------------------------------------------------
+- name: Install needrestart
+  ansible.builtin.apt:
+    name: needrestart
+    state: present
+  when: auto_updates_needrestart
+
+- name: Ensure needrestart drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ auto_updates_needrestart_confd | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: auto_updates_needrestart
+
+- name: Pin needrestart restart mode (non-interactive)
+  ansible.builtin.template:
+    src: needrestart-10-hsp.conf.j2
+    dest: "{{ auto_updates_needrestart_confd }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: auto_updates_needrestart
+
+- name: Remove needrestart drop-in when needrestart is disabled
+  ansible.builtin.file:
+    path: "{{ auto_updates_needrestart_confd }}"
+    state: absent
+  when: not auto_updates_needrestart
+
+# --- daily notify timer ---
+- name: Install needrestart notify wrapper
+  ansible.builtin.template:
+    src: hsp-needrestart-notify.j2
+    dest: "{{ auto_updates_needrestart_notify_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: auto_updates_needrestart and auto_updates_needrestart_notify
+
+- name: Install needrestart notify service unit
+  ansible.builtin.template:
+    src: needrestart-notify.service.j2
+    dest: "/etc/systemd/system/{{ auto_updates_needrestart_notify_unit }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  when: auto_updates_needrestart and auto_updates_needrestart_notify
+  notify: Reload systemd for needrestart
+
+- name: Install needrestart notify timer unit
+  ansible.builtin.template:
+    src: needrestart-notify.timer.j2
+    dest: "/etc/systemd/system/{{ auto_updates_needrestart_notify_unit }}.timer"
+    owner: root
+    group: root
+    mode: "0644"
+  when: auto_updates_needrestart and auto_updates_needrestart_notify
+  notify: Reload systemd for needrestart
+
+- name: Enable needrestart notify timer
+  ansible.builtin.systemd:
+    name: "{{ auto_updates_needrestart_notify_unit }}.timer"
+    enabled: true
+    state: started
+  when: auto_updates_needrestart and auto_updates_needrestart_notify
+
+# --- teardown of the notify timer when disabled ---
+- name: Disable needrestart notify timer when notifications are off
+  ansible.builtin.systemd:
+    name: "{{ auto_updates_needrestart_notify_unit }}.timer"
+    enabled: false
+    state: stopped
+  failed_when: false
+  when: not (auto_updates_needrestart and auto_updates_needrestart_notify)
+
+- name: Remove needrestart notify units and wrapper when disabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/etc/systemd/system/{{ auto_updates_needrestart_notify_unit }}.service"
+    - "/etc/systemd/system/{{ auto_updates_needrestart_notify_unit }}.timer"
+    - "{{ auto_updates_needrestart_notify_bin }}"
+  when: not (auto_updates_needrestart and auto_updates_needrestart_notify)
+  notify: Reload systemd for needrestart

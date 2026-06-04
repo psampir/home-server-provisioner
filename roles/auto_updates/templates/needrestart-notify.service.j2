@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Notify via hsp-notify when services or the kernel need a restart
+After=network-online.target
+Wants=network-online.target
+OnFailure=hsp-notify-failure@%n.service
+
+[Service]
+Type=oneshot
+ExecStart={{ auto_updates_needrestart_notify_bin }}

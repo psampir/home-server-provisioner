@@ -7,3 +7,27 @@ auto_updates_enable_reboot: false
 auto_updates_reboot_time: "03:00"
 auto_updates_remove_unused_dependencies: true
 auto_updates_autofix_interrupted_dpkg: true
+
+# --- needrestart ---
+# needrestart detects daemons running outdated code (and a pending kernel)
+# after package upgrades. Debian ships an apt hook that, by default, runs
+# interactively ('i') - which would block unattended-upgrades. We install
+# needrestart and pin it to a non-interactive mode.
+auto_updates_needrestart: true
+
+# Restart mode written to /etc/needrestart/needrestart.conf.d/10-hsp.conf:
+#   l  list only (default, safe - never restarts anything automatically)
+#   a  automatically restart affected services (opt-in)
+#   i  interactive (NOT recommended with unattended-upgrades - can hang)
+auto_updates_needrestart_mode: l
+
+# Install a daily timer that runs `needrestart -b`, and sends an
+# hsp-notify alert when services or the kernel need a restart.
+auto_updates_needrestart_notify: true
+
+# --- needrestart file locations (rarely overridden) ---
+auto_updates_needrestart_confd: /etc/needrestart/needrestart.conf.d/10-hsp.conf
+auto_updates_needrestart_notify_bin: /usr/local/bin/hsp-needrestart-notify
+auto_updates_needrestart_notify_unit: sched-needrestart-notify
+auto_updates_needrestart_notify_schedule: "*-*-* 07:30:00"
+auto_updates_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
