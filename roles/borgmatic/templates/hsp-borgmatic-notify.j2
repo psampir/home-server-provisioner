@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# borgmatic hook wrapper: routes backup outcome to hsp-notify.
+# Usage: hsp-borgmatic-notify <failure|success>
+{% raw %}
+set -euo pipefail
+
+outcome="${1:-failure}"
+host="$(hostname -s)"
+notify="{% endraw %}{{ borgmatic_notify_bin }}{% raw %}"
+
+[ -x "$notify" ] || exit 0
+
+case "$outcome" in
+    success)
+{% endraw %}
+        "$notify" --priority {{ borgmatic_notify_priority_success }} --tags floppy_disk,white_check_mark \
+            "Backup OK on $host" "borgmatic create completed successfully."
+{% raw %}
+        ;;
+    *)
+{% endraw %}
+        "$notify" --priority {{ borgmatic_notify_priority_failure }} --tags floppy_disk,rotating_light \
+            "Backup FAILED on $host" "borgmatic reported an error. Check: journalctl -u borgmatic.service -n 50"
+{% raw %}
+        ;;
+esac
+{% endraw %}

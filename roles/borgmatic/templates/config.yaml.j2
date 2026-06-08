@@ -1,0 +1,44 @@
+# {{ ansible_managed }}
+# borgmatic configuration for {{ inventory_hostname }}. Rendered from
+# roles/borgmatic. The nightly timer runs `borgmatic create` only;
+# retention is enforced server-side by the borg_repo role (append-only
+# repos forbid client-side pruning).
+
+source_directories:
+{% for path in borgmatic_source_directories %}
+    - {{ path }}
+{% endfor %}
+
+repositories:
+{% for repo in borgmatic_repositories %}
+{% if repo.url is defined %}
+    - path: {{ repo.url }}
+      label: {{ repo.label | default(repo.url | basename) }}
+{% else %}
+    - path: "ssh://{{ borgmatic_remote_user }}@{{ hostvars[repo.target].vpn_ip }}/srv/borg/{{ inventory_hostname }}/{{ repo.path }}"
+      label: {{ repo.label | default(repo.path) }}
+{% endif %}
+{% endfor %}
+
+# Passphrase comes from {{ borgmatic_env_path }} (mode 0600), injected as
+# BORG_PASSPHRASE by the systemd EnvironmentFile. For manual borgmatic/borg
+# runs: `set -a; . {{ borgmatic_env_path }}; set +a` first.
+encryption_passphrase: ${BORG_PASSPHRASE}
+
+ssh_command: {{ borgmatic_ssh_command }}
+
+{% if borgmatic_exclude_patterns | length > 0 %}
+exclude_patterns:
+{% for pattern in borgmatic_exclude_patterns %}
+    - {{ pattern }}
+{% endfor %}
+
+{% endif %}
+{% if borgmatic_notify_on_failure %}
+on_error:
+    - "{{ borgmatic_notify_wrapper_path }} failure"
+{% endif %}
+{% if borgmatic_notify_on_success %}
+after_backup:
+    - "{{ borgmatic_notify_wrapper_path }} success"
+{% endif %}

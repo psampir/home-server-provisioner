@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+[Timer]
+# Reset the packaged schedule before applying ours.
+OnCalendar=
+OnCalendar={{ borgmatic_schedule }}
+{% if borgmatic_randomized_delay %}
+RandomizedDelaySec={{ borgmatic_randomized_delay }}
+{% endif %}
+Persistent={{ 'true' if borgmatic_persistent else 'false' }}

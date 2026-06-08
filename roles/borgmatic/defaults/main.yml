@@ -1,0 +1,108 @@
+---
+# borgmatic - client/source side of the backup pipeline. Installs
+# borgmatic + borgbackup, renders a borgmatic config, and schedules a
+# nightly `borgmatic create` that PUSHES archives over SSH (through the
+# WireGuard tunnel) to a borg repository served by the `borg_repo` role
+# on a backup_targets host.
+#
+# Security model: the SSH key generated here is authorized on the target
+# under an APPEND-ONLY forced command (see roles/borg_repo). A compromised
+# source can therefore add archives but can never delete or overwrite the
+# backup history. Because append-only forbids pruning, retention is NOT
+# enforced from the source - the target prunes + compacts locally. The
+# source only ever runs `borgmatic create`.
+#
+# The role is INERT by default: with an empty borgmatic_repositories it
+# installs nothing dynamic and tears down any previously managed config.
+# Opt in by populating borgmatic_repositories (typically in host_vars).
+
+# --- What to back up -------------------------------------------------------
+# Absolute paths included in every archive. REQUIRED (non-empty) when
+# borgmatic_repositories is set.
+borgmatic_source_directories: []
+
+# Patterns excluded from archives (borg --exclude semantics).
+borgmatic_exclude_patterns: []
+
+# --- Where to back up ------------------------------------------------------
+# Each entry describes ONE managed repository. The matching repo is
+# created, key-initialized, authorized and pruned by the `borg_repo`
+# role on the named target host - this list is the single source of
+# truth for both sides.
+#
+# Managed-target entry (primary form):
+#   - target: hsp-backup        # inventory host running the borg_repo role
+#     path: main                # repo dir name; final repo lives at
+#                               #   /srv/borg/<this_host>/<path> on the target
+#     label: offsite            # borgmatic label (optional, defaults to path)
+#     retention:                # optional; overrides borgmatic_keep_* below.
+#       keep_daily: 7           # consumed by borg_repo's maintenance job
+#       keep_weekly: 4
+#       keep_monthly: 6
+#
+# External entry (escape hatch - repo you manage yourself elsewhere):
+#   - url: "ssh://user@borgbase-host/./repo"
+#     label: cloud
+#     # External repos are NOT auto-initialized or pruned by this project.
+borgmatic_repositories: []
+
+# Default retention applied by the target's maintenance job to managed
+# repos that do not set their own `retention:` block.
+borgmatic_keep_daily: 7
+borgmatic_keep_weekly: 4
+borgmatic_keep_monthly: 6
+
+# --- Encryption ------------------------------------------------------------
+# Repo passphrase (repokey-blake2). The SAME value protects every managed
+# repo and MUST stay constant for the life of the repo - losing it makes
+# archives unrecoverable. Provide it via ansible-vault in production:
+#   borgmatic_passphrase: "{{ vault_borgmatic_passphrase }}"
+# Stored on the host in /etc/borgmatic/borgmatic.env (mode 0600) and
+# referenced from the config as ${BORG_PASSPHRASE}.
+borgmatic_passphrase: "{{ vault_borgmatic_passphrase | default('') }}"
+
+# Borg encryption mode used when the target initializes managed repos.
+# repokey-blake2 keeps the key INSIDE the repo (encrypted by the
+# passphrase), so disaster recovery needs only the vaulted passphrase.
+borgmatic_encryption_mode: repokey-blake2
+
+# --- Connectivity ----------------------------------------------------------
+# SSH user on the target that runs `borg serve`.
+borgmatic_remote_user: borg
+
+# SSH options borgmatic uses to reach the target. -i selects the dedicated
+# push key; accept-new trusts the target host key on first contact (homelab
+# over WireGuard). Tighten StrictHostKeyChecking to "yes" once known_hosts
+# is seeded if you prefer.
+borgmatic_ssh_command: "ssh -i {{ borgmatic_ssh_key_path }} -o StrictHostKeyChecking=accept-new"
+
+# Dedicated SSH keypair for backup pushes (host-local, regenerable, never
+# vaulted - the target re-authorizes it on the next provision).
+borgmatic_ssh_key_path: /root/.ssh/id_borg
+
+# --- Scheduling ------------------------------------------------------------
+# systemd OnCalendar expression for the nightly backup. Uses borgmatic's
+# own packaged borgmatic.timer, retargeted via a drop-in.
+borgmatic_schedule: "*-*-* 02:30:00"
+borgmatic_randomized_delay: "20m"
+# Persistent= on the timer: run a missed backup at next boot.
+borgmatic_persistent: true
+
+# --- Notifications ---------------------------------------------------------
+# on_error hook -> hsp-notify. Always on (best-effort no-op if no ntfy
+# backend is configured).
+borgmatic_notify_on_failure: true
+# after_backup hook -> hsp-notify on success. Off by default to avoid a
+# nightly "backup ok" push; flip to true if you want positive confirmation.
+borgmatic_notify_on_success: false
+borgmatic_notify_priority_failure: high
+borgmatic_notify_priority_success: low
+borgmatic_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
+
+# --- File locations (rarely overridden) ------------------------------------
+borgmatic_config_dir: /etc/borgmatic
+borgmatic_config_path: /etc/borgmatic/config.yaml
+borgmatic_env_path: /etc/borgmatic/borgmatic.env
+borgmatic_notify_wrapper_path: /usr/local/bin/hsp-borgmatic-notify
+borgmatic_service_dropin_dir: /etc/systemd/system/borgmatic.service.d
+borgmatic_timer_dropin_dir: /etc/systemd/system/borgmatic.timer.d

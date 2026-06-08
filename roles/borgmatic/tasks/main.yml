@@ -1,0 +1,182 @@
+---
+# borgmatic source role. See defaults/main.yml for the full data model.
+
+- name: Set borgmatic enabled fact
+  ansible.builtin.set_fact:
+    borgmatic_enabled: "{{ (borgmatic_repositories | default([])) | length > 0 }}"
+
+# ---------------------------------------------------------------------------
+# Disabled path: tear down managed config + timer, keep the package.
+# ---------------------------------------------------------------------------
+- name: Disable borgmatic timer when no repositories are configured
+  ansible.builtin.systemd:
+    name: borgmatic.timer
+    state: stopped
+    enabled: false
+  failed_when: false
+  when: not borgmatic_enabled
+
+- name: Remove managed borgmatic files when disabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ borgmatic_config_path }}"
+    - "{{ borgmatic_env_path }}"
+    - "{{ borgmatic_notify_wrapper_path }}"
+    - "{{ borgmatic_service_dropin_dir }}/10-hsp.conf"
+    - "{{ borgmatic_timer_dropin_dir }}/10-hsp.conf"
+  notify: Reload systemd for borgmatic
+  when: not borgmatic_enabled
+
+# ---------------------------------------------------------------------------
+# Enabled path.
+# ---------------------------------------------------------------------------
+- name: Validate backup source directories are set
+  ansible.builtin.assert:
+    that:
+      - (borgmatic_source_directories | default([])) | length > 0
+    fail_msg: >-
+      borgmatic_repositories is set but borgmatic_source_directories is empty.
+      A backup with nothing to back up would fail every run - declare at least
+      one absolute path to include in archives.
+  when: borgmatic_enabled
+
+- name: Validate backup passphrase is set
+  ansible.builtin.assert:
+    that:
+      - (borgmatic_passphrase | default('')) | length > 0
+    fail_msg: >-
+      borgmatic_repositories is set but borgmatic_passphrase is empty. Provide
+      it via ansible-vault (vault_borgmatic_passphrase). Without it archives
+      cannot be encrypted or restored.
+  when: borgmatic_enabled
+
+- name: Install borgmatic and borgbackup
+  ansible.builtin.apt:
+    name:
+      - borgbackup
+      - borgmatic
+    state: present
+  when: borgmatic_enabled
+
+- name: Ensure borgmatic config directory exists
+  ansible.builtin.file:
+    path: "{{ borgmatic_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  when: borgmatic_enabled
+
+- name: Ensure root SSH directory exists
+  ansible.builtin.file:
+    path: "{{ borgmatic_ssh_key_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: borgmatic_enabled
+
+- name: Generate dedicated SSH keypair for backup pushes
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -t ed25519 -N '' -C 'borgmatic-{{ inventory_hostname }}'
+      -f {{ borgmatic_ssh_key_path }}
+    creates: "{{ borgmatic_ssh_key_path }}"
+  when: borgmatic_enabled
+
+- name: Read backup SSH public key
+  ansible.builtin.slurp:
+    src: "{{ borgmatic_ssh_key_path }}.pub"
+  register: borgmatic_pubkey_raw
+  when: borgmatic_enabled
+
+# Published as a host fact so the borg_repo play (which runs later in
+# site.yml) can authorize every source's key on the target.
+- name: Publish backup SSH public key as a host fact
+  ansible.builtin.set_fact:
+    borgmatic_ssh_pubkey: "{{ (borgmatic_pubkey_raw.content | b64decode).strip() }}"
+  when: borgmatic_enabled
+
+- name: Install borgmatic notification wrapper
+  ansible.builtin.template:
+    src: hsp-borgmatic-notify.j2
+    dest: "{{ borgmatic_notify_wrapper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: borgmatic_enabled
+
+- name: Write borgmatic passphrase env file
+  ansible.builtin.template:
+    src: borgmatic.env.j2
+    dest: "{{ borgmatic_env_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: borgmatic_enabled
+
+- name: Render borgmatic configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ borgmatic_config_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    validate: "borgmatic config validate -c %s"
+  environment:
+    # So the validate step can resolve ${BORG_PASSPHRASE} in the config.
+    BORG_PASSPHRASE: "{{ borgmatic_passphrase }}"
+  when: borgmatic_enabled
+
+- name: Ensure borgmatic.service drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ borgmatic_service_dropin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: borgmatic_enabled
+
+- name: Ensure borgmatic.timer drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ borgmatic_timer_dropin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: borgmatic_enabled
+
+# Override ExecStart to run ONLY `borgmatic create`. The packaged unit runs
+# the full `borgmatic` (prune/compact/create/check), but prune+compact would
+# fail against an append-only repo - the target enforces retention instead.
+- name: Configure borgmatic.service drop-in (create-only + env + failure notify)
+  ansible.builtin.template:
+    src: service-dropin.conf.j2
+    dest: "{{ borgmatic_service_dropin_dir }}/10-hsp.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for borgmatic
+  when: borgmatic_enabled
+
+- name: Configure borgmatic.timer drop-in (schedule)
+  ansible.builtin.template:
+    src: timer-dropin.conf.j2
+    dest: "{{ borgmatic_timer_dropin_dir }}/10-hsp.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for borgmatic
+  when: borgmatic_enabled
+
+- name: Flush handlers so the timer drop-in is active before enabling
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the borgmatic timer
+  ansible.builtin.systemd:
+    name: borgmatic.timer
+    state: started
+    enabled: true
+  when: borgmatic_enabled
