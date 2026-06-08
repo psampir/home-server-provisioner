@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+# One append-only, path-restricted key per backup source. The forced
+# command confines each source to `borg serve` within its own subtree;
+# `restrict` disables port/agent/pty forwarding.
+{% for src in borg_repo_source_hosts | sort %}
+command="borg serve --append-only --restrict-to-path {{ borg_repo_base }}/{{ src }}",restrict {{ hostvars[src].borgmatic_ssh_pubkey }}
+{% endfor %}

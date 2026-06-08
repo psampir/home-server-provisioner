@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# Server-side retention for append-only borg repos. Runs as the borg user
+# with BORG_PASSPHRASE supplied by the systemd EnvironmentFile. Any failure
+# exits non-zero so the unit's OnFailure= hook notifies via hsp-notify.
+set -euo pipefail
+
+{% for r in borg_repo_repos | sort(attribute='repo_path') %}
+echo "==> prune {{ r.repo_path }} (daily={{ r.keep_daily }} weekly={{ r.keep_weekly }} monthly={{ r.keep_monthly }})"
+borg prune --stats \
+    --keep-daily {{ r.keep_daily }} \
+    --keep-weekly {{ r.keep_weekly }} \
+    --keep-monthly {{ r.keep_monthly }} \
+    "{{ r.repo_path }}"
+echo "==> compact {{ r.repo_path }}"
+borg compact "{{ r.repo_path }}"
+{% endfor %}
+
+echo "borg maintenance complete."

@@ -1,0 +1,22 @@
+---
+# Accumulate per-repo definitions for one source host (borg_repo_src).
+# Only entries that target THIS repo server are considered. Retention
+# falls back to this role's defaults when a source entry omits it.
+
+- name: "Append repo definitions for {{ borg_repo_src }}"
+  ansible.builtin.set_fact:
+    borg_repo_repos: >-
+      {{ borg_repo_repos + [{
+        'source': borg_repo_src,
+        'repo_path': borg_repo_base ~ '/' ~ borg_repo_src ~ '/' ~ item.path,
+        'keep_daily': (item.retention | default({})).get('keep_daily', borg_repo_keep_daily),
+        'keep_weekly': (item.retention | default({})).get('keep_weekly', borg_repo_keep_weekly),
+        'keep_monthly': (item.retention | default({})).get('keep_monthly', borg_repo_keep_monthly)
+      }] }}
+  loop: >-
+    {{ hostvars[borg_repo_src].borgmatic_repositories | default([])
+       | selectattr('target', 'defined')
+       | selectattr('target', 'equalto', inventory_hostname)
+       | list }}
+  loop_control:
+    label: "{{ borg_repo_src }}/{{ item.path }}"

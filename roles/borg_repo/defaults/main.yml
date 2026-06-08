@@ -1,0 +1,48 @@
+---
+# borg_repo - server/target side of the backup pipeline. Runs on
+# backup_targets hosts. Creates a dedicated `borg` user, hosts one borg
+# repository per source host under /srv/borg/<source>/<repo>, and
+# authorizes each source's SSH key under an APPEND-ONLY, path-restricted
+# forced command so a compromised source can add but never delete or
+# overwrite history.
+#
+# Because append-only forbids client-side pruning, this role owns
+# retention: a local maintenance timer runs `borg prune` + `borg compact`
+# per repo with full local access (no append-only restriction), enforcing
+# the retention policy declared by each source in borgmatic_repositories.
+#
+# The role is data-driven by the SOURCES: it scans every inventory host's
+# borgmatic_repositories for entries whose `target` is this host. No repos
+# need to be declared here.
+
+# --- Encryption ------------------------------------------------------------
+# Passphrase used to initialize managed repos and to run prune/compact.
+# Same value the sources use (single secret). From ansible-vault in prod.
+borg_repo_passphrase: "{{ borgmatic_passphrase | default(vault_borgmatic_passphrase | default('')) }}"
+
+# Borg encryption mode for `borg init`. Keep in sync with the sources.
+borg_repo_encryption_mode: repokey-blake2
+
+# --- Retention fallback ----------------------------------------------------
+# Applied to repos whose source entry omits a `retention:` block.
+borg_repo_keep_daily: 7
+borg_repo_keep_weekly: 4
+borg_repo_keep_monthly: 6
+
+# --- Maintenance schedule --------------------------------------------------
+# Local prune + compact pass. Runs after the nightly backup window.
+borg_repo_maintenance_schedule: "*-*-* 05:00:00"
+borg_repo_maintenance_randomized_delay: "30m"
+
+# Maintenance failures are routed to hsp-notify via the unit's
+# OnFailure=hsp-notify-failure@%n.service hook (see templates).
+
+# --- Identity & paths (rarely overridden) ----------------------------------
+borg_repo_user: borg
+borg_repo_group: borg
+borg_repo_home: /var/lib/borg
+# Parent directory holding one subdirectory per source host.
+borg_repo_base: /srv/borg
+borg_repo_conf_dir: /etc/hsp-borg
+borg_repo_env_path: /etc/hsp-borg/borg.env
+borg_repo_maintenance_bin: /usr/local/bin/hsp-borg-maintenance

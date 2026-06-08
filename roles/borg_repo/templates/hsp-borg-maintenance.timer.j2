@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Schedule borg repository maintenance
+
+[Timer]
+OnCalendar={{ borg_repo_maintenance_schedule }}
+{% if borg_repo_maintenance_randomized_delay %}
+RandomizedDelaySec={{ borg_repo_maintenance_randomized_delay }}
+{% endif %}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

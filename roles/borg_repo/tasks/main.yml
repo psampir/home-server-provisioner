@@ -1,0 +1,196 @@
+---
+# borg_repo target role. Data-driven from every source host's
+# borgmatic_repositories (entries whose `target` is this host).
+
+# ---------------------------------------------------------------------------
+# Discover which source hosts back up to this repo server, and to which repos.
+# ---------------------------------------------------------------------------
+- name: Collect source hosts that target this repo server
+  ansible.builtin.set_fact:
+    borg_repo_source_hosts: >-
+      {{ borg_repo_source_hosts | default([]) + [item] }}
+  loop: "{{ groups['all'] | default([]) | sort }}"
+  loop_control:
+    label: "{{ item }}"
+  when:
+    - hostvars[item].borgmatic_ssh_pubkey is defined
+    - >-
+      hostvars[item].borgmatic_repositories | default([])
+      | selectattr('target', 'defined')
+      | selectattr('target', 'equalto', inventory_hostname)
+      | list | length > 0
+
+- name: Initialize repo list
+  ansible.builtin.set_fact:
+    borg_repo_repos: []
+
+- name: Build per-repo definitions from source declarations
+  ansible.builtin.include_tasks: collect_repos.yml
+  loop: "{{ borg_repo_source_hosts | default([]) }}"
+  loop_control:
+    loop_var: borg_repo_src
+    label: "{{ borg_repo_src }}"
+
+- name: Set borg_repo enabled fact
+  ansible.builtin.set_fact:
+    borg_repo_enabled: "{{ (borg_repo_source_hosts | default([])) | length > 0 }}"
+
+# ---------------------------------------------------------------------------
+# Disabled path: nothing targets this host. Tear down maintenance timer.
+# ---------------------------------------------------------------------------
+- name: Disable maintenance timer when no sources target this host
+  ansible.builtin.systemd:
+    name: hsp-borg-maintenance.timer
+    state: stopped
+    enabled: false
+  failed_when: false
+  when: not borg_repo_enabled
+
+# ---------------------------------------------------------------------------
+# Enabled path.
+# ---------------------------------------------------------------------------
+- name: Validate repository passphrase is set
+  ansible.builtin.assert:
+    that:
+      - (borg_repo_passphrase | default('')) | length > 0
+    fail_msg: >-
+      Source hosts target this repo server but borg_repo_passphrase is empty.
+      Provide it via ansible-vault (vault_borgmatic_passphrase) - it is needed
+      to initialize repos and to run prune/compact.
+  when: borg_repo_enabled
+
+- name: Install borgbackup
+  ansible.builtin.apt:
+    name: borgbackup
+    state: present
+  when: borg_repo_enabled
+
+- name: Create borg group
+  ansible.builtin.group:
+    name: "{{ borg_repo_group }}"
+    system: true
+  when: borg_repo_enabled
+
+# A real shell is required: sshd runs the forced command via the user's
+# login shell. nologin would refuse the borg serve session.
+- name: Create borg user
+  ansible.builtin.user:
+    name: "{{ borg_repo_user }}"
+    group: "{{ borg_repo_group }}"
+    home: "{{ borg_repo_home }}"
+    shell: /bin/bash
+    system: true
+    create_home: true
+  when: borg_repo_enabled
+
+- name: Ensure borg SSH directory exists
+  ansible.builtin.file:
+    path: "{{ borg_repo_home }}/.ssh"
+    state: directory
+    owner: "{{ borg_repo_user }}"
+    group: "{{ borg_repo_group }}"
+    mode: "0700"
+  when: borg_repo_enabled
+
+- name: Ensure repository base directory exists
+  ansible.builtin.file:
+    path: "{{ borg_repo_base }}"
+    state: directory
+    owner: "{{ borg_repo_user }}"
+    group: "{{ borg_repo_group }}"
+    mode: "0750"
+  when: borg_repo_enabled
+
+- name: Ensure per-source repository directories exist
+  ansible.builtin.file:
+    path: "{{ borg_repo_base }}/{{ item }}"
+    state: directory
+    owner: "{{ borg_repo_user }}"
+    group: "{{ borg_repo_group }}"
+    mode: "0750"
+  loop: "{{ borg_repo_source_hosts | default([]) }}"
+  when: borg_repo_enabled
+
+# Append-only, path-restricted forced command per source key. This is the
+# security keystone: each source can only append to its own subtree.
+- name: Authorize source backup keys (append-only, path-restricted)
+  ansible.builtin.template:
+    src: authorized_keys.j2
+    dest: "{{ borg_repo_home }}/.ssh/authorized_keys"
+    owner: "{{ borg_repo_user }}"
+    group: "{{ borg_repo_group }}"
+    mode: "0600"
+  when: borg_repo_enabled
+
+# Initialize each managed repo locally (full access, no append-only) using
+# the shared passphrase. repokey-blake2 stores the key inside the repo, so
+# the sources open it with the same passphrase and only ever append.
+- name: Initialize managed repositories
+  ansible.builtin.command:
+    cmd: >-
+      runuser -u {{ borg_repo_user }} --
+      borg init --encryption {{ borg_repo_encryption_mode }} {{ item.repo_path }}
+    creates: "{{ item.repo_path }}/config"
+  environment:
+    BORG_PASSPHRASE: "{{ borg_repo_passphrase }}"
+  loop: "{{ borg_repo_repos | default([]) }}"
+  loop_control:
+    label: "{{ item.repo_path }}"
+  when: borg_repo_enabled
+
+- name: Ensure maintenance config directory exists
+  ansible.builtin.file:
+    path: "{{ borg_repo_conf_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  when: borg_repo_enabled
+
+- name: Write repository passphrase env file
+  ansible.builtin.template:
+    src: borg.env.j2
+    dest: "{{ borg_repo_env_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: borg_repo_enabled
+
+- name: Install borg maintenance script
+  ansible.builtin.template:
+    src: hsp-borg-maintenance.j2
+    dest: "{{ borg_repo_maintenance_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: borg_repo_enabled
+
+- name: Install borg maintenance service unit
+  ansible.builtin.template:
+    src: hsp-borg-maintenance.service.j2
+    dest: /etc/systemd/system/hsp-borg-maintenance.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for borg_repo
+  when: borg_repo_enabled
+
+- name: Install borg maintenance timer unit
+  ansible.builtin.template:
+    src: hsp-borg-maintenance.timer.j2
+    dest: /etc/systemd/system/hsp-borg-maintenance.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for borg_repo
+  when: borg_repo_enabled
+
+- name: Flush handlers so the maintenance units are loaded before enabling
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the borg maintenance timer
+  ansible.builtin.systemd:
+    name: hsp-borg-maintenance.timer
+    state: started
+    enabled: true
+  when: borg_repo_enabled
