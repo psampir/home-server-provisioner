@@ -177,6 +177,47 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # names like /dev/sda are not stable across reboots.
 
 
+# --- borgmatic + borg_repo roles (backups) -----------------------------------
+# Push-based, append-only backups. The borgmatic role (source) runs on any
+# host with borgmatic_repositories set and pushes archives over SSH (through
+# the WireGuard tunnel) to a borg repo served by the borg_repo role on a
+# backup_targets host. See docs/backups.md for the full operating guide.
+#
+# Inert until you declare borgmatic_repositories (typically in host_vars).
+#
+# REQUIRED when backups are enabled - the repo passphrase. Provide it via
+# ansible-vault. repokey-blake2 means disaster recovery needs ONLY this
+# passphrase, so store it safely out-of-band too.
+# borgmatic_passphrase: "{{ vault_borgmatic_passphrase }}"
+#
+# Per-source (in host_vars/<host>.yml):
+# borgmatic_source_directories:
+#   - /opt/stacks
+#   - /etc
+# borgmatic_repositories:
+#   - target: hsp-backup       # inventory host running the borg_repo role
+#     path: main               # repo dir under /srv/borg/<source>/
+#     label: offsite
+#     retention:               # optional; else borgmatic_keep_* defaults
+#       keep_daily: 14
+#       keep_weekly: 8
+#       keep_monthly: 12
+#
+# Optional overrides (defaults shown):
+# borgmatic_keep_daily: 7
+# borgmatic_keep_weekly: 4
+# borgmatic_keep_monthly: 6
+# borgmatic_schedule: "*-*-* 02:30:00"
+# borgmatic_exclude_patterns: []
+# borgmatic_notify_on_failure: true
+# borgmatic_notify_on_success: false
+#
+# Target side (borg_repo) is data-driven - it reads the sources'
+# borgmatic_repositories and needs no config beyond the shared passphrase.
+# Override its retention fallback / maintenance schedule only if needed:
+# borg_repo_maintenance_schedule: "*-*-* 05:00:00"
+
+
 
 # --- journal role --------------------------------------------------------------
 # journal_storage: persistent

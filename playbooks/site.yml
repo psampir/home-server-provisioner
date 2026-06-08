@@ -19,6 +19,7 @@
     - storage
     - network_mounts
     - smart_monitoring
+    - borgmatic
     - custom_scripts
     - systemd_units
     - scheduled_jobs
@@ -35,6 +36,11 @@
     - dns_client
     - docker_runtime
     - compose_deploy
+
+- name: Backup repository targets
+  hosts: backup_targets
+  roles:
+    - borg_repo
 
 - name: Update local SSH config
   hosts: localhost
