@@ -274,6 +274,7 @@ make test-bootstrap     # Bootstrap the ansible service user
 make test-provision     # Run full provisioning
 make test-wg-render     # Render build/test/wireguard/test-controller.{conf,png}
 make test-smoke         # End-to-end check via WG (sudo: brings the tunnel up, curls the proxied site, cleans up)
+make test-reboot        # Reboot every VM and verify services persist across reboots
 make test-env-destroy   # Tear down VMs
 ```
 
@@ -284,6 +285,14 @@ Caddy (TLS internal), and verifies the backend saw the request via the
 tunnel. Trap-based cleanup always tears the tunnel down on exit. Read
 `scripts/test-smoke.sh` if you want to know exactly what it touches
 before granting sudo.
+
+`make test-reboot` restarts every test VM and asserts that the
+infrastructure services come back automatically - enabled **and** active
+on boot (ssh, fail2ban, WireGuard, plus dnsmasq/Caddy on the hub and
+Docker on app servers), the firewall is still up, and every timer that
+was active before the reboot is re-armed. This guards against
+provision-only-correct setups that silently fail to survive a power
+cycle.
 
 VM defaults (image, CPU, memory, initial username) live in `.env` - see `.env.example`.
 

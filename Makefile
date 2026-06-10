@@ -99,7 +99,7 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password
 # Test env is just ENV=test with a pre-built configs/test/ tree that is
 # regenerated from scratch by scripts/test-env.sh (gitignored).
 
-.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision test-wg-render test-smoke
+.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision test-wg-render test-smoke test-reboot
 
 test-env-create: ## Create test VMs and seed configs/test/
 	./scripts/test-env.sh create
@@ -121,6 +121,9 @@ test-wg-render: ## render WG client artifacts for ENV=test
 
 test-smoke: ## end-to-end smoke test from the controller via WG (needs sudo)
 	@./scripts/test-smoke.sh
+
+test-reboot: ## reboot every test VM and verify services persist across reboots
+	@./scripts/test-reboot-check.sh
 
 # --- Setup ---
 
