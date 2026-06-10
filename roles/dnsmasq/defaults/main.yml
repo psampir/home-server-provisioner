@@ -53,3 +53,60 @@ dnsmasq_firewall_from:
 # with this fallback as a safety net if dnsmasq itself is down. Set to ""
 # to skip the fallback line.
 dnsmasq_resolv_fallback: 1.1.1.1
+
+# --- DHCP + IPv6 RA (opt-in, Pi-hole-style LAN authority) ---
+# Disabled by default: the role stays a pure DNS server unless you opt in.
+# Enable to make this host the DHCP + Router Advertisement authority for a
+# physical LAN segment (handing IPv4 leases + IPv6 SLAAC/DHCPv6 to clients,
+# and auto-registering their names in local DNS).
+#
+# IMPORTANT: only ONE DHCP server may exist per broadcast domain. If your
+# router already runs DHCP (most do), either leave this off, or disable the
+# router's DHCP first and let this host be the authority (see README).
+#
+# DHCP is a LAN service: dnsmasq_dhcp_interface must be a physical/bridged
+# LAN interface, NOT the WireGuard interface (peers are statically addressed).
+dnsmasq_dhcp_enabled: false
+
+# LAN interface DHCP/RA binds to. REQUIRED (non-empty) when
+# dnsmasq_dhcp_enabled. This host must already hold a static address on it
+# (see "static server interface" in the README - intentionally a per-host
+# step, not managed by this role).
+dnsmasq_dhcp_interface: ""
+
+# --- IPv4 pool ---
+# Dynamic lease range handed to clients on the segment.
+dnsmasq_dhcp_v4:
+  start: ""                 # e.g. 192.168.50.50
+  end: ""                   # e.g. 192.168.50.200
+  netmask: 255.255.255.0
+  lease: 12h
+# Default router (option 3) and DNS (option 6) advertised to clients. Empty
+# means "let dnsmasq advertise this host's own address" - correct when the
+# server is also the gateway. For a Pi-hole-style box where the ROUTER is
+# the gateway, set dnsmasq_dhcp_v4_gateway to the router's IP (and usually
+# leave dnsmasq_dhcp_v4_dns empty so clients still resolve through dnsmasq).
+dnsmasq_dhcp_v4_gateway: ""
+dnsmasq_dhcp_v4_dns: ""
+
+# --- IPv6 ---
+# Mode: slaac (stateless RA - default, matches the common home setup) |
+#       dhcpv6 (stateful address assignment) | both | off.
+dnsmasq_dhcp_v6_mode: slaac
+# /64 prefix advertised on the segment. REQUIRED unless mode is off. Use a
+# ULA prefix (fd00::/8) for a self-contained LAN, or your delegated GUA
+# prefix. Example: "fd50:abcd:1234::/64".
+dnsmasq_dhcp_v6_prefix: ""
+# Lease time for the stateful (dhcpv6/both) pool.
+dnsmasq_dhcp_v6_lease: 12h
+
+# --- Static reservations (IPv4) ---
+# Each item: { mac: "aa:bb:cc:dd:ee:ff", ip: "192.168.50.10", name: "printer" }
+# `name` is optional; when set it is also registered in local DNS.
+dnsmasq_dhcp_static_leases: []
+
+# --- DHCP firewall (UFW) ---
+# Opens the DHCP server ports: DHCPv4 (UDP 67) and DHCPv6 (UDP 547).
+# IPv6 Router Advertisements are ICMPv6 and are already permitted by UFW's
+# default IPv6 rules, so no extra rule is needed for RA/SLAAC.
+dnsmasq_dhcp_open_firewall: true

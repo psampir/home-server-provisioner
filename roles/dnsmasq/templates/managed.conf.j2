@@ -38,3 +38,43 @@ host-record={{ host }}.{{ dnsmasq_domain }},{{ ip }}
 {% for entry in dnsmasq_extra_hosts %}
 host-record={{ entry.name }}.{{ dnsmasq_domain }},{{ entry.ip }}
 {% endfor %}
+{% if dnsmasq_dhcp_enabled %}
+
+# --- DHCP + Router Advertisement (LAN authority) ---
+# Served only on {{ dnsmasq_dhcp_interface }}. Ensure no other DHCP server
+# (e.g. the router) is active on this segment.
+{% if dnsmasq_dhcp_interface not in dnsmasq_interfaces %}
+interface={{ dnsmasq_dhcp_interface }}
+{% endif %}
+{% if dnsmasq_dhcp_v4.start %}
+dhcp-range={{ dnsmasq_dhcp_v4.start }},{{ dnsmasq_dhcp_v4.end }},{{ dnsmasq_dhcp_v4.netmask }},{{ dnsmasq_dhcp_v4.lease }}
+{% if dnsmasq_dhcp_v4_gateway %}
+dhcp-option=3,{{ dnsmasq_dhcp_v4_gateway }}
+{% endif %}
+{% if dnsmasq_dhcp_v4_dns %}
+dhcp-option=6,{{ dnsmasq_dhcp_v4_dns }}
+{% endif %}
+{% endif %}
+{% for lease in dnsmasq_dhcp_static_leases %}
+dhcp-host={{ lease.mac }},{{ lease.ip }}{% if lease.name is defined %},{{ lease.name }}{% endif %}
+
+{% endfor %}
+{% if dnsmasq_dhcp_v6_mode != 'off' %}
+{% set v6base = dnsmasq_dhcp_v6_prefix.split('/')[0] %}
+{% set v6len = (dnsmasq_dhcp_v6_prefix.split('/')[1] if '/' in dnsmasq_dhcp_v6_prefix else '64') %}
+# Send Router Advertisements so clients can self-configure (SLAAC) and
+# learn this host as their IPv6 router/DNS.
+enable-ra
+{% if dnsmasq_dhcp_v6_mode == 'slaac' %}
+# Stateless: address via SLAAC (RA autonomous flag); DNS/other options via
+# stateless DHCPv6. ra-names registers clients' IPv6 in local DNS.
+dhcp-range={{ v6base }},ra-stateless,ra-names
+{% elif dnsmasq_dhcp_v6_mode == 'dhcpv6' %}
+# Stateful: dnsmasq assigns addresses from the pool (RA managed flag).
+dhcp-range={{ v6base }}100,{{ v6base }}1ff,{{ v6len }},{{ dnsmasq_dhcp_v6_lease }}
+{% elif dnsmasq_dhcp_v6_mode == 'both' %}
+# Both: stateful pool plus SLAAC (RA managed + autonomous flags).
+dhcp-range={{ v6base }}100,{{ v6base }}1ff,{{ v6len }},slaac,{{ dnsmasq_dhcp_v6_lease }}
+{% endif %}
+{% endif %}
+{% endif %}

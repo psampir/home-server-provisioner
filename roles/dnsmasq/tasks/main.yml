@@ -5,6 +5,21 @@
     update_cache: true
     cache_valid_time: 3600
 
+- name: Validate DHCP configuration when enabled
+  ansible.builtin.assert:
+    that:
+      - dnsmasq_dhcp_interface | length > 0
+      - dnsmasq_dhcp_v4.start | length > 0
+      - dnsmasq_dhcp_v4.end | length > 0
+      - dnsmasq_dhcp_v6_mode == 'off' or dnsmasq_dhcp_v6_prefix | length > 0
+      - dnsmasq_dhcp_v6_mode in ['slaac', 'dhcpv6', 'both', 'off']
+    fail_msg: >-
+      dnsmasq_dhcp_enabled is true but the DHCP config is incomplete:
+      set dnsmasq_dhcp_interface, dnsmasq_dhcp_v4.start/end, and (unless
+      dnsmasq_dhcp_v6_mode is 'off') dnsmasq_dhcp_v6_prefix.
+    quiet: true
+  when: dnsmasq_dhcp_enabled
+
 - name: Disable systemd-resolved (would conflict on port 53)
   ansible.builtin.systemd:
     name: systemd-resolved
@@ -66,3 +81,24 @@
     comment: "dnsmasq (udp)"
   loop: "{{ dnsmasq_firewall_from }}"
   when: dnsmasq_open_firewall
+
+- name: Open DHCPv4 server port (67/udp) in firewall
+  community.general.ufw:
+    rule: allow
+    port: "67"
+    proto: udp
+    comment: "dnsmasq DHCPv4 server"
+  when:
+    - dnsmasq_dhcp_enabled
+    - dnsmasq_dhcp_open_firewall
+
+- name: Open DHCPv6 server port (547/udp) in firewall
+  community.general.ufw:
+    rule: allow
+    port: "547"
+    proto: udp
+    comment: "dnsmasq DHCPv6 server"
+  when:
+    - dnsmasq_dhcp_enabled
+    - dnsmasq_dhcp_open_firewall
+    - dnsmasq_dhcp_v6_mode in ['dhcpv6', 'both']
