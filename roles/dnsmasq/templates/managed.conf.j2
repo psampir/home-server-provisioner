@@ -15,7 +15,12 @@ expand-hosts
 {% for iface in dnsmasq_interfaces %}
 interface={{ iface }}
 {% endfor %}
-bind-interfaces
+# bind-dynamic (not bind-interfaces): only listen on the interfaces above,
+# but cope with interfaces that are created after dnsmasq starts (e.g. wg0,
+# brought up by wg-quick, or a DHCP LAN NIC whose address is assigned by
+# networkd). bind-interfaces refuses to start if any listed interface does
+# not yet exist, which breaks startup on boot ("unknown interface wg0").
+bind-dynamic
 
 # --- Cache ---
 cache-size={{ dnsmasq_cache_size }}

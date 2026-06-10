@@ -39,7 +39,7 @@ dnsmasq_cache_size: 1000
 dnsmasq_log_queries: false
 
 # --- Firewall (UFW) ---
-# Open port 53 (tcp+udp). `any` is fine here because `bind-interfaces`
+# Open port 53 (tcp+udp). `any` is fine here because `bind-dynamic`
 # already prevents dnsmasq from accepting queries on interfaces not listed
 # in `dnsmasq_interfaces`. Override with CIDRs (e.g. private ranges only)
 # if you want defence-in-depth at the UFW layer too.
