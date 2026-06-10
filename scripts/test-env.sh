@@ -47,6 +47,36 @@ TEST_VAULT_PASSWORD="test-password"
 TEST_SMB_USER="smbtest"
 TEST_SMB_PASS="smbpass123"
 
+# VM shape for fixture VMs launched directly here (not via test-vms.conf).
+# Same env-overridable defaults as incus-env.sh.
+VM_CPUS="${VM_CPUS:-2}"
+VM_MEMORY="${VM_MEMORY:-2GiB}"
+INCUS_IMAGE="${INCUS_IMAGE:-images:debian/13}"
+
+# --- Test lab LAN (dnsmasq DHCP/IPv6 fixture) -----------------------------
+#
+# Isolated, L2-only Incus network used to exercise the dnsmasq role's
+# opt-in DHCPv4 + IPv6 RA server. It has NO Incus-managed L3 (ipv4.address
+# and ipv6.address = none) so the segment has no DHCP/NAT of its own - the
+# ONLY DHCP/RA authority is dnsmasq running on hsp-vpn.
+#
+# hsp-vpn (an inventory server) gets a 2nd NIC: the static LAN gateway +
+# DHCP/RA server. hsp-client (a throwaway fixture VM, deliberately NOT in
+# test-vms.conf so it never enters the Ansible inventory - the toolkit
+# provisions servers, not clients) gets a 2nd NIC as a pure DHCP/SLAAC
+# client. Both NICs use fixed MACs so the per-host systemd-networkd files
+# can match deterministically.
+TEST_LAB_NET="hsp-lab"
+TEST_LAB_CLIENT="hsp-client"
+# The 2nd NIC in an Incus VM is deterministically named enp6s0 (PCI slot 6;
+# the primary NIC is enp5s0). dnsmasq binds DHCP by interface name, so this
+# must be stable - verified empirically on this image.
+TEST_LAB_IFACE="enp6s0"
+TEST_LAB_SERVER_MAC="10:66:6a:00:50:01"
+TEST_LAB_CLIENT_MAC="10:66:6a:00:50:02"
+TEST_LAB_V4_GW="192.168.50.1"
+TEST_LAB_V6_GW="fd50:abcd:1234::1"
+
 # --- Test fixtures --------------------------------------------------------
 #
 # Each built-in role that takes user payload from configs/<env>/ should
@@ -161,6 +191,112 @@ systemctl restart smbd
 REMOTE
     echo "  NFS export /srv/test-nfs and Samba //$vm_name/testshare ready."
 }
+
+# --- Test lab LAN (dnsmasq DHCP/IPv6) -------------------------------------
+#
+# Stand up an isolated L2 segment so the dnsmasq role's opt-in DHCPv4 +
+# IPv6 RA server has something real to lease to. hsp-vpn becomes the DHCP/RA
+# authority (static gateway on its 2nd NIC); hsp-client is a throwaway VM
+# acting as a pure DHCP/SLAAC client on the same segment. dnsmasq itself is
+# configured by the provision run (see host_vars/hsp-vpn.yml); this function
+# only builds the network plumbing the role can't (and shouldn't) manage:
+# the isolated network, the 2nd NICs, the static server address, and the
+# client. Verification is done by `incus exec` against hsp-client.
+
+# Block until the Incus agent answers in a freshly-launched VM.
+wait_for_lab_agent() {
+    local vm_name="$1" attempts=0
+    while [[ $attempts -lt 60 ]]; do
+        if incus exec "$vm_name" -- true 2>/dev/null; then
+            return 0
+        fi
+        sleep 2
+        attempts=$((attempts + 1))
+    done
+    echo "  WARNING: Incus agent in $vm_name not ready after 120s." >&2
+    return 1
+}
+
+# Attach (idempotently) the lab NIC as device 'eth1' with a fixed MAC.
+attach_lab_nic() {
+    local vm_name="$1" mac="$2"
+    if incus config device show "$vm_name" 2>/dev/null | grep -qE "^eth1:"; then
+        incus config device remove "$vm_name" eth1 >/dev/null
+    fi
+    incus config device add "$vm_name" eth1 nic \
+        network="$TEST_LAB_NET" name=eth1 hwaddr="$mac" >/dev/null
+}
+
+seed_test_lab_lan() {
+    local server_vm="hsp-vpn"
+
+    if ! incus info "$server_vm" >/dev/null 2>&1; then
+        echo "  Skipping lab LAN: $server_vm not present."
+        return 0
+    fi
+
+    echo "Setting up isolated lab LAN ($TEST_LAB_NET) for dnsmasq DHCP/IPv6 ..."
+
+    # 1. Isolated L2-only network: no Incus DHCP/NAT/L3 (ipv4/ipv6 = none),
+    #    so dnsmasq on hsp-vpn is the sole DHCP/RA authority on the segment.
+    if ! incus network show "$TEST_LAB_NET" >/dev/null 2>&1; then
+        incus network create "$TEST_LAB_NET" \
+            ipv4.address=none ipv6.address=none >/dev/null
+        echo "  Created network $TEST_LAB_NET (L2 only, no DHCP/NAT)."
+    fi
+
+    # 2. Throwaway client fixture VM (not in the inventory).
+    if ! incus info "$TEST_LAB_CLIENT" >/dev/null 2>&1; then
+        echo "  Launching client fixture VM $TEST_LAB_CLIENT ..."
+        incus launch "$INCUS_IMAGE" "$TEST_LAB_CLIENT" --vm \
+            --config "limits.cpu=$VM_CPUS" \
+            --config "limits.memory=$VM_MEMORY" >/dev/null
+        wait_for_lab_agent "$TEST_LAB_CLIENT"
+    fi
+
+    # 3. Attach the lab NIC to the server and the client (fixed MACs).
+    attach_lab_nic "$server_vm"       "$TEST_LAB_SERVER_MAC"
+    attach_lab_nic "$TEST_LAB_CLIENT" "$TEST_LAB_CLIENT_MAC"
+
+    # 4. systemd-networkd config (matched by MAC, so interface naming is
+    #    irrelevant). Server = static gateway and IS the router (no inbound
+    #    RA). Client = DHCPv4 + accept RA/SLAAC. This mirrors the per-host
+    #    "static server interface" step the README documents for production.
+    incus exec "$server_vm" -- env \
+        MAC="$TEST_LAB_SERVER_MAC" V4="$TEST_LAB_V4_GW" V6="$TEST_LAB_V6_GW" \
+        bash -euo pipefail <<'REMOTE'
+cat > /etc/systemd/network/10-lab.network <<EOF
+[Match]
+MACAddress=${MAC}
+
+[Network]
+Address=${V4}/24
+Address=${V6}/64
+# This host IS the router for the segment - do not autoconfigure from RAs.
+IPv6AcceptRA=no
+ConfigureWithoutCarrier=yes
+EOF
+networkctl reload 2>/dev/null || systemctl restart systemd-networkd
+REMOTE
+
+    incus exec "$TEST_LAB_CLIENT" -- env MAC="$TEST_LAB_CLIENT_MAC" \
+        bash -euo pipefail <<'REMOTE'
+cat > /etc/systemd/network/10-lab.network <<EOF
+[Match]
+MACAddress=${MAC}
+
+[Network]
+DHCP=ipv4
+IPv6AcceptRA=yes
+EOF
+systemctl enable --now systemd-networkd >/dev/null 2>&1 || true
+networkctl reload 2>/dev/null || systemctl restart systemd-networkd
+REMOTE
+
+    echo "  Lab LAN ready: $server_vm serves DHCP/RA on $TEST_LAB_IFACE ($TEST_LAB_V4_GW)."
+    echo "  Verify after provision: incus exec $TEST_LAB_CLIENT -- ip -br addr show $TEST_LAB_IFACE"
+}
+
 
 seed_test_fixtures() {
     # custom_scripts: one common script for every host, plus one
@@ -341,7 +477,35 @@ borgmatic_repositories:
     label: primary
 EOF
 
-    # Caddy config: example/caddy/Caddyfile is just a documented template
+    # hsp-vpn is the DHCP/RA authority for the isolated lab LAN (see
+    # seed_test_lab_lan()). It already runs dnsmasq as a DNS server for the
+    # WireGuard subnet; here we opt it into the DHCPv4 + IPv6 SLAAC server on
+    # its 2nd NIC ($TEST_LAB_IFACE, static $TEST_LAB_V4_GW) facing hsp-client.
+    # This exercises course requirement #1 (server static / client dynamic,
+    # IPv4 + IPv6). dnsmasq_dhcp_v4_dns is a plain string (dnsmasq option 6).
+    cat > "$HOST_VARS_DIR/hsp-vpn.yml" <<EOF
+# Auto-generated by scripts/test-env.sh - do not edit manually.
+
+# --- dnsmasq role: opt-in DHCPv4 + IPv6 RA (SLAAC) server ---
+# Exercised on the isolated, L2-only 'hsp-lab' Incus network. hsp-vpn holds
+# a static address ($TEST_LAB_V4_GW / $TEST_LAB_V6_GW) on its 2nd NIC
+# ($TEST_LAB_IFACE); hsp-client (a throwaway fixture VM, NOT in the
+# inventory) is a pure DHCP/SLAAC client on the same segment. dnsmasq is the
+# sole DHCP/RA authority there.
+dnsmasq_dhcp_enabled: true
+dnsmasq_dhcp_interface: $TEST_LAB_IFACE
+dnsmasq_dhcp_v4:
+  start: 192.168.50.50
+  end: 192.168.50.200
+  netmask: 255.255.255.0
+  lease: 1h
+dnsmasq_dhcp_v4_gateway: $TEST_LAB_V4_GW
+dnsmasq_dhcp_v4_dns: "$TEST_LAB_V4_GW"
+dnsmasq_dhcp_v6_mode: slaac
+dnsmasq_dhcp_v6_prefix: fd50:abcd:1234::/64
+dnsmasq_dhcp_open_firewall: true
+EOF
+
     # (everything commented out) - write a real test-specific one that
     # reverse-proxies whoami over the WireGuard tunnel using Caddy's
     # internal CA.
@@ -372,10 +536,23 @@ cmd_create() {
     "$SCRIPT_DIR/incus-env.sh" "$ENV_NAME" create
     seed_test_disks
     seed_test_nfs_server
+    seed_test_lab_lan
 }
 
 cmd_destroy() {
     "$SCRIPT_DIR/incus-env.sh" "$ENV_NAME" destroy
+
+    # Lab LAN fixtures. hsp-vpn's 2nd NIC vanished with the VM above; tear
+    # down the client fixture and the isolated network (the network can only
+    # be removed once nothing is attached to it).
+    if incus info "$TEST_LAB_CLIENT" >/dev/null 2>&1; then
+        incus delete --force "$TEST_LAB_CLIENT" >/dev/null \
+            && echo "Deleted client fixture VM $TEST_LAB_CLIENT."
+    fi
+    if incus network show "$TEST_LAB_NET" >/dev/null 2>&1; then
+        incus network delete "$TEST_LAB_NET" >/dev/null \
+            && echo "Deleted lab network $TEST_LAB_NET."
+    fi
 
     if [[ -d "$ENV_DIR" ]]; then
         rm -rf "$ENV_DIR"
