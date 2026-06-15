@@ -1,6 +1,10 @@
 # Private planning documents
 *.priv.md
 
+# Only test-vms.conf is tracked; other *-vms.conf are local-only
+scripts/*.conf
+!scripts/test-vms.conf
+
 # OS artifacts
 .DS_Store
 
