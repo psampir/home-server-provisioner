@@ -11,13 +11,15 @@ PostDown   = iptables -t nat -D POSTROUTING -s {{ wireguard_subnet }} -o {{ wire
 {# --- Managed peers (server hosts running this role) --- #}
 {% for host in (groups['servers'] | default([])) %}
 {%   if hostvars[host].wireguard_role | default('peer') == 'peer'
-       and hostvars[host].wireguard_pubkey is defined
        and hostvars[host].vpn_ip is defined %}
+{%     set peer_pubkey = wireguard_peer_pubkeys[host] | default(hostvars[host].wireguard_pubkey | default('')) %}
+{%     if peer_pubkey %}
 
 # {{ host }} (managed peer)
 [Peer]
-PublicKey  = {{ hostvars[host].wireguard_pubkey }}
+PublicKey  = {{ peer_pubkey }}
 AllowedIPs = {{ hostvars[host].vpn_ip }}/32
+{%     endif %}
 {%   endif %}
 {% endfor %}
 

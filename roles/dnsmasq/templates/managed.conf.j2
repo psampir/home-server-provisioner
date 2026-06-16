@@ -31,6 +31,11 @@ no-hosts
 log-queries
 {% endif %}
 
+# --- Address records (takes priority over server= forwarding) ---
+{% for entry in dnsmasq_extra_addresses %}
+address=/{{ entry.name }}/{{ entry.ip }}
+{% endfor %}
+
 # --- Host records ---
 {% if dnsmasq_include_inventory_hosts %}
 {% for group in dnsmasq_inventory_groups %}
@@ -41,7 +46,11 @@ host-record={{ host }}.{{ dnsmasq_domain }},{{ ip }}
 {% endfor %}
 {% endif %}
 {% for entry in dnsmasq_extra_hosts %}
+{%   if '.' in entry.name %}
+host-record={{ entry.name }},{{ entry.ip }}
+{%   else %}
 host-record={{ entry.name }}.{{ dnsmasq_domain }},{{ entry.ip }}
+{%   endif %}
 {% endfor %}
 {% if dnsmasq_dhcp_enabled %}
 

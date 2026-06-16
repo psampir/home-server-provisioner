@@ -31,8 +31,17 @@ dnsmasq_inventory_groups:
 
 # Extra static records merged into the generated config.
 # Each item: { name: "printer", ip: "192.168.1.7" }
-# The domain is appended automatically.
+# The domain (dnsmasq_domain) is appended automatically.
+# If name already contains a dot (e.g. "copyparty.example.lan"), no suffix is
+# appended - the name is used verbatim as a FQDN.
 dnsmasq_extra_hosts: []
+
+# Extra address= entries (takes priority over server= forwarding).
+# Each item: { name: "files.example.lan", ip: "10.10.0.1" }
+# Rendered BEFORE the server= block so address= wins the priority race.
+# Use this when specific names under a forwarded domain must resolve locally
+# (e.g. service FQDNs that the upstream DNS doesn't know about).
+dnsmasq_extra_addresses: []
 
 # --- Cache and logging ---
 dnsmasq_cache_size: 1000

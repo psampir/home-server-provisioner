@@ -45,6 +45,16 @@
   changed_when: false
   check_mode: false
 
+- name: Write public key to disk (persisted for --limit re-provision resilience)
+  ansible.builtin.copy:
+    content: "{{ wireguard_pubkey_cmd.stdout }}"
+    dest: "/etc/wireguard/{{ wireguard_interface }}.pub"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  changed_when: false
+
 - name: Cache pubkey and privkey as facts (privkey only for templating locally)
   ansible.builtin.set_fact:
     wireguard_pubkey: "{{ wireguard_pubkey_cmd.stdout }}"
@@ -62,6 +72,27 @@
   when:
     - wireguard_role == "hub"
     - wireguard_enable_ip_forward
+
+- name: Slurp hub public key (for peer config on --limit re-provision)
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ wireguard_interface }}.pub"
+  register: wireguard_hub_pubkey_slurp
+  delegate_to: "{{ wireguard_hub_host }}"
+  when:
+    - wireguard_role == "peer"
+  ignore_unreachable: true
+  no_log: true
+
+- name: Resolve hub pubkey (prefer slurped, fall back to hostvars)
+  ansible.builtin.set_fact:
+    wireguard_hub_pubkey: >-
+      {{ (wireguard_hub_pubkey_slurp.content | b64decode | trim)
+         if (wireguard_hub_pubkey_slurp is not skipped
+             and wireguard_hub_pubkey_slurp.content is defined
+             and wireguard_hub_pubkey_slurp.unreachable | default(false) == false)
+         else hostvars[wireguard_hub_host].wireguard_pubkey | default('') }}
+  when: wireguard_role == "peer"
+  no_log: true
 
 - name: Detect WAN interface for NAT (default route)
   ansible.builtin.shell: |
@@ -84,6 +115,37 @@
          if wireguard_wan_interface != ''
          else wireguard_wan_iface_cmd.stdout | default('') }}
   when: wireguard_role == "hub"
+
+- name: Collect peer public keys from remote hosts
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ wireguard_interface }}.pub"
+  register: wireguard_peer_pubkey_slurp
+  delegate_to: "{{ item }}"
+  when:
+    - wireguard_role == "hub"
+    - hostvars[item].wireguard_role | default('peer') == 'peer'
+    - hostvars[item].vpn_ip is defined
+    - item != inventory_hostname
+  loop: "{{ groups['servers'] | default([]) }}"
+  ignore_unreachable: true
+  no_log: true
+
+- name: Build peer pubkey lookup dict
+  ansible.builtin.set_fact:
+    wireguard_peer_pubkeys: >-
+      {{
+        wireguard_peer_pubkeys | default({})
+        | combine({
+            item.item: (item.content | b64decode | trim)
+          })
+      }}
+  loop: "{{ wireguard_peer_pubkey_slurp.results | default([]) }}"
+  when:
+    - wireguard_role == "hub"
+    - item is not skipped
+    - item.content is defined
+    - item.unreachable | default(false) == false
+  no_log: true
 
 - name: Render wg0.conf for the hub
   ansible.builtin.template:

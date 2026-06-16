@@ -5,7 +5,7 @@ PrivateKey = {{ wireguard_privkey }}
 
 # Hub
 [Peer]
-PublicKey           = {{ hostvars[wireguard_hub_host].wireguard_pubkey }}
+PublicKey           = {{ wireguard_hub_pubkey }}
 Endpoint            = {{ wireguard_hub_endpoint }}
 AllowedIPs          = {{ wireguard_subnet }}
 PersistentKeepalive = {{ wireguard_persistent_keepalive }}
