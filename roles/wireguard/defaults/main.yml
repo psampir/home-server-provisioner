@@ -64,6 +64,11 @@ wireguard_client_default_allowed_ips: "{{ wireguard_subnet }}"
 # DNS pushed to clients via their generated .conf
 wireguard_client_dns: "{{ wireguard_hub_ip }}"
 
+# DNS search domain pushed to managed peers via PostUp resolvectl.
+# Set to something like "example.lan" to route *.example.lan queries through
+# the tunnel to dnsmasq on the hub.
+wireguard_hub_domain: ""
+
 # --- Hub: IP forwarding and NAT ---
 # IP forwarding is required on the hub for any peer-to-peer routing
 # (e.g. phone reaching hsp-app via the tunnel).

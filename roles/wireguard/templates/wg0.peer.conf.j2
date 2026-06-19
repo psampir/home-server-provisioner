@@ -2,6 +2,11 @@
 [Interface]
 Address    = {{ vpn_ip }}/{{ wireguard_subnet_prefix }}
 PrivateKey = {{ wireguard_privkey }}
+DNS        = {{ wireguard_hub_ip }}
+{% if wireguard_hub_domain is defined and wireguard_hub_domain %}
+PostUp     = resolvectl domain {{ wireguard_interface }} "~{{ wireguard_hub_domain }}"
+PreDown    = resolvectl domain {{ wireguard_interface }} ""
+{% endif %}
 
 # Hub
 [Peer]
