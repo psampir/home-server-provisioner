@@ -346,6 +346,9 @@ when running multiple envs side-by-side to avoid collisions with the
 
 ## Further reading
 
+- [Networking](docs/networking.md) - hub-and-spoke topology, `vpn_ip` addressing, DNS ownership, firewall interaction
+- [WireGuard clients](docs/wireguard-clients.md) - onboarding phones and laptops, key management, split vs full tunnel
+- [Backups](docs/backups.md) - borgmatic/borg topology, restore, passphrase rotation, monitoring
 - [Caddy reverse proxy](docs/caddy.md) - TLS modes, site-block patterns, LAN-bandwidth escape hatch, troubleshooting
 - [Deployment Guide](docs/deployment-guide.md) - multi-site setups, off-site hosts, and VPN connectivity
 
