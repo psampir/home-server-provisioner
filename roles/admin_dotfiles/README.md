@@ -76,8 +76,21 @@ private config repo.)
 
 - Per-host: set `admin_dotfiles_root: ""` in `host_vars/<host>.yml`.
 - Globally: same in `group_vars/all/main.yml`.
-- Implicitly: if the source directory does not exist on the control
-  machine, the role logs a notice and does nothing.
+
+Set the variable to an empty string - do **not** rely on a missing
+directory to disable the role. The `find` calls that discover source files
+run with `failed_when: false`, so a `admin_dotfiles_root` that does not
+exist (unmounted disk, wrong path, deleted checkout) yields empty source
+lists rather than an error. The role then computes an empty managed set and
+manifest reconciliation **deletes every file it previously managed for that
+host**. The deletion is limited to paths the role shipped (tracked in
+`~admin/.config/admin_dotfiles.manifest`); unmanaged runtime files are still
+never touched, but losing the managed ones is usually not what you want.
+
+The same applies when only one overlay is missing: files previously shipped
+from `_common/home` or `<hostname>/home` are removed while the other overlay
+still syncs. Verify the path exists (and is mounted, if it lives on a
+network filesystem) before provisioning.
 
 ## Variables
 
