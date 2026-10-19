@@ -32,8 +32,10 @@ borgmatic_exclude_patterns: []
 #
 # Managed-target entry (primary form):
 #   - target: hsp-backup        # inventory host running the borg_repo role
-#     path: main                # repo dir name; final repo lives at
-#                               #   /srv/borg/<this_host>/<path> on the target
+#     path: main                # repo dir name; the final repo lives at
+#                               #   <borg_repo_base>/<this_host>/<path> on
+#                               #   the target (borg_repo_base defaults to
+#                               #   /srv/borg - see borgmatic_remote_repo_base)
 #     label: offsite            # borgmatic label (optional, defaults to path)
 #     retention:                # optional; overrides borgmatic_keep_* below.
 #       keep_daily: 7           # consumed by borg_repo's maintenance job
@@ -69,6 +71,22 @@ borgmatic_encryption_mode: repokey-blake2
 # --- Connectivity ----------------------------------------------------------
 # SSH user on the target that runs `borg serve`.
 borgmatic_remote_user: borg
+
+# Fallback base directory of the managed repos ON THE TARGET. The real
+# source of truth is the target's own `borg_repo_base` (borg_repo role):
+# we read it back from hostvars so the pushed URL always matches the path
+# the target authorises and serves.
+#
+# This fallback is used only when the target does not define borg_repo_base.
+# Role DEFAULTS do not cross play boundaries - borgmatic renders in the
+# early `servers` play, borg_repo runs in a later `backup_targets` play - so
+# hostvars[target].borg_repo_base is present at render time only when it
+# comes from the INVENTORY (group_vars/host_vars). To relocate the repos
+# (e.g. onto a large data disk), set `borg_repo_base` in the inventory so
+# BOTH plays see it; setting it only in a role's defaults leaves the source
+# pushing to /srv/borg while the target serves elsewhere, and backups break
+# silently.
+borgmatic_remote_repo_base: /srv/borg
 
 # SSH options borgmatic uses to reach the target. -i selects the dedicated
 # push key; accept-new trusts the target host key on first contact (homelab

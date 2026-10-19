@@ -41,7 +41,12 @@ borg_repo_maintenance_randomized_delay: "30m"
 borg_repo_user: borg
 borg_repo_group: borg
 borg_repo_home: /var/lib/borg
-# Parent directory holding one subdirectory per source host.
+# Parent directory holding one subdirectory per source host. The sources
+# read this back from hostvars to build their push URL, so if you relocate
+# it (e.g. onto a large data disk) set it in the INVENTORY (group_vars),
+# not here: a role default is not visible to the borgmatic play, which runs
+# in an earlier play, so the two sides would disagree about the path and
+# backups would break silently.
 borg_repo_base: /srv/borg
 borg_repo_conf_dir: /etc/hsp-borg
 borg_repo_env_path: /etc/hsp-borg/borg.env

@@ -196,7 +196,7 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #   - /etc
 # borgmatic_repositories:
 #   - target: hsp-backup       # inventory host running the borg_repo role
-#     path: main               # repo dir under /srv/borg/<source>/
+#     path: main               # repo dir under <borg_repo_base>/<source>/
 #     label: offsite
 #     retention:               # optional; else borgmatic_keep_* defaults
 #       keep_daily: 14
@@ -216,6 +216,16 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # borgmatic_repositories and needs no config beyond the shared passphrase.
 # Override its retention fallback / maintenance schedule only if needed:
 # borg_repo_maintenance_schedule: "*-*-* 05:00:00"
+#
+# Relocating the repos off /srv (e.g. onto a data disk): set borg_repo_base
+# HERE, in the inventory, so BOTH roles see it. The source reads it back
+# from hostvars; a role default would not be visible to the borgmatic play.
+# Absolute path, no trailing slash.
+# borg_repo_base: /mnt/HDD/borg
+#
+# Fallback only, for targets that do not set borg_repo_base (default shown).
+# You normally do NOT need to touch this - set borg_repo_base instead.
+# borgmatic_remote_repo_base: /srv/borg
 
 
 

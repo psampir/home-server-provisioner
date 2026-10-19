@@ -72,6 +72,7 @@ drop-in.
 | `borgmatic_schedule` | `*-*-* 02:30:00` | Nightly `OnCalendar` for the backup. |
 | `borgmatic_notify_on_failure` | `true` | `on_error` → hsp-notify. |
 | `borgmatic_notify_on_success` | `false` | `after_backup` → hsp-notify. |
+| `borgmatic_remote_repo_base` | `/srv/borg` | Fallback target repo base when the target host does not define `borg_repo_base`. |
 | `borgmatic_exclude_patterns` | `[]` | Borg `--exclude` patterns. |
 
 ## Repository entry forms
@@ -84,7 +85,8 @@ borgmatic_source_directories:
 borgmatic_repositories:
   # Managed target (primary): repo created, key-initialized, authorized
   # and pruned by the borg_repo role on host `hsp-backup`. Final repo path:
-  #   /srv/borg/<this_host>/main  on the target.
+  #   <borg_repo_base>/<this_host>/main  on the target, where borg_repo_base
+  #   is the target's setting (default /srv/borg).
   - target: hsp-backup
     path: main
     label: offsite
@@ -98,6 +100,39 @@ borgmatic_repositories:
   - url: "ssh://user@borgbase-host/./repo"
     label: cloud
 ```
+
+## Relocating the repository base
+
+By default the target keeps every repo under `/srv/borg`. To put them
+elsewhere (a big data disk, a separate pool), set **`borg_repo_base` in the
+inventory** - `group_vars/all/` so both sides see it:
+
+```yaml
+# group_vars/all/main.yml
+borg_repo_base: /mnt/HDD/borg
+```
+
+The source builds its push URL from the *target's* `borg_repo_base`, read
+out of `hostvars`, so it always pushes to the path the target authorises in
+its append-only forced command and serves. `borgmatic_remote_repo_base`
+(default `/srv/borg`) is only the fallback used when the target does not
+define `borg_repo_base`.
+
+Keep it in the inventory rather than in a role's `defaults/`: role defaults
+do not cross play boundaries. `borgmatic` renders in the early `servers`
+play while `borg_repo` runs in the later `backup_targets` play, so a value
+set only in a role's defaults is invisible at render time. The source would
+push to `/srv/borg` while the target serves `/mnt/HDD/borg`, and the backup
+would fail (or, worse, quietly land nowhere) with no config error.
+
+Give it as an absolute path with no trailing slash - the template appends
+`/<source-host>/<repo-path>` verbatim.
+
+Relocating a base that already holds archives means moving the directory on
+the target *and* updating the inventory in the same change; borg keys its
+cache on the repository URL, so the source may need
+`relocated_repo_access_is_ok: true` once afterwards. Setting the base before
+the first backup avoids the issue entirely.
 
 ## Manual operations
 

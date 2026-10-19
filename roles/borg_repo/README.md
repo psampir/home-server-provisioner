@@ -19,7 +19,8 @@ For each source host that targets this server (matched via the published
 `borgmatic_ssh_pubkey` fact and a `target:` entry):
 
 1. Creates a system `borg` user (real shell - sshd runs the forced
-   command via the login shell) and `/srv/borg/<source>/` repo dirs.
+   command via the login shell) and `<borg_repo_base>/<source>/` repo dirs
+   (`/srv/borg` by default).
 2. Writes `~borg/.ssh/authorized_keys` with **one line per source**:
 
    ```
@@ -48,6 +49,25 @@ applied - the repo would grow forever. The authoritative prune therefore
 runs here, locally, where there is no append-only restriction. This is
 the standard architecture for append-only borg.
 
+## Relocating the repository base
+
+Repos live under `borg_repo_base` (`/srv/borg` by default). To put them on
+a data disk, set it in the **inventory**, not in this role's defaults:
+
+```yaml
+# group_vars/all/main.yml
+borg_repo_base: /mnt/HDD/borg
+```
+
+Both sides must agree on the path, and only an inventory variable is visible
+to both: the `borgmatic` role renders the sources' push URLs in an earlier
+play and reads `borg_repo_base` back from `hostvars`, while a role default
+never leaves this role. With the value in `group_vars` the sources push to
+exactly the subtree this role creates, authorises
+(`--restrict-to-path`) and prunes. See
+[`borgmatic`](../borgmatic/README.md#relocating-the-repository-base) for the
+source-side view.
+
 ## Encryption & secrets
 
 - `borg_repo_passphrase` defaults to `borgmatic_passphrase` (the same
@@ -64,7 +84,7 @@ the standard architecture for append-only borg.
 | `borg_repo_encryption_mode` | `repokey-blake2` | `borg init` key mode. |
 | `borg_repo_keep_daily/weekly/monthly` | `7 / 4 / 6` | Retention fallback when a source omits `retention:`. |
 | `borg_repo_maintenance_schedule` | `*-*-* 05:00:00` | Prune+compact `OnCalendar`. |
-| `borg_repo_base` | `/srv/borg` | Parent dir; one subdir per source host. |
+| `borg_repo_base` | `/srv/borg` | Parent dir; one subdir per source host. Set in inventory if relocated. |
 | `borg_repo_user` / `borg_repo_group` | `borg` | Repo-serving identity. |
 
 ## Retention as a source property
