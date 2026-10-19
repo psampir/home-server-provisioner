@@ -48,6 +48,63 @@ prune a rule that you remove from `firewall_allow_rules` at the same time
 once by hand (`ufw delete allow <port>/<proto>`); from then on
 reconciliation is automatic.
 
+## Docker bypasses UFW
+
+**A published container port is not protected by this role.** Docker
+manipulates iptables/nftables directly: `docker run -p` / `ports:` in
+Compose inserts DNAT rules in the `nat` table and its own filter chains,
+and the resulting traffic is forwarded straight to the container. It
+never traverses UFW's `INPUT` chain, so no `ufw` rule - allow *or* deny -
+applies to it. This is upstream Docker behaviour, not a bug in this role.
+
+The practical consequence: on a host that runs Docker, `ufw status`
+showing only `22/tcp` and `443/tcp` does **not** mean the host only
+exposes those ports. A stack that publishes `8080:8080` is reachable on
+`8080` from anywhere the host is reachable, even though UFW denies
+everything by default.
+
+Workarounds, in order of preference:
+
+**(a) Bind published ports to a specific address.** Instead of the
+default `0.0.0.0`, publish on the peer's WireGuard address or on
+loopback:
+
+```yaml
+services:
+  whoami:
+    ports:
+      - "10.10.0.2:8080:8080"   # only reachable over the VPN tunnel
+  admin:
+    ports:
+      - "127.0.0.1:9090:9090"   # only reachable from this host
+```
+
+This is the simplest fix and needs no firewall changes: the port is
+never bound on the public interface in the first place.
+
+**(b) Put a reverse proxy in front.** Publish nothing (or only
+`127.0.0.1`) and let Caddy - which does respect UFW because it is a
+normal host process - terminate and route traffic. See
+[`docs/caddy.md`](../../docs/caddy.md).
+
+**(c) Manage the `DOCKER-USER` chain.** If you need host-level
+filtering of container traffic, add rules to Docker's `DOCKER-USER`
+chain, which is evaluated before Docker's own rules:
+
+```bash
+ufw route allow in on wg0 out on docker0
+# or, at the iptables level:
+iptables -I DOCKER-USER -i eth0 ! -s 10.10.0.0/24 -j DROP
+```
+
+Rules in `DOCKER-USER` are **not** managed by this role and are not
+tracked in the reconciliation manifest - you own their lifecycle.
+
+**This role does NOT manage `DOCKER-USER`.** It only configures the UFW
+`INPUT` policy and `firewall_allow_rules`. Treat every `ports:` entry in
+a Compose stack as internet-facing unless it is explicitly bound to a
+private address.
+
 ## Variables
 
 ```yaml

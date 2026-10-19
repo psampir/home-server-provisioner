@@ -204,6 +204,14 @@ Each role is small (~50 LOC) and self-contained. The full list:
 | `docker_runtime` | Installs Docker CE + Compose plugin from upstream apt repo |
 | `compose_deploy` | Auto-discovers and deploys Docker Compose stacks from `configs/<ENV>/stacks/_common/<name>/` (every host) and `configs/<ENV>/stacks/<hostname>/<name>/` (per-host override). Per-stack directory is synced verbatim - drop `compose.yaml` + `.env` + `Caddyfile` + `config/` next to each other. |
 
+> [!WARNING]
+> **Published container ports bypass UFW.** Docker writes its own
+> iptables/nftables rules, so a Compose `ports:` entry is reachable
+> regardless of your `firewall_allow_rules`. Bind to a private address
+> (`10.10.0.x:8080:8080` or `127.0.0.1:9090:9090`) or reverse-proxy
+> through Caddy. See
+> [roles/firewall/README.md](roles/firewall/README.md#docker-bypasses-ufw).
+
 ### Controller-side
 
 | Role | Description |
