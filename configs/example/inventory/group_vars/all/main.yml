@@ -411,6 +411,18 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #   wireguard_wan_interface: ""          # auto-detected from default route
 #   wireguard_firewall_from: [any]       # who can hit UDP 51820
 #
+# DNS handling on managed peers (default: off):
+#   wireguard_peer_manage_dns: true      # let wg-quick write DNS + resolvectl
+#   wireguard_peer_dns: "{{ wireguard_hub_ip }}"
+#   wireguard_hub_domain: home           # split-DNS search domain for the hub
+#
+# Leave `wireguard_peer_manage_dns` at its default (false) on any host that
+# runs the `dns_client` role: dns_client masks systemd-resolved and owns
+# /etc/resolv.conf, so wg-quick's resolvconf call fails and wg-quick@wg0
+# goes down on the next re-provision. `wireguard_hub_domain` only has an
+# effect when `wireguard_peer_manage_dns` is true, and is likewise left
+# unset when dns_client manages DNS.
+#
 # Convention for vpn_ip:
 #   .1            hub
 #   .2 ..  .19    managed peers (servers)
