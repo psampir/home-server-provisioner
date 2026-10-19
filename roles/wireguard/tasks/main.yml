@@ -144,7 +144,7 @@
     - wireguard_role == "hub"
     - item is not skipped
     - item.content is defined
-    - item.unreachable | default(false) == false
+    - not (item.unreachable | default(false))
   no_log: true
 
 - name: Render wg0.conf for the hub

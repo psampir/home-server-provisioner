@@ -259,8 +259,6 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # You normally do NOT need to touch this - set borg_repo_base instead.
 # borgmatic_remote_repo_base: /srv/borg
 
-
-
 # --- journal role --------------------------------------------------------------
 # journal_storage: persistent
 # Empty strings keep systemd defaults.

@@ -1,0 +1,16 @@
+---
+# ansible-lint configuration for home-server-provisioner.
+#
+# configs/* is gitignored except configs/example, so private environment
+# trees are never linted in a fresh clone. These exclusions are defensive:
+# they keep local/private material out when it exists on a developer machine.
+# Locked to the strictest built-in profile that the repository passes without
+# per-rule skips. Raise only by fixing findings, never by adding ignores.
+profile: production
+
+exclude_paths:
+  - .ansible/
+  - .test-disks/
+  - build/
+  - configs/test/
+  - configs/demo/

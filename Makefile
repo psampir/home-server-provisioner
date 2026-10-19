@@ -127,13 +127,18 @@ test-reboot: ## reboot every test VM and verify services persist across reboots
 
 # --- Setup ---
 
-.PHONY: setup init-config
+.PHONY: setup init-config lint
 
 setup: ## Install Ansible, ansible-lint, and required collections
 	@./scripts/setup.sh
 
 init-config: ## Create configs/$(ENV)/ from configs/example/ (own git repo)
 	@./scripts/init-config.sh "$(ENV)"
+
+lint: ## Run ansible-lint over the repository
+	@# Linting needs no vault secrets; a missing vault password file makes
+	@# ansible-lint's internal --syntax-check calls fail hard, so drop it.
+	@env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-lint
 
 # --- Help ---
 
