@@ -132,10 +132,22 @@ borgmatic_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-n
 # same archive. after_backup is the place to clean the dump up again -
 # otherwise it is re-archived every night and bloats the repo.
 #
+# IMPORTANT - frequency differs between the two hook families:
+#   * `*_backup` (before_backup / after_backup) run once PER REPOSITORY.
+#     With two repositories the hooks fire twice per borgmatic invocation:
+#     before → archive → after → before → archive → after.
+#   * `*_everything` (before_everything / after_everything) run once PER
+#     BORGMATIC INVOCATION, wrapping all repositories together.
+# Use the `*_everything` hooks for expensive work such as database dumps
+# when backing up to more than one repository - otherwise the dump runs
+# once per repo and doubles the I/O for nothing.
+#
 # Entries are single command lines, quoted verbatim into the config. Hooks
 # run as root via systemd, so they can call docker/podman and read any path.
 borgmatic_before_backup_commands: []
 borgmatic_after_backup_commands: []
+borgmatic_before_everything_commands: []
+borgmatic_after_everything_commands: []
 borgmatic_on_error_commands: []
 
 # --- File locations (rarely overridden) ------------------------------------

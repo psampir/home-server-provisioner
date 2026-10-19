@@ -37,9 +37,17 @@ exclude_patterns:
 {# Hook lists: the built-in notification entry (when enabled) followed by
    any user-supplied commands. The key is emitted only if the combined list
    is non-empty, so the default rendering is unchanged. #}
+{% set before_everything_cmds = borgmatic_before_everything_commands %}
+{% set after_everything_cmds = borgmatic_after_everything_commands %}
 {% set before_backup_cmds = borgmatic_before_backup_commands %}
 {% set on_error_cmds = ([] if not borgmatic_notify_on_failure else [borgmatic_notify_wrapper_path ~ ' failure']) + borgmatic_on_error_commands %}
 {% set after_backup_cmds = ([] if not borgmatic_notify_on_success else [borgmatic_notify_wrapper_path ~ ' success']) + borgmatic_after_backup_commands %}
+{% if before_everything_cmds | length > 0 %}
+before_everything:
+{% for cmd in before_everything_cmds %}
+    - "{{ cmd }}"
+{% endfor %}
+{% endif %}
 {% if before_backup_cmds | length > 0 %}
 before_backup:
 {% for cmd in before_backup_cmds %}
@@ -55,6 +63,12 @@ on_error:
 {% if after_backup_cmds | length > 0 %}
 after_backup:
 {% for cmd in after_backup_cmds %}
+    - "{{ cmd }}"
+{% endfor %}
+{% endif %}
+{% if after_everything_cmds | length > 0 %}
+after_everything:
+{% for cmd in after_everything_cmds %}
     - "{{ cmd }}"
 {% endfor %}
 {% endif %}
