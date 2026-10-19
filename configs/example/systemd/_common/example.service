@@ -1,0 +1,12 @@
+[Unit]
+Description=Example oneshot unit (home-server-provisioner template)
+Documentation=https://github.com/example/home-server-provisioner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/hello
+
+[Install]
+WantedBy=multi-user.target

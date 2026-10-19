@@ -1,0 +1,12 @@
+# Example conf.d snippet - copied verbatim to /etc/caddy/conf.d/example.caddy
+# on the VPN hub. The main Caddyfile imports this directory with:
+#
+#     import /etc/caddy/conf.d/*.caddy
+#
+# Each snippet must contain complete site blocks (import order is undefined).
+# Uncomment and adapt the block below to publish a VPN-only service.
+
+# whoami.home {
+#     tls internal
+#     reverse_proxy 10.10.0.2:8080
+# }

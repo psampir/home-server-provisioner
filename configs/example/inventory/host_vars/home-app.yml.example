@@ -1,0 +1,69 @@
+# =============================================================================
+# host_vars/home-app.yml.example - per-host overrides for the inventory host
+# `home-app`.
+#
+# Copied verbatim by `make init-config`. Rename it to match your real
+# inventory hostname (`host_vars/<hostname>.yml`) and uncomment only what
+# that host needs. Everything global - admin user, SSH hardening, firewall,
+# DNS, WireGuard topology, notification backend, role defaults - belongs in
+# `inventory/group_vars/all/main.yml`.
+# =============================================================================
+
+
+# --- WireGuard identity -------------------------------------------------------
+# Required on every managed peer (the hub sets wireguard_role: hub instead).
+# vpn_ip: 10.10.0.2
+# wireguard_role: peer
+
+
+# --- Backups (borgmatic, source side) ----------------------------------------
+# What this host archives. Required (non-empty) once borgmatic_repositories
+# is set. Absolute paths only.
+#
+# borgmatic_source_directories:
+#   - /opt/stacks
+#   - /etc
+#
+# Where the archives go. Managed targets must be inventory hosts running
+# the `borg_repo` role; the repo is created, authorised and pruned there.
+# Use one entry per target (local + off-site is the usual pair).
+#
+# borgmatic_repositories:
+#   - target: my-local-backup     # inventory host in `backup_targets`
+#     path: main                  # repo dir under <borg_repo_base>/<this-host>/
+#     label: local                # borgmatic label (optional)
+#     retention:                  # optional; else borgmatic_keep_* defaults
+#       keep_daily: 7
+#       keep_weekly: 4
+#       keep_monthly: 6
+#   - target: my-offsite-backup
+#     path: main
+#     label: offsite
+#
+# Escape hatch for a repository you manage yourself (BorgBase, rsync.net,
+# a NAS over SSH). External repos are NOT initialised or pruned by this
+# project - retention is your responsibility.
+#
+# borgmatic_repositories:
+#   - url: "ssh://borg@backup.example.com/./home-app"
+#     label: cloud
+
+
+# --- Storage (local block devices) ------------------------------------------
+# Disabled while storage_volumes is empty. Always use stable
+# /dev/disk/by-id/... paths - /dev/sdX names move between boots.
+# The role formats only empty disks unless `force_format: true` is set.
+#
+# storage_volumes:
+#   - device: /dev/disk/by-id/ata-WDC_WD40EFRX-68N32N0_WD-WCC7K0XYZ
+#     mount: /srv/data
+#     fstype: ext4                # ext4 | xfs | btrfs
+#     mount_opts: "defaults,nofail,noatime"
+#     owner: root
+#     group: root
+#     mode: "0755"
+
+
+# --- Network mounts ----------------------------------------------------------
+# Also per-host: `network_mounts_shares` (NFS/CIFS client mounts). See the
+# commented example in group_vars/all/main.yml and roles/network_mounts.

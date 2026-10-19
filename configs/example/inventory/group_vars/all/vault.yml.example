@@ -1,0 +1,74 @@
+# =============================================================================
+# vault.yml.example - template for group_vars/all/vault.yml.
+#
+# PLAIN-TEXT TEMPLATE. It contains no real secrets and must never be
+# committed as-is. Copy it to vault.yml and encrypt it before use:
+#
+#   cp inventory/group_vars/all/vault.yml.example \
+#      inventory/group_vars/all/vault.yml
+#   make vault-encrypt ENV=<ENV>
+#
+# `make vault-encrypt` uses configs/<ENV>/.vault_pass, created once by
+# `make vault-init ENV=<ENV>`.
+#
+# You do not have to copy this file by hand: on the first `make provision`
+# (or a direct `scripts/wg-ensure-keys.py --inventory ...` run), the script
+# creates the real vault.yml, adds WireGuard client keys, and encrypts it
+# with the environment's vault password.
+#
+# Every value below is commented out. Keep it that way in this template.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# WireGuard client keys - AUTO-MANAGED, do not edit by hand
+# -----------------------------------------------------------------------------
+# Map of client name -> key material. The name must match a `name` entry in
+# `wireguard_clients` (group_vars/all/main.yml). scripts/wg-ensure-keys.py
+# generates missing entries, prunes names that were removed from
+# `wireguard_clients`, re-encrypts this file, and auto-commits it.
+#
+# Shape:
+#
+# vault_wireguard_client_keys:
+#   phone:                          # one key per external client
+#     privkey: "<wg genkey output>" # base64, 44 characters
+#     pubkey: "<wg pubkey output>"  # derived from privkey
+#     psk: "<wg genpsk output>"     # pre-shared key, base64, 44 characters
+#
+# The role falls back to an empty map when this variable is absent, so
+# keyless clients (managed peers) still provision. External clients need
+# an entry here to render their configs.
+
+
+# -----------------------------------------------------------------------------
+# Borgmatic backup passphrase - REQUIRED when backups are enabled
+# -----------------------------------------------------------------------------
+# The same passphrase protects every managed repository (repokey-blake2).
+# Losing it makes every archive unrecoverable, so also store it out-of-band
+# (password manager / printed recovery sheet). `make provision` reads it
+# through roles/borgmatic and roles/borg_repo.
+#
+# vault_borgmatic_passphrase: "CHANGEME-long-random-passphrase"
+
+
+# -----------------------------------------------------------------------------
+# ntfy bearer token - optional, only for self-hosted ntfy with auth
+# -----------------------------------------------------------------------------
+# Public ntfy.sh does not use tokens; the topic name itself is the secret.
+# Reference it from main.yml as:
+#   notifications_ntfy_token: "{{ vault_notifications_ntfy_token }}"
+#
+# vault_notifications_ntfy_token: "tk_CHANGEME"
+
+
+# -----------------------------------------------------------------------------
+# NAS credentials - optional, only when a CIFS/SMB network mount needs auth
+# -----------------------------------------------------------------------------
+# Consumed by roles/network_mounts when a share sets:
+#   credentials_username: "{{ vault_nas_backup_user }}"
+#   credentials_password: "{{ vault_nas_backup_pass }}"
+# NFS shares do not need either value.
+#
+# vault_nas_backup_user: "CHANGEME-user"
+# vault_nas_backup_pass: "CHANGEME-password"

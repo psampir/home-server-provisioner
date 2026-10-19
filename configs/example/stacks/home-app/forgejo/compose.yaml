@@ -1,0 +1,22 @@
+# Example host-specific stack - deployed only on the inventory host `home-app`
+# (layout: configs/<env>/stacks/<inventory_hostname>/<stack>/).
+#
+# This file is a template. `make init-config` copies it into
+# configs/<env>/stacks/home-app/forgejo/, where compose_deploy will deploy it
+# to that host on the next provision. Remove it, rename the host directory,
+# or adjust the image/ports/volumes to match your setup.
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:9.0.3
+    container_name: forgejo
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      - "2222:22"
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      FORGEJO__server__ROOT_URL: "http://localhost:3000/"
+    volumes:
+      - ./data:/data
+      - ./config:/etc/gitea

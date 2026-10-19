@@ -44,3 +44,7 @@ all:
 # For simple per-host overrides (vpn_ip, wireguard_role, etc.) just inline
 # them under the host, as shown above. Use inventory/host_vars/<name>.yml
 # only when a single host has a large block of config worth its own file.
+#
+# host_vars/home-app.yml.example and group_vars/all/vault.yml.example are
+# templates copied verbatim by `make init-config`; copy/rename them manually
+# (only this hosts.yml.example file is renamed automatically).

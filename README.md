@@ -86,6 +86,11 @@ app_servers:
 
 Edit `configs/prod/inventory/group_vars/all/main.yml` to configure roles. All options have sensible defaults - uncomment and adjust what you need.
 
+Two files ship as templates and are copied verbatim by `make init-config`; rename/copy them manually before use (only `hosts.yml.example` is renamed automatically):
+
+- `inventory/host_vars/home-app.yml.example` → `inventory/host_vars/<hostname>.yml` for per-host settings.
+- `inventory/group_vars/all/vault.yml.example` → `inventory/group_vars/all/vault.yml`, then run `make vault-encrypt` (or let `wg-ensure-keys.py` create and encrypt the real vault on the first provision). It is a plain-text template with no real secrets.
+
 Edit `.env` if your SSH key isn't `~/.ssh/id_ed25519` (the file lives in this repo root, not in `configs/`, because it tunes the provisioner itself).
 
 A host can belong to multiple groups:
@@ -137,6 +142,13 @@ You never edit this file by hand - it is auto-managed.
 make init-config ENV=prod   # creates configs/prod/ (its own git repo)
 make vault-init  ENV=prod   # prompts for password → configs/prod/.vault_pass (mode 600)
 ```
+
+The variables the roles consume are documented in the plain-text template
+`configs/prod/inventory/group_vars/all/vault.yml.example`. Copy it to
+`vault.yml` and encrypt it with `make vault-encrypt ENV=prod` if you want to
+set values (such as `vault_borgmatic_passphrase`) explicitly; otherwise the
+first `make provision` creates and encrypts the file when it generates
+WireGuard client keys.
 
 **Daily use - declarative client management.**
 
@@ -266,7 +278,7 @@ configs/<ENV>/
 │   └── home-app/
 │       └── forgejo/                → deployed only on home-app
 │           ├── compose.yaml
-│           └── .env
+│           └── README.md
 └── dotfiles/
     ├── _common/home/               → baseline files, every host
     │   └── .config/fish/config.fish

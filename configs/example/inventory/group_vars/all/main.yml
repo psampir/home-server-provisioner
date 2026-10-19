@@ -182,6 +182,31 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # IMPORTANT: always reference disks via /dev/disk/by-id/... - kernel
 # names like /dev/sda are not stable across reboots.
 
+# --- network_mounts role -------------------------------------------------------
+# Disabled by default (network_mounts_shares: []). Mounts NFS or CIFS/SMB
+# shares as a client; it does not run an NFS/Samba server. Typically set
+# per-host in host_vars/<host>.yml.
+#
+# Required per share: type (nfs | cifs), source, mount. The role appends
+# _netdev and nofail automatically, so a missing share never blocks boot.
+#
+# network_mounts_shares:
+#   - type: nfs
+#     source: "10.10.0.1:/srv/media"
+#     mount: /mnt/media
+#     mount_opts: "ro,vers=4.2"
+#   - type: cifs
+#     source: "//nas.home/backups"
+#     mount: /mnt/backups
+#     owner: borg
+#     group: borg
+#     mount_opts: "uid=borg,gid=borg,file_mode=0640,dir_mode=0750"
+#     credentials_username: "{{ vault_nas_backup_user }}"
+#     credentials_password: "{{ vault_nas_backup_pass }}"
+#
+# CIFS credentials are rendered to mode-0600 files under
+# network_mounts_credentials_dir (default /etc/credentials).
+
 
 # --- borgmatic + borg_repo roles (backups) -----------------------------------
 # Push-based, append-only backups. The borgmatic role (source) runs on any
@@ -276,6 +301,38 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # auto_updates_reboot_time: "03:00"
 # auto_updates_remove_unused_dependencies: true
 # auto_updates_autofix_interrupted_dpkg: true
+#
+# needrestart detects services still running old code (and a pending kernel)
+# after upgrades. Debian's default interactive mode can block
+# unattended-upgrades, so the role pins a non-interactive mode.
+# auto_updates_needrestart: true
+# auto_updates_needrestart_mode: l   # l = list only (safe) | a = auto-restart | i = interactive (avoid)
+#
+# Daily `needrestart -b` check, alerting through hsp-notify when anything
+# needs a restart. Disable the timer with auto_updates_needrestart_notify.
+# auto_updates_needrestart_notify: true
+# auto_updates_needrestart_notify_schedule: "*-*-* 07:30:00"
+#
+# Rarely overridden:
+# auto_updates_needrestart_confd: /etc/needrestart/needrestart.conf.d/10-hsp.conf
+# auto_updates_needrestart_notify_bin: /usr/local/bin/hsp-needrestart-notify
+# auto_updates_needrestart_notify_unit: sched-needrestart-notify
+
+# --- smart_monitoring role -----------------------------------------------------
+# Installs smartd and routes disk-health alerts through hsp-notify. Enabled
+# everywhere by default; smartd skips devices without SMART support (e.g.
+# virtual disks), so it is safe on VMs too.
+#
+# smart_monitoring_enabled: true
+# smart_monitoring_devicescan_opts: >-
+#   -a -o on -S on -s (S/../.././02|L/../../6/03)
+# smart_monitoring_notify_priority: urgent
+# smart_monitoring_notify_tags: "warning,floppy_disk"
+# smart_monitoring_notify_on_change: true
+#
+# Per-device overrides appended verbatim to smartd.conf:
+# smart_monitoring_extra_directives:
+#   - "/dev/disk/by-id/ata-WDC_WD40EFRX-68N32N0_WD-WCC7K0XYZ -a -o on -S on -s (S/../.././02|L/../../6/03)"
 
 # --- fail2ban role -------------------------------------------------------------
 # fail2ban_bantime: 1h
@@ -364,6 +421,18 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #
 # Set admin_dotfiles_root to "" to disable the role entirely.
 
+# --- local_ssh_config role (control machine) ---------------------------------
+# Writes ~/.ssh/config.d/home-server-provisioner-<env> on the machine running
+# Ansible, with one Host block per inventory host (User, HostName, IdentityFile,
+# ProxyJump via the hub). Makes `ssh <hostname>` work with no manual config.
+#
+# local_ssh_config_dir: "{{ lookup('env', 'HOME') }}/.ssh/config.d"
+# local_ssh_config_host_prefix: ""   # e.g. "prod-" when sharing host names across envs
+# local_ssh_config_private_key: "{{ lookup('env', 'ANSIBLE_PRIVATE_KEY_FILE') | default('~/.ssh/id_ed25519', true) }}"
+#
+# The per-env filename suffix comes from HSP_ENV, which the Makefile sets
+# from ENV - do not override local_ssh_config_env_name by hand.
+
 # --- dnsmasq role (vpn_server only) -----------------------------------------
 # Full LAN/VPN DNS resolver: forwards external queries upstream, answers
 # local queries for hosts in the inventory (auto-derived) and any extras
@@ -378,6 +447,7 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # dnsmasq_include_inventory_hosts: true
 # dnsmasq_inventory_groups: [servers]
 # dnsmasq_extra_hosts: []
+# dnsmasq_extra_addresses: []
 # dnsmasq_cache_size: 1000
 # dnsmasq_log_queries: false
 # dnsmasq_open_firewall: true
@@ -395,6 +465,8 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # dnsmasq_extra_hosts:
 #   - { name: printer, ip: 192.168.1.7 }
 #   - { name: nas,     ip: 192.168.1.5 }
+# dnsmasq_extra_addresses:
+#   - { name: files.example.lan, ip: 10.10.0.1 }
 # dnsmasq_firewall_from:
 #   - 10.0.0.0/8
 #   - 172.16.0.0/12

@@ -1,0 +1,9 @@
+[user]
+	name = Example User
+	email = user@example.com
+
+[init]
+	defaultBranch = main
+
+[core]
+	editor = vi
