@@ -1,4 +1,4 @@
-# network_mounts_shares
+# network_mounts
 
 Client-side NFS and CIFS/SMB mount management for a Debian 13 host.
 Disabled by default (`network_mounts_shares: []`). Populate `network_mounts_shares`

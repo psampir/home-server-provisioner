@@ -4,6 +4,39 @@ Ansible-based provisioning toolkit for Debian self-hosted servers.
 
 Prepares fresh Debian hosts with system hardening, a dedicated management user, and a baseline configuration - ready for Docker workloads, reverse proxying, VPN connectivity, and automated backups.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    CTRL["Control machine (Ansible)"]
+    HUB["Hub - public VPS, WireGuard + dnsmasq"]
+    APP["App server - Docker + Caddy"]
+    BKP["Local backup target"]
+    OFF["Offsite backup target"]
+    CLI["Phone / laptop - external client"]
+
+    CTRL -->|"SSH"| HUB
+    CTRL -->|"SSH"| APP
+    APP -->|"wg0 dials out"| HUB
+    BKP -->|"wg0 dials out"| HUB
+    OFF -->|"wg0 dials out"| HUB
+    CLI -->|"WireGuard dials out"| HUB
+    APP -->|"borgmatic push"| BKP
+    APP -->|"borgmatic push"| OFF
+```
+
+The fleet is hub-and-spoke: exactly one host acts as the hub (the
+`vpn_server` group, usually a VPS with a public IP), and it is the only
+machine that needs an inbound port. Every managed peer and every external
+client dials out to it, which is why app servers and backup targets can
+sit behind NAT or on a mobile network. All servers share one
+`10.10.0.0/24` WireGuard network, with the hub also running dnsmasq so
+names resolve to tunnel addresses. Backups are pushed - never pulled -
+from app servers to their `backup_targets` over that same tunnel, both to
+a local target and to an off-site one. See
+[docs/networking.md](docs/networking.md) for the full topology and
+[docs/backups.md](docs/backups.md) for the backup flow.
+
 ## Supported platform
 
 - Debian 13 (trixie)

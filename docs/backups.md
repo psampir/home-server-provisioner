@@ -211,15 +211,26 @@ automatic).
 
 ## Test environment
 
-`make test-env-create` adds a third VM, `hsp-backup` (`backup_targets`,
-`vpn_ip=10.10.0.3`). `hsp-app` is seeded to back up `/etc` to
-`hsp-backup` over WireGuard, exercising the full path: key authorization,
-append-only push, repo init, and server-side prune.
+`make test-env-create` provisions **five** VMs (`scripts/test-vms.conf`):
+
+| VM | Groups | `vpn_ip` |
+| --- | --- | --- |
+| `hsp-vpn` | `vpn_server` (hub) | `10.10.0.1` |
+| `hsp-app` | `app_servers` | `10.10.0.2` |
+| `hsp-backup` | `backup_targets` | `10.10.0.3` |
+| `hsp-app2` | `app_servers` | `10.10.0.4` |
+| `hsp-backup2` | `backup_targets` | `10.10.0.5` |
+
+`hsp-app` pushes `/etc` to **two** independent repos over WireGuard -
+`hsp-backup` (`primary`) and `hsp-backup2` (`offsite`) - and `hsp-app2`
+pushes to `hsp-backup` as well. That exercises multi-target sources and
+multi-source targets in one run: key authorization, append-only push,
+repo init, and server-side prune.
 
 ```bash
 make test-env-create
 make test-bootstrap
-make test-provision           # provisions all three VMs
+make test-provision           # provisions all five VMs
 make test-provision           # second run: changed=0 (idempotent)
 
 # Verify on hsp-app:

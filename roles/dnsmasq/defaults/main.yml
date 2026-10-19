@@ -13,8 +13,8 @@ dnsmasq_upstream_servers:
 # --- Listening ---
 # Interfaces dnsmasq binds to. Stable across IP changes - adding a new
 # WireGuard peer does not require touching this list (everyone uses wg0).
-# Default `[lo]` is safe out of the box: only the host queries itself.
-# In production, add e.g. `wg0` and the LAN interface.
+# Default is `[lo, wg0]`: the host itself plus VPN peers. Add the LAN
+# interface if LAN devices should resolve these names too.
 dnsmasq_interfaces:
   - lo
   - wg0

@@ -1,7 +1,9 @@
 # Home Server Provisioner - Production Inventory
 #
 # Copy this file to hosts.yml and fill in your own hosts.
-# Do not commit hosts.yml - it is gitignored.
+# hosts.yml IS committed - the config tree created by `make init-config`
+# becomes its own git repo, intended for a PRIVATE remote. Only the vault
+# password (.vault_pass / .vault_password) is gitignored.
 #
 # A host can appear in multiple groups if it serves multiple roles.
 # All hosts under "servers" receive baseline provisioning (common, SSH, users).

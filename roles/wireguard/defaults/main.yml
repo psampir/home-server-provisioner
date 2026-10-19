@@ -8,8 +8,9 @@ wireguard_role: peer
 
 # --- Network ---
 # CIDR for the VPN. Hub gets .1, managed peers .2-.19, clients .20+.
-# Avoid collision with LAN (10.166.72.0/24 in test) and Docker bridges
-# (172.17/16, 172.18/16).
+# Avoid collision with the LAN and with Docker's default bridges
+# (172.17.0.0/16, 172.18.0.0/16). The Incus test env puts its isolated
+# DHCP lab LAN on 192.168.50.0/24 (see scripts/test-env.sh).
 wireguard_subnet: "10.10.0.0/24"
 wireguard_subnet_prefix: 24
 wireguard_hub_ip: "10.10.0.1"

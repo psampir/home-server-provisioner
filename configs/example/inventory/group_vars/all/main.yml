@@ -1,5 +1,5 @@
 # =============================================================================
-# Production group_vars - copy to all.yml and edit.
+# Production group_vars - edit in place (configs/<ENV>/inventory/group_vars/all/main.yml).
 #
 # Conventions:
 #   REQUIRED                 Playbook fails if not set; you MUST provide a value.

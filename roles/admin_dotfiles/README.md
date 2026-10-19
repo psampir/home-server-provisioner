@@ -1,29 +1,34 @@
 # admin_dotfiles
 
-Mirrors a directory of dotfiles from the control machine (typically
-`configs/<ENV>/dotfiles/home/`, created by `scripts/init-config.sh`) into the
-admin user's home directory on every server.
+Mirrors one or two dotfile trees from the control machine into the admin
+user's home directory on every server. The layout is created by
+`scripts/init-config.sh` under `configs/<ENV>/dotfiles/`.
 
 Shell-agnostic: the role copies files verbatim and has no knowledge of
 fish, bash, zoxide or any specific tool.
 
 ## Source layout
 
-`admin_dotfiles_src` mirrors the admin user's home directory. Example:
+There are two overlays under `admin_dotfiles_root`:
 
 ```
-configs/<ENV>/dotfiles/home/
-├── .gitconfig
-├── .tmux.conf
-└── .config/
-    ├── fish/
-    │   └── config.fish
-    └── git/
-        └── config
+configs/<ENV>/dotfiles/
+├── _common/home/                → baseline, applied to every host
+│   ├── .gitconfig
+│   └── .config/fish/config.fish
+└── <inventory_hostname>/home/   → per-host overlay (optional)
+    └── .config/git/config
 ```
 
-After provisioning, those exact paths exist under the admin user's
-home directory.
+Both directories mirror the admin user's home directory exactly. They are
+applied **in order** - `_common` first, then the host directory - and the
+host overlay wins **per file**, not per directory. That means a host can
+override `.config/fish/config.fish` while the rest of the baseline still
+ships, and can add files that do not exist in `_common` at all.
+
+After provisioning, those exact paths exist under the admin user's home
+directory. The two subdirectory names are configurable via
+`admin_dotfiles_common_subdir` and `admin_dotfiles_host_subdir`.
 
 ## Sync semantics - strict, but only for managed files
 
@@ -31,7 +36,7 @@ The role tracks which files it owns via a per-host manifest stored at
 `~admin/.config/admin_dotfiles.manifest`. On every run:
 
 1. The control-machine source tree is walked recursively to build the
-   current set of managed files (paths relative to `admin_dotfiles_src`).
+   current set of managed files (paths relative to each overlay).
 2. Each managed file is copied to the corresponding path under the
    admin user's home directory.
 3. The previous manifest is compared with the current one; any path
@@ -69,8 +74,8 @@ private config repo.)
 
 ## Disabling
 
-- Per-host: set `admin_dotfiles_src: ""` in `host_vars/<host>.yml`.
-- Globally: same in `group_vars/all.yml`.
+- Per-host: set `admin_dotfiles_root: ""` in `host_vars/<host>.yml`.
+- Globally: same in `group_vars/all/main.yml`.
 - Implicitly: if the source directory does not exist on the control
   machine, the role logs a notice and does nothing.
 
@@ -78,5 +83,7 @@ private config repo.)
 
 | Variable | Default | Description |
 |---|---|---|
-| `admin_dotfiles_src` | `{{ inventory_dir }}/../dotfiles/home` | Source directory on the control machine. |
+| `admin_dotfiles_root` | `{{ inventory_dir }}/../dotfiles` | Root of the overlay tree on the control machine. Empty disables the role. |
+| `admin_dotfiles_common_subdir` | `_common/home` | Baseline overlay, relative to `admin_dotfiles_root`. |
+| `admin_dotfiles_host_subdir` | `{{ inventory_hostname }}/home` | Host overlay, applied after (and winning over) the baseline. |
 | `admin_dotfiles_manifest` | `.config/admin_dotfiles.manifest` | Path (relative to admin user's home) of the per-host manifest. |

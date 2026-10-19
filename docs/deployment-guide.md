@@ -29,7 +29,8 @@ backup_targets:
       bootstrap_user: jan
 ```
 
-Run the full provisioning, including the WireGuard role (when available):
+Run the full provisioning - this includes the WireGuard role, which puts
+the host on the VPN:
 
 ```bash
 make bootstrap
