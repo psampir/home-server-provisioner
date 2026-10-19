@@ -13,4 +13,7 @@ exclude_paths:
   - .test-disks/
   - build/
   - configs/test/
-  - configs/demo/
+  # Every configs/<ENV>/ tree except the tracked template is private (it
+  # contains local vault files) and ships its own git repo. Exclude them
+  # generically rather than naming any one environment.
+  - configs/[!e]*/

@@ -56,6 +56,10 @@ Implications:
 - **Topic name is the only authentication on `ntfy.sh`.** Anyone who
   knows the URL can read and write. Generate a long random suffix
   (`openssl rand -hex 6`) and keep the URL out of git via vault.
+- **Treat the topic as a secret.** If a real topic was ever committed,
+  pasted into an issue, or otherwise exposed, rotate it: pick a new
+  random topic, update `notifications_ntfy_url`, re-provision, and
+  unsubscribe the old topic on every device.
 - **Self-hosted iOS push** still goes through `ntfy.sh` as an APNs
   relay (Apple developer cert constraint), but only a "wake up" poke
   is sent through it - the body is fetched directly from your server
