@@ -60,6 +60,59 @@ drop-in.
    `/usr/local/bin/hsp-borgmatic-notify`.
 7. Enables `borgmatic.timer`.
 
+## Custom hook commands
+
+Three opt-in lists add your own commands to borgmatic's command hooks:
+
+| Variable | Hook | Runs |
+| --- | --- | --- |
+| `borgmatic_before_backup_commands` | `before_backup` | Before each repository's backup. |
+| `borgmatic_after_backup_commands` | `after_backup` | After each repository's backup. |
+| `borgmatic_on_error_commands` | `on_error` | On an error during create/prune/compact/check or a hook. |
+
+User commands are appended **after** the built-in `hsp-notify` entries, and
+a hook key is emitted only when the combined list is non-empty - with the
+lists left at `[]` the rendered config is unchanged.
+
+They exist mainly for **containerised databases**. borgmatic's native
+`postgresql_databases:` support cannot `docker exec` into a container, so
+those databases would otherwise be archived as raw files copied from a live
+server. Dump them first and let the dump join the archive:
+
+```yaml
+# host_vars/<app-host>.yml
+borgmatic_source_directories:
+  - /opt/stacks
+  - /etc
+  - /var/backups/db          # also receives the dumps below
+
+borgmatic_before_backup_commands:
+  - /usr/local/bin/hsp-pg-dump
+borgmatic_after_backup_commands:
+  - rm -f /var/backups/db/*.sql
+```
+
+```bash
+#!/bin/sh
+# /usr/local/bin/hsp-pg-dump - consistent dumps of containerised databases.
+set -eu
+stage=/var/backups/db
+mkdir -p "$stage"
+docker exec immich_postgres pg_dumpall -U postgres > "$stage/immich.sql"
+docker exec joplin-db       pg_dumpall -U joplin  > "$stage/joplin.sql"
+```
+
+The hooks run as root, once per repository, so the script must be
+idempotent. The staging directory is deliberately in
+`borgmatic_source_directories` so the dump is archived; cleaning it up in
+`after_backup` (as above) stops a stale copy being re-archived next run.
+
+These are the classic top-level borgmatic hook keys (`before_backup`,
+`after_backup`, `on_error`), which is what borgmatic 1.9 - the version in
+Debian 13 - accepts and validates. Newer borgmatic 2.x replaced them with a
+`commands:` section; if the role's package ever moves to 2.x, that block
+needs migrating.
+
 ## Key variables
 
 | Variable | Default | Purpose |
@@ -72,6 +125,9 @@ drop-in.
 | `borgmatic_schedule` | `*-*-* 02:30:00` | Nightly `OnCalendar` for the backup. |
 | `borgmatic_notify_on_failure` | `true` | `on_error` → hsp-notify. |
 | `borgmatic_notify_on_success` | `false` | `after_backup` → hsp-notify. |
+| `borgmatic_before_backup_commands` | `[]` | Extra `before_backup` hook commands. |
+| `borgmatic_after_backup_commands` | `[]` | Extra `after_backup` hook commands. |
+| `borgmatic_on_error_commands` | `[]` | Extra `on_error` hook commands. |
 | `borgmatic_remote_repo_base` | `/srv/borg` | Fallback target repo base when the target host does not define `borg_repo_base`. |
 | `borgmatic_exclude_patterns` | `[]` | Borg `--exclude` patterns. |
 

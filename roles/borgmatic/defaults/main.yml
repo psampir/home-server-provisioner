@@ -117,6 +117,27 @@ borgmatic_notify_priority_failure: high
 borgmatic_notify_priority_success: low
 borgmatic_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
 
+# --- Custom hook commands --------------------------------------------------
+# Extra shell commands wired into borgmatic's command hooks, appended AFTER
+# the notification entries above. Each list is rendered only when non-empty,
+# so leaving them at [] yields exactly the config the role has always
+# rendered.
+#
+# The motivating case is containerised databases. borgmatic's native
+# postgresql_databases support cannot `docker exec` into a container, so
+# those databases would otherwise be archived as raw data files copied from
+# a running server - potentially inconsistent. Instead, point
+# before_backup at a dump script that writes into a directory which is ALSO
+# listed in borgmatic_source_directories; the dump is then swept into the
+# same archive. after_backup is the place to clean the dump up again -
+# otherwise it is re-archived every night and bloats the repo.
+#
+# Entries are single command lines, quoted verbatim into the config. Hooks
+# run as root via systemd, so they can call docker/podman and read any path.
+borgmatic_before_backup_commands: []
+borgmatic_after_backup_commands: []
+borgmatic_on_error_commands: []
+
 # --- File locations (rarely overridden) ------------------------------------
 borgmatic_config_dir: /etc/borgmatic
 borgmatic_config_path: /etc/borgmatic/config.yaml

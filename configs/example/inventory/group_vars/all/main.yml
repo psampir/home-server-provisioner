@@ -212,6 +212,22 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 # borgmatic_notify_on_failure: true
 # borgmatic_notify_on_success: false
 #
+# Custom hook commands (defaults shown: empty = hook omitted). Appended
+# after the hsp-notify entries above. Use these to dump containerised
+# databases before the archive is created - borgmatic's native
+# postgresql_databases cannot docker exec, so raw live DB files would be
+# inconsistent. Write the dump into a directory that is also in
+# borgmatic_source_directories, then remove it in after_backup.
+# borgmatic_before_backup_commands: []
+# borgmatic_after_backup_commands: []
+# borgmatic_on_error_commands: []
+#
+# Example (not default):
+# borgmatic_before_backup_commands:
+#   - /usr/local/bin/hsp-pg-dump
+# borgmatic_after_backup_commands:
+#   - rm -f /var/backups/db/*.sql
+#
 # Target side (borg_repo) is data-driven - it reads the sources'
 # borgmatic_repositories and needs no config beyond the shared passphrase.
 # Override its retention fallback / maintenance schedule only if needed:
