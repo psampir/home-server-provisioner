@@ -15,8 +15,8 @@
     cache_valid_time: 3600
 
 - name: Install hsp-notify CLI
-  ansible.builtin.copy:
-    src: hsp-notify
+  ansible.builtin.template:
+    src: hsp-notify.j2
     dest: "{{ notifications_bin_path }}"
     owner: root
     group: root

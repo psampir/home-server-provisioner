@@ -8,15 +8,15 @@
 #   --priority   min | low | default | high | urgent (overrides default)
 #   --tags       comma-separated ntfy tags (e.g. floppy_disk,warning)
 #
-# Reads /etc/hsp-notify.env for backend configuration. If NTFY_URL is
-# empty or the env file is missing, the call becomes a no-op and the
-# subject is logged to the systemd journal under tag 'hsp-notify'.
+# Reads the env file path configured by the notifications role. If
+# NTFY_URL is empty or the env file is missing, the call becomes a
+# no-op and the subject is logged to the journal under tag 'hsp-notify'.
 #
 # Managed by Ansible (roles/notifications) - do not edit by hand.
 
 set -euo pipefail
 
-ENV_FILE=/etc/hsp-notify.env
+ENV_FILE={{ notifications_env_path }}
 
 # shellcheck source=/dev/null
 [[ -r "$ENV_FILE" ]] && . "$ENV_FILE"
