@@ -16,6 +16,12 @@
 # -----------------------------------------------------------------------------
 # The human SSH user created on every server, with passwordless sudo.
 admin_user_name: ""   # REQUIRED, e.g. "jan"
+#
+# Optional: pin the UID so data owned by a fixed container PUID (e.g. 1000)
+# stays accessible to this user across rebuilds. "" lets the system choose.
+# Must be set before the user is first created; changing it later does not
+# move ownership of existing files.
+# admin_user_uid: 1000
 
 
 # -----------------------------------------------------------------------------

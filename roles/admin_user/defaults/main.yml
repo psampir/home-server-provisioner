@@ -1,4 +1,13 @@
+---
 admin_user_name: ""
+# Optional UID for the interactive admin user. Empty means "let the system
+# pick one", which is the historical behaviour.
+#
+# Pin it when application data on the data disks is owned by a fixed UID -
+# containers commonly run with PUID=1000 - so the human user owns/reads that
+# data on every rebuild. A fresh install often lands on 1000 by luck, but
+# only an explicit value guarantees it.
+admin_user_uid: ""
 admin_user_shell: bash
 admin_user_extra_packages: []
 admin_user_ssh_pubkey: "{{ service_user_ssh_pubkey }}"

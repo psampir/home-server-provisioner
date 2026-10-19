@@ -34,6 +34,9 @@
   ansible.builtin.user:
     name: "{{ admin_user_name }}"
     shell: "{{ admin_user_shell_path.stdout }}"
+    # Pass uid only when set; an empty admin_user_uid must leave the
+    # parameter out entirely (omit), not pass "".
+    uid: "{{ (admin_user_uid | string | length > 0) | ternary(admin_user_uid, omit) }}"
     create_home: true
     groups: sudo
     append: true
