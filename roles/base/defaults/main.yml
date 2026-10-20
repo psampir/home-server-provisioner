@@ -1,6 +1,14 @@
 base_packages:
   - curl
 
+# Device GRUB is installed to (e.g. /dev/sda). Empty = auto-detect it from
+# the boot filesystem. Only used to pre-seed the grub-pc debconf question on
+# BIOS hosts, so an unattended upgrade never blocks on an interactive prompt.
+#
+# Renamed from the unprefixed `grub_install_device`; the old name is still
+# honoured below (as an alias) so existing inventories keep working.
+base_grub_install_device: "{{ grub_install_device | default('') }}"
+
 # Kernel sysctls written to /etc/sysctl.d/99-hsp.conf and applied via
 # `sysctl --system` whenever the file changes. User-overridable from
 # group_vars / host_vars by re-defining the dict (or by merging into

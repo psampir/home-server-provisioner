@@ -24,7 +24,7 @@
   changed_when: false
   check_mode: false
   when:
-    - grub_install_device is not defined
+    - base_grub_install_device == ''
     - base_grub_pc_status.stdout is search('^install ok ')
 
 - name: Pre-seed grub-pc install device (avoid postinst prompt during upgrade)
@@ -32,7 +32,7 @@
     name: grub-pc
     question: grub-pc/install_devices
     vtype: multiselect
-    value: "{{ grub_install_device | default(base_grub_boot_disk.stdout) }}"
+    value: "{{ base_grub_install_device or base_grub_boot_disk.stdout }}"
   when: base_grub_pc_status.stdout is search('^install ok ')
 
 - name: Finish any pending dpkg configuration (e.g. previously failed grub-pc postinst)
