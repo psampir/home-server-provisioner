@@ -104,8 +104,8 @@ private-key material to the controller's disk**. Onboarding is a
 separate, on-demand step:
 
 ```bash
-make wg-render                 # default env
-make wg-render ENV=prod        # explicit
+make wireguard-render          # default env
+make wireguard-render ENV=prod # explicit
 ```
 
 This runs `playbooks/wireguard_clients.yml`, which targets the hub only,
@@ -208,7 +208,7 @@ the script manage `psk` alongside the keypair.
 1. Append `{ name: phone-x, vpn_ip: 10.10.0.23 }` to `wireguard_clients`.
 2. `make provision` - generates the keys, commits the vault, and adds the
    `[Peer]` block to the hub.
-3. `make wg-render`, scan the QR, then `rm -rf build/`.
+3. `make wireguard-render`, scan the QR, then `rm -rf build/`.
 
 **Remove** a phone:
 
@@ -235,6 +235,6 @@ changes.
 - [`roles/wireguard/README.md`](../roles/wireguard/README.md) - role
   reference, including the peer-DNS regression check
 - [`playbooks/wireguard_clients.yml`](../playbooks/wireguard_clients.yml)
-  - what `make wg-render` actually runs
+  - what `make wireguard-render` actually runs
 - [`scripts/wg-ensure-keys.py`](../scripts/wg-ensure-keys.py) - key
   generation and pruning implementation

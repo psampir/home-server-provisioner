@@ -57,7 +57,6 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 #
 # Override only if grub-pc auto-detection picks the wrong disk on a host.
 # Prefer setting per-host in hosts.yml when possible.
-# The legacy unprefixed name `grub_install_device` is still honoured.
 # base_grub_install_device: /dev/sda
 #
 # Kernel sysctls written to /etc/sysctl.d/99-hsp.conf and applied via
@@ -534,7 +533,7 @@ service_user_ssh_pubkey: "{{ lookup('file', lookup('env', 'SSH_PUBKEY_FILE') | d
 wireguard_client_keys: "{{ vault_wireguard_client_keys | default({}) }}"
 
 # Rendered client configs + QR codes are NOT written during `make provision`.
-# Run `make wg-render` on demand to write build/wireguard/<name>.{conf,png}
+# Run `make wireguard-render` on demand to write build/wireguard/<name>.{conf,png}
 # (gitignored, mode 0600). Scan the QR / import the .conf, then delete the
 # directory - these files contain plaintext private keys.
 

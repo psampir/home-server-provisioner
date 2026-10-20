@@ -198,6 +198,6 @@
 
 # NOTE: Client .conf + QR rendering is intentionally NOT done here.
 # `make provision` deploys [Peer] sections to the hub but never writes
-# client artifacts to disk on the controller. Run `make wg-render` to
+# client artifacts to disk on the controller. Run `make wireguard-render` to
 # generate build/<env>/wireguard/<name>.{conf,png} on demand (see
 # playbooks/wireguard_clients.yml and docs/wireguard-clients.md).

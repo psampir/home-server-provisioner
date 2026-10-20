@@ -20,7 +20,7 @@ the hub. Phones/laptops are not managed hosts - they are declared in
   UDP 51820 and allows peer-to-peer forwarding.
 
 Client `.conf` + QR artifacts are deliberately **not** written during
-`make provision`; use `make wg-render` (see `docs/wireguard-clients.md`).
+`make provision`; use `make wireguard-render` (see `docs/wireguard-clients.md`).
 
 ## Variables
 

@@ -78,14 +78,14 @@ echo "Installing required Ansible collections..."
 ansible-galaxy collection install -r "$PROJECT_DIR/requirements.yml"
 
 # --- Optional: qrencode (controller-side WireGuard client QR codes) ----------
-# `make wg-render` writes <client>.png QR codes under build/<env>/wireguard/
+# `make wireguard-render` writes <client>.png QR codes under build/<env>/wireguard/
 # so you can scan them straight into the WireGuard mobile app. It needs
 # `qrencode` on the controller; if it's missing the playbook still renders
 # `<client>.conf` and logs a warning, so this is informational only.
 if ! command -v qrencode &>/dev/null; then
     echo ""
     echo "Note: 'qrencode' is not installed on this controller."
-    echo "      Without it, 'make wg-render' still writes build/<env>/wireguard/<client>.conf"
+    echo "      Without it, 'make wireguard-render' still writes build/<env>/wireguard/<client>.conf"
     echo "      for every WireGuard client, but skips the matching <client>.png QR codes."
     echo "      Install it if you want to onboard phones by scanning a QR:"
     echo ""

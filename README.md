@@ -174,7 +174,7 @@ on-demand step** - `make provision` never writes private-key material to
 your disk. When you actually need to onboard a phone or laptop:
 
 ```bash
-make wg-render            # writes build/<env>/wireguard/<name>.{conf,png} (mode 0600)
+make wireguard-render      # writes build/<env>/wireguard/<name>.{conf,png} (mode 0600)
 # scan the QR, or scp the .conf to the target device
 rm -rf build/              # delete once you're done
 ```
@@ -322,13 +322,13 @@ For Debian/Ubuntu/Arch hosts, follow [the official Incus install guide](https://
 ### Test loop
 
 ```bash
-make test-env-create    # Launch VMs, install sshd, create initial user
-make test-bootstrap     # Bootstrap the ansible service user
-make test-provision     # Run full provisioning
-make test-wg-render     # Render build/test/wireguard/test-controller.{conf,png}
-make test-smoke         # End-to-end check via WG (sudo: brings the tunnel up, curls the proxied site, cleans up)
-make test-reboot        # Reboot every VM and verify services persist across reboots
-make test-env-destroy   # Tear down VMs
+make test-env-create        # Launch VMs, install sshd, create initial user
+make test-bootstrap         # Bootstrap the ansible service user
+make test-provision         # Run full provisioning
+make test-wireguard-render  # Render build/test/wireguard/test-controller.{conf,png}
+make test-smoke             # End-to-end check via WG (sudo: brings the tunnel up, curls the proxied site, cleans up)
+make test-reboot            # Reboot every VM and verify services persist across reboots
+make test-env-destroy       # Tear down VMs
 ```
 
 `make test-smoke` brings the rendered `build/test/wireguard/test-controller.conf`
@@ -381,7 +381,7 @@ make vault-init  ENV=demo
 ./scripts/incus-env.sh demo create   # writes configs/demo/inventory/hosts.yml
 make bootstrap ENV=demo
 make provision ENV=demo
-make wg-render ENV=demo               # → build/demo/wireguard/
+make wireguard-render ENV=demo          # → build/demo/wireguard/
 ```
 
 **`hosts.yml` is auto-generated** by `incus-env.sh` because Incus assigns

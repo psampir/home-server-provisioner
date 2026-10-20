@@ -42,7 +42,7 @@ WG_KEYS_FLAGS ?=
 
 # --- Ansible ---
 
-.PHONY: bootstrap provision wireguard-keys wg-render wireguard-render notify-test
+.PHONY: bootstrap provision wireguard-keys wireguard-render notify-test
 
 bootstrap: ## First run on fresh hosts (ENV=prod by default)
 	ansible-playbook playbooks/bootstrap.yml -i $(INVENTORY) -e 'ansible_user={{ bootstrap_user }}' $(BOOTSTRAP_FLAGS)
@@ -53,10 +53,8 @@ provision: wireguard-keys ## Run full site playbook (ENV=prod by default)
 wireguard-keys: ## Generate/prune WireGuard client keys (vaulted, auto-committed)
 	scripts/wg-ensure-keys.py --inventory $(INVENTORY) $(WG_KEYS_FLAGS)
 
-wg-render: ## Render build/$(ENV)/wireguard/<client>.{conf,png} for distribution (sensitive!)
+wireguard-render: ## Render build/$(ENV)/wireguard/<client>.{conf,png} for distribution (sensitive!)
 	ansible-playbook playbooks/wireguard_clients.yml -i $(INVENTORY)
-
-wireguard-render: wg-render ## Render WireGuard client artifacts (alias of wg-render)
 
 notify-test: ## Send a hsp-notify smoke test from HOST=<host> (defaults to all servers)
 	@host="$${HOST:-servers}"; \
@@ -101,7 +99,7 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password
 # Test env is just ENV=test with a pre-built configs/test/ tree that is
 # regenerated from scratch by scripts/test-env.sh (gitignored).
 
-.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision test-wg-render test-smoke test-reboot
+.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision test-wireguard-render test-smoke test-reboot
 
 test-env-create: ## Create test VMs and seed configs/test/
 	./scripts/test-env.sh create
@@ -118,8 +116,8 @@ test-bootstrap: ## bootstrap against ENV=test (no password prompt)
 test-provision: ## provision against ENV=test (no git auto-commit for vault)
 	$(MAKE) provision ENV=test WG_KEYS_FLAGS=--no-commit
 
-test-wg-render: ## render WG client artifacts for ENV=test
-	$(MAKE) wg-render ENV=test
+test-wireguard-render: ## render WG client artifacts for ENV=test
+	$(MAKE) wireguard-render ENV=test
 
 test-smoke: ## end-to-end smoke test from the controller via WG (needs sudo)
 	@./scripts/test-smoke.sh
@@ -147,6 +145,6 @@ lint: ## Run ansible-lint over the repository
 .PHONY: help
 
 help: ## Show available targets
-	@grep -E '^[a-zA-Z_-]+:.*##' Makefile | awk -F ':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*##' Makefile | awk -F ':.*## ' '{printf "  %-22s %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help

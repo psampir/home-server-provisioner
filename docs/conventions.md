@@ -33,19 +33,13 @@ input to one role. They are intentionally **not** prefixed:
 Renaming these would break every existing inventory and gain nothing, so they
 are documented exceptions instead.
 
-## Backward-compatible renames
+## No legacy aliases
 
-When a variable has to be renamed, declare the **new** name in `defaults/` and
-default it from the old one, then use only the new name in tasks:
-
-```yaml
-# Device GRUB is installed to. Empty = auto-detect.
-base_grub_install_device: "{{ grub_install_device | default('') }}"
-```
-
-Existing inventories that still set the old name keep working, and the old
-name is documented as an accepted alias wherever users are likely to set it
-(example `group_vars`, the role README).
+This project is pre-release, so every role, variable, and make target has
+exactly one name. A rename is a plain rename: no compatibility shim, no
+`default(old_name)` indirection, no deprecated spelling kept around. The old
+name stops working in the same commit that introduces the new one, and every
+reference in docs, inventory examples, and scripts is updated with it.
 
 ## Templates and files
 
@@ -64,7 +58,6 @@ not merged, and each README states which side it is.
 ## Makefile targets
 
 `<domain>-<action>`: `wireguard-keys`, `wireguard-render`, `vault-init`,
-`vault-edit`, `test-env-create`, `test-smoke`. Short aliases are allowed where
-they are already referenced widely in docs (`wg-render`), but the canonical
-`<domain>-<action>` name is what new documentation should use, and every alias
-carries a `##` help comment so `make help` lists it.
+`vault-edit`, `test-env-create`, `test-smoke`. There are no short aliases - the
+canonical `<domain>-<action>` name is the only name, and every target carries a
+`##` help comment so `make help` lists it.

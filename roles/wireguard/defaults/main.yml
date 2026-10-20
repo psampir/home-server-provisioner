@@ -108,7 +108,7 @@ wireguard_firewall_from:
 # Gitignored. Files are mode 0600.
 #
 # Partitioned by env name (sourced from HSP_ENV, set by the Makefile
-# from ENV) so `make wg-render ENV=prod` and `make wg-render ENV=demo`
-# don't clobber each other's artifacts.
+# from ENV) so `make wireguard-render ENV=prod` and `make wireguard-render
+# ENV=demo` don't clobber each other's artifacts.
 wireguard_client_output_dir: "{{ playbook_dir }}/../build/{{ lookup('env', 'HSP_ENV') | default('default', true) }}/wireguard"
 wireguard_generate_qr: true

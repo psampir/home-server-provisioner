@@ -1,20 +1,20 @@
 ---
 # Render WireGuard external-client artifacts (<name>.conf + <name>.png QR)
 # under build/<env>/wireguard/ on the controller. Run on demand via
-# `make wg-render`.
+# `make wireguard-render`.
 #
 # This is intentionally decoupled from `make provision`:
 #   - provision deploys [Peer] sections to the hub (idempotent infra change)
-#   - wg-render writes plaintext private keys + QR PNGs to the local disk
-#     (a one-shot onboarding artifact you should consume and delete)
+#   - wireguard-render writes plaintext private keys + QR PNGs to the local
+#     disk (a one-shot onboarding artifact you should consume and delete)
 #
 # The playbook reuses the `wireguard` role's facts and templates by including
 # its `client_configs.yml` task file directly. It only touches the hub host
 # (one play, run_once) and never connects to managed peers.
 #
 # Usage:
-#   make wg-render                       # render all clients for default env
-#   make wg-render ENV=prod              # for a specific env
+#   make wireguard-render                # render all clients for default env
+#   make wireguard-render ENV=prod       # for a specific env
 #
 # Output (env partitioned via HSP_ENV - set by the Makefile from ENV):
 #   build/<env>/wireguard/<client-name>.conf   (mode 0600)
