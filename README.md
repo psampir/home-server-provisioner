@@ -240,7 +240,7 @@ Each role is small (~50 LOC) and self-contained. The full list:
 | `wireguard` | Hub-and-spoke VPN. Generates per-host keypairs, renders `[Peer]` sections on the hub, and renders `<client>.conf` + `<client>.png` QR codes on the controller for external clients. Asserts inventory sanity (unique VPN IPs, exactly one hub). |
 | `dns_client` | On non-hub servers: rewrites `/etc/resolv.conf` to point at the WireGuard hub so local hostnames resolve through dnsmasq |
 | `dnsmasq` | On the hub: full LAN/VPN resolver, auto-generates host records from the inventory, forwards external queries upstream |
-| `caddy` | On the hub: native reverse proxy with automatic TLS. Source-of-truth in `configs/<ENV>/caddy/Caddyfile` (+ optional `conf.d/*.caddy` snippets). See [docs/caddy.md](docs/caddy.md) for TLS modes, site-block patterns, and the LAN-bandwidth escape hatch. |
+| `caddy` | On the hub: native reverse proxy with automatic TLS. Source-of-truth in `configs/<ENV>/caddy/Caddyfile` (+ optional `conf.d/*.caddy` snippets). The role is skipped when no `configs/<ENV>/caddy/` tree exists - a host that only needs a local reverse proxy can keep Caddy as a Compose stack instead. See [docs/caddy.md](docs/caddy.md) for TLS modes, site-block patterns, and the LAN-bandwidth escape hatch. |
 
 ### Applications (`app_servers` only)
 
@@ -295,6 +295,20 @@ Resolution rules:
 
 Escape hatch: set `compose_deploy_stacks: [...]` explicitly in host_vars
 to skip auto-discovery entirely (rare, mostly for transient debugging).
+
+## Development
+
+### Linting
+
+The repository lints clean at `ansible-lint`'s strictest built-in profile
+(`production`):
+
+```bash
+make lint
+```
+
+CI runs the same command on every push and pull request. Configuration lives in
+`.ansible-lint`; the workflow is `.github/workflows/ansible-lint.yml`.
 
 ## Testing
 
@@ -366,7 +380,7 @@ artifacts that would otherwise collide are partitioned per env:
 To spin up a new long-lived Incus-backed environment (e.g. `demo`):
 
 ```bash
-# 1. Declare the VMs (tracked in this repo)
+# 1. Declare the VMs (local-only: scripts/*.conf is gitignored except test-vms.conf)
 cat > scripts/demo-vms.conf <<'EOF'
 demo-hsp-vpn:vpn_server:vpn_ip=10.10.0.1,wireguard_role=hub
 demo-hsp-app:app_servers:vpn_ip=10.10.0.2
