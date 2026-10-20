@@ -404,6 +404,7 @@ when running multiple envs side-by-side to avoid collisions with the
 - [Backups](docs/backups.md) - borgmatic/borg topology, restore, passphrase rotation, monitoring
 - [Caddy reverse proxy](docs/caddy.md) - TLS modes, site-block patterns, LAN-bandwidth escape hatch, troubleshooting
 - [Deployment Guide](docs/deployment-guide.md) - multi-site setups, off-site hosts, and VPN connectivity
+- [Conventions](docs/conventions.md) - role, variable, template, and make-target naming rules this repo enforces
 
 ## License
 

@@ -13,7 +13,7 @@ host's `borgmatic_repositories` for entries whose `target` is this host.
 Nothing is declared here directly; if no source targets the host, the
 role is inert.
 
-## How it works
+## What it does
 
 For each source host that targets this server (matched via the published
 `borgmatic_ssh_pubkey` fact and a `target:` entry):
@@ -76,7 +76,7 @@ source-side view.
   unit via `EnvironmentFile`. Also handy for manual admin restore/list:
   `set -a; . /etc/hsp-borg/borg.env; set +a`.
 
-## Key variables
+## Variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

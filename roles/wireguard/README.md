@@ -22,7 +22,7 @@ the hub. Phones/laptops are not managed hosts - they are declared in
 Client `.conf` + QR artifacts are deliberately **not** written during
 `make provision`; use `make wg-render` (see `docs/wireguard-clients.md`).
 
-## Key variables
+## Variables
 
 See `defaults/main.yml` for the full list.
 

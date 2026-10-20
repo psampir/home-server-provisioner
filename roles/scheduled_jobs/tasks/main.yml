@@ -83,7 +83,7 @@
 
 - name: Render service unit files (present)
   ansible.builtin.template:
-    src: service.j2
+    src: scheduled_jobs.service.j2
     dest: "/etc/systemd/system/{{ scheduled_jobs_unit_prefix }}{{ job.name }}.service"
     owner: root
     group: root
@@ -96,7 +96,7 @@
 
 - name: Render timer unit files (present)
   ansible.builtin.template:
-    src: timer.j2
+    src: scheduled_jobs.timer.j2
     dest: "/etc/systemd/system/{{ scheduled_jobs_unit_prefix }}{{ job.name }}.timer"
     owner: root
     group: root

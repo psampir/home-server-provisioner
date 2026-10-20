@@ -23,7 +23,7 @@ README](../../README.md#applications-app_servers-only)).
 5. Enables and starts `docker`, and adds `docker_runtime_users` (the
    interactive admin user by default) to the `docker` group.
 
-## Key variables
+## Variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

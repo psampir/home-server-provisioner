@@ -153,7 +153,7 @@
 # fail against an append-only repo - the target enforces retention instead.
 - name: Configure borgmatic.service drop-in (create-only + env + failure notify)
   ansible.builtin.template:
-    src: service-dropin.conf.j2
+    src: borgmatic.service-dropin.conf.j2
     dest: "{{ borgmatic_service_dropin_dir }}/10-hsp.conf"
     owner: root
     group: root
@@ -163,7 +163,7 @@
 
 - name: Configure borgmatic.timer drop-in (schedule)
   ansible.builtin.template:
-    src: timer-dropin.conf.j2
+    src: borgmatic.timer-dropin.conf.j2
     dest: "{{ borgmatic_timer_dropin_dir }}/10-hsp.conf"
     owner: root
     group: root

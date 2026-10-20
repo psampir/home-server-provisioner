@@ -150,7 +150,7 @@ what borgmatic 1.9 - the version in Debian 13 - accepts and validates. Newer
 borgmatic 2.x replaced them with a `commands:` section; if the role's
 package ever moves to 2.x, that block needs migrating.
 
-## Key variables
+## Variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

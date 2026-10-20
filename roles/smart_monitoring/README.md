@@ -51,7 +51,7 @@ package is left installed.
   (e.g. device-specific overrides) if you need them.
 - **No mail** - alerts go through `hsp-notify` only.
 
-## Key variables
+## Variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

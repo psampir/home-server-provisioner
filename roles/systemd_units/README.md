@@ -25,7 +25,7 @@ configs/<env>/systemd/
 Subdirectories under `_common/` and the host dir are not recursed -
 unit files must sit at the top level.
 
-## What the role does
+## What it does
 
 For each host:
 

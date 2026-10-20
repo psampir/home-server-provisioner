@@ -3,7 +3,7 @@
 Backbone for alert/notification delivery from other roles and from the
 user's own scripts. Single supported backend (M3.5): [ntfy](https://ntfy.sh).
 
-## What this role installs
+## What it does
 
 | Path | Purpose |
 |---|---|

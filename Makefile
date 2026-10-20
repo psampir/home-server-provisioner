@@ -42,7 +42,7 @@ WG_KEYS_FLAGS ?=
 
 # --- Ansible ---
 
-.PHONY: bootstrap provision wireguard-keys wg-render notify-test
+.PHONY: bootstrap provision wireguard-keys wg-render wireguard-render notify-test
 
 bootstrap: ## First run on fresh hosts (ENV=prod by default)
 	ansible-playbook playbooks/bootstrap.yml -i $(INVENTORY) -e 'ansible_user={{ bootstrap_user }}' $(BOOTSTRAP_FLAGS)
@@ -55,6 +55,8 @@ wireguard-keys: ## Generate/prune WireGuard client keys (vaulted, auto-committed
 
 wg-render: ## Render build/$(ENV)/wireguard/<client>.{conf,png} for distribution (sensitive!)
 	ansible-playbook playbooks/wireguard_clients.yml -i $(INVENTORY)
+
+wireguard-render: wg-render ## Render WireGuard client artifacts (alias of wg-render)
 
 notify-test: ## Send a hsp-notify smoke test from HOST=<host> (defaults to all servers)
 	@host="$${HOST:-servers}"; \

@@ -16,7 +16,7 @@ account Ansible itself connects as.
    `visudo`).
 5. Authorizes `admin_user_ssh_pubkey` for the account.
 
-## Key variables
+## Variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
