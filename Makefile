@@ -22,8 +22,6 @@ endif
 #
 # Defaults to `prod`; override with `make <target> ENV=prod2` etc.
 ENV ?= prod
-# Optional host subset for phased rollouts, e.g. `make provision LIMIT=gate`.
-# Passed through to ansible-playbook as --limit.
 LIMIT ?=
 LIMIT_FLAG = $(if $(strip $(LIMIT)),--limit $(LIMIT),)
 ENV_DIR = configs/$(ENV)

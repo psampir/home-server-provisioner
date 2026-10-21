@@ -65,27 +65,15 @@ wireguard_client_default_allowed_ips: "{{ wireguard_subnet }}"
 # DNS pushed to clients via their generated .conf
 wireguard_client_dns: "{{ wireguard_hub_ip }}"
 
-# Whether wg-quick should manage DNS for SERVER PEERS: the `DNS` line and the
-# split-DNS resolvectl PostUp/PreDown hooks below.
-#
-# Off by default. Server peers should not let wg-quick touch DNS because:
-#   - hosts in `app_servers` run the `dns_client` role, which masks
-#     systemd-resolved and owns /etc/resolv.conf; wg-quick's resolvconf call
-#     then fails and brings the interface down on every re-provision;
-#   - backup targets do not need the hub's resolver at all - they reach
-#     other peers by their vpn_ip.
-# External clients (client.conf.j2) are unaffected and always get DNS from
-# wireguard_client_dns.
+# Whether wg-quick manages DNS for server peers. Off by default: app_servers
+# run dns_client, which masks systemd-resolved, so wg-quick's resolvconf call
+# would fail on every re-provision. External clients are unaffected.
 wireguard_peer_manage_dns: false
 
 # DNS server written into peer configs when wireguard_peer_manage_dns is true.
 wireguard_peer_dns: "{{ wireguard_hub_ip }}"
 
-# DNS search domain pushed to managed peers via PostUp resolvectl.
-# Set to something like "example.lan" to route *.example.lan queries through
-# the tunnel to dnsmasq on the hub.
-# Only has an effect when `wireguard_peer_manage_dns` is true - the hooks
-# need systemd-resolved, which `dns_client` hosts do not run.
+# Split-DNS domain for peers; only used when wireguard_peer_manage_dns is true.
 wireguard_hub_domain: ""
 
 # --- Hub: IP forwarding and NAT ---
