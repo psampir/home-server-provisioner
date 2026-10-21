@@ -22,6 +22,10 @@ endif
 #
 # Defaults to `prod`; override with `make <target> ENV=prod2` etc.
 ENV ?= prod
+# Optional host subset for phased rollouts, e.g. `make provision LIMIT=gate`.
+# Passed through to ansible-playbook as --limit.
+LIMIT ?=
+LIMIT_FLAG = $(if $(strip $(LIMIT)),--limit $(LIMIT),)
 ENV_DIR = configs/$(ENV)
 INVENTORY = $(ENV_DIR)/inventory
 VAULT_FILE ?= $(INVENTORY)/group_vars/all/vault.yml
@@ -45,10 +49,10 @@ WG_KEYS_FLAGS ?=
 .PHONY: bootstrap provision wireguard-keys wireguard-render notify-test
 
 bootstrap: ## First run on fresh hosts (ENV=prod by default)
-	ansible-playbook playbooks/bootstrap.yml -i $(INVENTORY) -e 'ansible_user={{ bootstrap_user }}' $(BOOTSTRAP_FLAGS)
+	ansible-playbook playbooks/bootstrap.yml -i $(INVENTORY) -e 'ansible_user={{ bootstrap_user }}' $(BOOTSTRAP_FLAGS) $(LIMIT_FLAG)
 
 provision: wireguard-keys ## Run full site playbook (ENV=prod by default)
-	ansible-playbook playbooks/site.yml -i $(INVENTORY)
+	ansible-playbook playbooks/site.yml -i $(INVENTORY) $(LIMIT_FLAG)
 
 wireguard-keys: ## Generate/prune WireGuard client keys (vaulted, auto-committed)
 	scripts/wg-ensure-keys.py --inventory $(INVENTORY) $(WG_KEYS_FLAGS)
