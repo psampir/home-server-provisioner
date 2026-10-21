@@ -26,6 +26,10 @@
     enabled: false
     state: stopped
     masked: true
+  # Minimal Debian images (for example a fresh VPS) do not ship
+  # systemd-resolved at all. There is then nothing to disable, and dnsmasq
+  # can own port 53. Matches the same guard in the dns_client role.
+  failed_when: false
 
 - name: Stat /etc/resolv.conf to detect symlink left by systemd-resolved
   ansible.builtin.stat:
