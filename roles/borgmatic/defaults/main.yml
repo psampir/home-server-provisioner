@@ -61,6 +61,10 @@ borgmatic_keep_monthly: 6
 #   borgmatic_passphrase: "{{ vault_borgmatic_passphrase }}"
 # Stored on the host in /etc/borgmatic/borgmatic.env (mode 0600) and
 # referenced from the config as ${BORG_PASSPHRASE}.
+#
+# Any printable character is supported. The role escapes the value when it
+# writes that environment file, which is read both by systemd's
+# EnvironmentFile and by a shell `. file`.
 borgmatic_passphrase: "{{ vault_borgmatic_passphrase | default('') }}"
 
 # Borg encryption mode used when the target initializes managed repos.

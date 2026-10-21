@@ -18,6 +18,8 @@
 # --- Encryption ------------------------------------------------------------
 # Passphrase used to initialize managed repos and to run prune/compact.
 # Same value the sources use (single secret). From ansible-vault in prod.
+# Any printable character is supported; the role escapes the value when it
+# writes the environment file (read by both systemd and a shell).
 borg_repo_passphrase: "{{ borgmatic_passphrase | default(vault_borgmatic_passphrase | default('')) }}"
 
 # Borg encryption mode for `borg init`. Keep in sync with the sources.

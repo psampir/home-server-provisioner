@@ -77,6 +77,12 @@ manually (see below).
 > **Back up the passphrase out-of-band** (password manager, printed copy
 > in a safe). Losing it makes every archive unrecoverable.
 
+> **Passphrase characters.** Any printable character is supported, including
+> double quotes, single quotes, backslashes, dollar signs, backticks and
+> spaces. The role escapes the value when it writes the environment file that
+> is read both by systemd's `EnvironmentFile` (for the timer) and by a shell
+> `. file` (for manual runs).
+
 ## Triggering a backup manually
 
 On the source:
