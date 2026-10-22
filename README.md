@@ -99,9 +99,9 @@ A host can belong to multiple groups:
 |---|---|
 | `app_servers` | Docker + Compose workloads |
 | `backup_targets` | Backup storage, borgmatic destinations |
-| `vpn_server` | WireGuard hub + central DNS (dnsmasq) + reverse proxy (Caddy). Exactly **one** host - the topology is hub-and-spoke. |
+| `vpn_server` | WireGuard hub and central DNS (dnsmasq). Exactly **one** host - the topology is hub-and-spoke. Caddy can run natively here or as a Compose stack on an app server; see [docs/caddy.md](docs/caddy.md). |
 
-A single host can carry every role at once (`vpn_server` + `app_servers` + `backup_targets`) - perfectly valid for a single-box homelab.
+A host can belong to several groups, but `dnsmasq` (`vpn_server`) and `dns_client` (`app_servers`) both manage `/etc/resolv.conf`. Do not combine those two roles on one host without choosing one resolver owner. See [docs/networking.md](docs/networking.md#dns-who-owns-etcresolvconf).
 
 ### 3. Bootstrap (first run only)
 
@@ -204,7 +204,7 @@ the exact same vault code paths as prod with no manual setup.
 
 ## What it does
 
-Each role is small (~50 LOC) and self-contained. The full list:
+Each role is self-contained. The full list:
 
 ### Identity and access
 
@@ -233,21 +233,21 @@ Each role is small (~50 LOC) and self-contained. The full list:
 | `firewall` | UFW with default-deny incoming, allowlist driven by `firewall_allow_rules` (SSH always open as lockout protection) |
 | `fail2ban` | SSH brute-force protection with configurable ban/find times |
 
-### Networking and ingress (`vpn_server` only)
+### Networking and ingress
 
 | Role | Description |
 |---|---|
-| `wireguard` | Hub-and-spoke VPN. Generates per-host keypairs, renders `[Peer]` sections on the hub, and renders `<client>.conf` + `<client>.png` QR codes on the controller for external clients. Asserts inventory sanity (unique VPN IPs, exactly one hub). |
-| `dns_client` | On non-hub servers: rewrites `/etc/resolv.conf` to point at the WireGuard hub so local hostnames resolve through dnsmasq (and disables dhcpcd's `resolv.conf` hook when present) |
+| `wireguard` | Hub-and-spoke VPN. Generates per-host keypairs, renders `[Peer]` sections on the hub, and renders `<client>.conf` + `<client>.png` QR codes on the controller when `make wireguard-render` runs. Asserts inventory sanity (unique VPN IPs, exactly one hub). |
+| `dns_client` | On app servers: rewrites `/etc/resolv.conf` to point at the WireGuard hub so local hostnames resolve through dnsmasq (and disables dhcpcd's `resolv.conf` hook when present). Backup targets do not run this role. |
 | `dnsmasq` | On the hub: full LAN/VPN resolver, auto-generates host records from the inventory, forwards external queries upstream |
-| `caddy` | On the hub: native reverse proxy with automatic TLS. Source-of-truth in `configs/<ENV>/caddy/Caddyfile` (+ optional `conf.d/*.caddy` snippets). The role is skipped when no `configs/<ENV>/caddy/` tree exists - a host that only needs a local reverse proxy can keep Caddy as a Compose stack instead. See [docs/caddy.md](docs/caddy.md) for TLS modes, site-block patterns, and the LAN-bandwidth escape hatch. |
+| `caddy` | Native Caddy option on the hub: reverse proxy with automatic TLS, sourced from `configs/<ENV>/caddy/Caddyfile` (+ optional `conf.d/*.caddy` snippets). The role is skipped when that tree is absent. The stack-based variant on an app server is documented in [docs/caddy.md](docs/caddy.md). |
 
 ### Applications (`app_servers` only)
 
 | Role | Description |
 |---|---|
 | `docker_runtime` | Installs Docker CE + Compose plugin from upstream apt repo |
-| `compose_deploy` | Auto-discovers and deploys Docker Compose stacks from `configs/<ENV>/stacks/_common/<name>/` (every host) and `configs/<ENV>/stacks/<hostname>/<name>/` (per-host override). Per-stack directory is synced verbatim - drop `compose.yaml` + `.env` + `Caddyfile` + `config/` next to each other. |
+| `compose_deploy` | Auto-discovers and deploys Docker Compose stacks from `configs/<ENV>/stacks/_common/<name>/` (every app server) and `configs/<ENV>/stacks/<hostname>/<name>/` (per-host override). Per-stack directory is synced verbatim - drop `compose.yaml` + `.env` + `Caddyfile` + `config/` next to each other. |
 
 > [!WARNING]
 > **Published container ports bypass UFW.** Docker writes its own
@@ -256,6 +256,37 @@ Each role is small (~50 LOC) and self-contained. The full list:
 > (`10.10.0.x:8080:8080` or `127.0.0.1:9090:9090`) or reverse-proxy
 > through Caddy. See
 > [roles/firewall/README.md](roles/firewall/README.md#docker-bypasses-ufw).
+
+### Data and storage
+
+| Role | Description |
+|---|---|
+| `storage` | Formats empty block devices and mounts them, with by-id device selection and the `/srv/data` layout |
+| `swap` | Tops up active swap to `swap_size`, using a swap file by default |
+| `network_mounts` | Client-side NFS and CIFS/SMB mounts for remote shares |
+
+### Power, monitoring, and alerts
+
+| Role | Description |
+|---|---|
+| `nut` | Network UPS Tools with USB udev rules, `upsc` verification, and the `nocomm` grace period |
+| `smart_monitoring` | `smartd` disk health monitoring with `hsp-notify` alerts |
+| `notifications` | Installs `hsp-notify` and the ntfy delivery backend used by other roles |
+
+### Backups
+
+| Role | Description |
+|---|---|
+| `borgmatic` | Backup source: borgmatic config, SSH key, and nightly push to `backup_targets` |
+| `borg_repo` | Backup target: append-only borg repository, authorized keys, and retention |
+
+### Scheduled work and custom files
+
+| Role | Description |
+|---|---|
+| `scheduled_jobs` | systemd timers and services for periodic commands |
+| `custom_scripts` | Ships scripts from `configs/<ENV>/scripts/` to `/usr/local/bin/` |
+| `systemd_units` | Ships custom systemd unit files from `configs/<ENV>/systemd/` |
 
 ### Controller-side
 
@@ -266,11 +297,12 @@ Each role is small (~50 LOC) and self-contained. The full list:
 ## Stacks and dotfiles layout
 
 `compose_deploy` and `admin_dotfiles` share an overlay convention.
-Anything under `_common/` ships to every applicable host; anything under
-`<hostname>/` overrides on a per-host basis.
+For stacks, `_common/` ships to every app server; for dotfiles, it ships to
+every host. Anything under `<hostname>/` overrides on a per-host basis.
 
 ```
 configs/<ENV>/
+├── inventory/                      → hosts.yml, group_vars/, host_vars/
 ├── stacks/
 │   ├── _common/
 │   │   └── whoami/                 → deployed to every app_server
@@ -279,11 +311,14 @@ configs/<ENV>/
 │       └── forgejo/                → deployed only on home-app
 │           ├── compose.yaml
 │           └── README.md
-└── dotfiles/
-    ├── _common/home/               → baseline files, every host
-    │   └── .config/fish/config.fish
-    └── home-app/home/              → host-specific overlay
-        └── .config/git/config
+├── dotfiles/
+│   ├── _common/home/               → baseline files, every host
+│   │   └── .config/fish/config.fish
+│   └── home-app/home/              → host-specific overlay
+│       └── .config/git/config
+├── caddy/                          → optional native Caddy role source
+├── scripts/                        → custom_scripts payloads
+└── systemd/                        → systemd_units payloads
 ```
 
 Resolution rules:
@@ -408,7 +443,7 @@ cycle.
 
 VM defaults (image, CPU, memory, initial username) live in `.env` - see `.env.example`.
 
-### Multiple environments
+### Multi-environment test VMs
 
 The test loop above is just one instance of a more general pattern: the
 `scripts/incus-env.sh` script can manage Incus VMs for any environment.
