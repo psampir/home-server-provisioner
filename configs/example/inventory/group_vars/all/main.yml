@@ -208,6 +208,45 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 # network_mounts_credentials_dir (default /etc/credentials).
 
 
+# --- nut role (servers with a UPS) --------------------------------------------
+# Network UPS Tools. Disabled by default. Enable per host and declare at
+# least one UPS and one monitor. Passwords come from the vault.
+#
+# nut_enabled: false
+# nut_mode: standalone
+# nut_ups:
+#   - name: greencell
+#     driver: blazer_usb
+#     port: auto
+#     vendorid: "0001"
+#     productid: "0000"
+#     desc: "Green Cell UPS"
+# nut_monitors:
+#   - ups: greencell
+#     host: 127.0.0.1
+#     powervalue: 1
+#     user: monuser
+#     password: "{{ vault_nut_monitor_password }}"
+#     role: primary
+# nut_users:
+#   - name: admin
+#     password: "{{ vault_nut_admin_password }}"
+#     actions: SET
+#     instcmds: ALL
+#   - name: monuser
+#     password: "{{ vault_nut_monitor_password }}"
+#     upsmon: primary
+# nut_verify_ups: true
+# nut_verify_retries: 10
+# nut_verify_delay: 3
+# nut_nocomm_grace_seconds: 300
+# nut_nocomm_poll_seconds: 10
+# nut_nocomm_shutdown_command: "/sbin/shutdown -h now"
+#
+# Extra udev rules for USB devices that are not listed in nut_ups:
+# nut_udev_rules:
+#   - { vendorid: "0001", productid: "0000" }
+
 # --- borgmatic + borg_repo roles (backups) -----------------------------------
 # Push-based, append-only backups. The borgmatic role (source) runs on any
 # host with borgmatic_repositories set and pushes archives over SSH (through
@@ -242,6 +281,12 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 # borgmatic_exclude_patterns: []
 # borgmatic_notify_on_failure: true
 # borgmatic_notify_on_success: false
+#
+# Fail provisioning when a repository cannot be read. The default is false
+# because borg_repo runs in a later play on a first provision; the timer is
+# still enabled and the first backup succeeds once the target exists.
+# borgmatic_require_reachable: false
+# borgmatic_preflight_timeout: 60
 #
 # Custom hook commands (defaults shown: empty = hook omitted). Appended
 # after the hsp-notify entries above. Use these to dump containerised
@@ -396,6 +441,20 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 # compose_deploy_common_subdir: _common
 # compose_deploy_host_subdir: "{{ inventory_hostname }}"
 #
+# External networks created before the stacks start. Needed when Caddy and
+# its backends share a Docker network:
+# compose_deploy_external_networks:
+#   - reverse_proxy
+#
+# Maximum concurrent pulls/builds per Compose invocation. Compose defaults
+# to 5, which can hit registry rate limits on a fresh host.
+# compose_deploy_parallel_limit: 1
+#
+# Stack file and directory modes. "preserve" keeps the source file mode,
+# which matters for Docker COPY in build contexts.
+# compose_deploy_file_mode: preserve
+# compose_deploy_directory_mode: preserve
+#
 # Escape hatch - set compose_deploy_stacks explicitly to a list (skips
 # auto-discovery entirely):
 # compose_deploy_stacks:
@@ -423,8 +482,10 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 
 # --- local_ssh_config role (control machine) ---------------------------------
 # Writes ~/.ssh/config.d/home-server-provisioner-<env> on the machine running
-# Ansible, with one Host block per inventory host (User, HostName, IdentityFile,
-# ProxyJump via the hub). Makes `ssh <hostname>` work with no manual config.
+# Ansible, with one Host block per server (User, HostName, IdentityFile).
+# Makes `ssh <hostname>` work with no manual config. It does not add
+# ProxyJump; hosts behind NAT are expected to be reached through their
+# WireGuard address.
 #
 # local_ssh_config_dir: "{{ lookup('env', 'HOME') }}/.ssh/config.d"
 # local_ssh_config_host_prefix: ""   # e.g. "prod-" when sharing host names across envs
@@ -453,6 +514,23 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 # dnsmasq_open_firewall: true
 # dnsmasq_firewall_from: [any]
 # dnsmasq_resolv_fallback: 1.1.1.1
+#
+# DHCP and IPv6 RA are opt-in. Only one DHCP server may exist per broadcast
+# domain, and the interface must be a physical LAN interface, never wg0.
+# dnsmasq_dhcp_enabled: false
+# dnsmasq_dhcp_interface: ""
+# dnsmasq_dhcp_v4:
+#   start: ""
+#   end: ""
+#   netmask: 255.255.255.0
+#   lease: 12h
+# dnsmasq_dhcp_v4_gateway: ""
+# dnsmasq_dhcp_v4_dns: ""
+# dnsmasq_dhcp_v6_mode: slaac
+# dnsmasq_dhcp_v6_prefix: ""
+# dnsmasq_dhcp_v6_lease: 12h
+# dnsmasq_dhcp_static_leases: []
+# dnsmasq_dhcp_open_firewall: true
 #
 # Per-host: set `vpn_ip` in host_vars to override which IP DNS returns
 # for that host (defaults to ansible_host).

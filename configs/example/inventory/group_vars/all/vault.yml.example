@@ -53,6 +53,17 @@
 
 
 # -----------------------------------------------------------------------------
+# NUT passwords - REQUIRED when the nut role is enabled
+# -----------------------------------------------------------------------------
+# roles/nut refuses to render an empty password. The admin account is used
+# for privileged UPS commands; monuser is used by upsmon. Use different
+# values and store them with the rest of the vault.
+#
+# vault_nut_admin_password: "CHANGEME-nut-admin"
+# vault_nut_monitor_password: "CHANGEME-nut-monitor"
+
+
+# -----------------------------------------------------------------------------
 # ntfy bearer token - optional, only for self-hosted ntfy with auth
 # -----------------------------------------------------------------------------
 # Public ntfy.sh does not use tokens; the topic name itself is the secret.
