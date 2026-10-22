@@ -1,0 +1,39 @@
+---
+# NUT (Network UPS Tools) for a single locally attached UPS.
+#
+# Disabled by default. Enable it on the host physically connected to the UPS.
+
+nut_enabled: false
+
+# upsd.conf: listen address. Loopback is enough for a local upsmon.
+nut_mode: standalone
+nut_listen_address: 127.0.0.1
+nut_listen_port: 3493
+
+# UPS definition (ups.conf).
+nut_ups_name: ups
+nut_ups_driver: usbhid-ups
+nut_ups_port: auto
+nut_ups_desc: ""
+
+# Users in upsd.users. Both passwords must come from the vault.
+nut_admin_user: admin
+nut_admin_password: "{{ vault_nut_admin_password | default('') }}"
+nut_monitor_user: monuser
+nut_monitor_password: "{{ vault_nut_monitor_password | default('') }}"
+# NUT 2.8 uses primary/secondary. master still works but is deprecated.
+nut_monitor_role: primary
+
+# upsmon.conf
+nut_shutdown_command: "/sbin/shutdown -h +0"
+
+# upssched-cmd: how long to wait for the UPS to come back after losing
+# communication before shutting down.
+nut_nocomm_grace_seconds: 300
+nut_nocomm_poll_seconds: 10
+
+# Debian package defaults.
+nut_config_dir: /etc/nut
+nut_packages:
+  - nut
+nut_target: nut.target

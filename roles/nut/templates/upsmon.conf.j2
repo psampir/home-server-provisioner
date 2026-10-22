@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+MONITOR {{ nut_ups_name }}@{{ nut_listen_address }} 1 {{ nut_monitor_user }} {{ nut_monitor_password }} {{ nut_monitor_role }}
+SHUTDOWNCMD "{{ nut_shutdown_command }}"
+NOTIFYCMD /usr/sbin/upssched
+NOTIFYFLAG ONLINE SYSLOG
+NOTIFYFLAG ONBATT SYSLOG
+NOTIFYFLAG LOWBATT SYSLOG
+NOTIFYFLAG NOCOMM SYSLOG+EXEC

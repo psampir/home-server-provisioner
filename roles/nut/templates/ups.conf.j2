@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+pollinterval = 5
+maxretry = 3
+
+[{{ nut_ups_name }}]
+	driver = "{{ nut_ups_driver }}"
+	port = "{{ nut_ups_port }}"
+{% if nut_ups_desc %}
+	desc = "{{ nut_ups_desc }}"
+{% endif %}

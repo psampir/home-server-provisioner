@@ -1,0 +1,62 @@
+---
+- name: Stop here when NUT is not enabled
+  ansible.builtin.meta: end_role
+  when: not nut_enabled
+
+- name: Validate NUT passwords are set
+  ansible.builtin.assert:
+    that:
+      - (nut_admin_password | length) > 0
+      - (nut_monitor_password | length) > 0
+    fail_msg: >-
+      nut_enabled is true but vault_nut_admin_password or
+      vault_nut_monitor_password is empty. Add both to the vault.
+  no_log: true
+
+- name: Install NUT
+  ansible.builtin.apt:
+    name: "{{ nut_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Ensure the NUT config directory exists
+  ansible.builtin.file:
+    path: "{{ nut_config_dir }}"
+    state: directory
+    owner: root
+    group: nut
+    mode: "0755"
+
+- name: Render NUT configuration
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ nut_config_dir }}/{{ item.dest }}"
+    owner: root
+    group: nut
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: nut.conf.j2, dest: nut.conf, mode: "0640" }
+    - { src: ups.conf.j2, dest: ups.conf, mode: "0640" }
+    - { src: upsd.conf.j2, dest: upsd.conf, mode: "0640" }
+    - { src: upsd.users.j2, dest: upsd.users, mode: "0640" }
+    - { src: upsmon.conf.j2, dest: upsmon.conf, mode: "0640" }
+    - { src: upssched.conf.j2, dest: upssched.conf, mode: "0640" }
+  no_log: true
+  notify: Restart NUT
+
+- name: Render the upssched helper
+  ansible.builtin.template:
+    src: upssched-cmd.j2
+    dest: "{{ nut_config_dir }}/upssched-cmd"
+    owner: root
+    group: nut
+    mode: "0750"
+  notify: Restart NUT
+
+- name: Enable and start NUT
+  ansible.builtin.systemd:
+    name: "{{ nut_target }}"
+    enabled: true
+    state: started
+    daemon_reload: true

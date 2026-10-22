@@ -6,6 +6,7 @@
     - time_sync
     - service_user
     - base
+    - nut
     - admin_user
     - admin_dotfiles
     - ssh_hardening

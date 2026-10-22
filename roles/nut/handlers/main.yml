@@ -1,0 +1,10 @@
+---
+- name: Restart NUT
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - nut-server.service
+    - nut-monitor.service
+    - "nut-driver@{{ nut_ups_name }}.service"
+  failed_when: false
