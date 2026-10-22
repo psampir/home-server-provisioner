@@ -1,5 +1,5 @@
 # Managed by home-server-provisioner - do not edit manually
-# Regenerate with: make provision
+# Regenerate with: make ssh-config ENV=<env>
 
 {% for host in groups['servers'] | default([]) | sort %}
 Host {{ local_ssh_config_host_prefix }}{{ host }}
