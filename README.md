@@ -219,7 +219,7 @@ Each role is small (~50 LOC) and self-contained. The full list:
 
 | Role | Description |
 |---|---|
-| `base` | Updates apt cache, upgrades packages, installs base packages |
+| `base` | Updates apt cache, upgrades packages, installs base packages, and seeds a resolver when the host has none |
 | `hostname` | Sets the host's `/etc/hostname` from the inventory name |
 | `timezone_locale` | Sets timezone and generates locales |
 | `time_sync` | Verifies / configures `systemd-timesyncd` |
@@ -238,7 +238,7 @@ Each role is small (~50 LOC) and self-contained. The full list:
 | Role | Description |
 |---|---|
 | `wireguard` | Hub-and-spoke VPN. Generates per-host keypairs, renders `[Peer]` sections on the hub, and renders `<client>.conf` + `<client>.png` QR codes on the controller for external clients. Asserts inventory sanity (unique VPN IPs, exactly one hub). |
-| `dns_client` | On non-hub servers: rewrites `/etc/resolv.conf` to point at the WireGuard hub so local hostnames resolve through dnsmasq |
+| `dns_client` | On non-hub servers: rewrites `/etc/resolv.conf` to point at the WireGuard hub so local hostnames resolve through dnsmasq (and disables dhcpcd's `resolv.conf` hook when present) |
 | `dnsmasq` | On the hub: full LAN/VPN resolver, auto-generates host records from the inventory, forwards external queries upstream |
 | `caddy` | On the hub: native reverse proxy with automatic TLS. Source-of-truth in `configs/<ENV>/caddy/Caddyfile` (+ optional `conf.d/*.caddy` snippets). The role is skipped when no `configs/<ENV>/caddy/` tree exists - a host that only needs a local reverse proxy can keep Caddy as a Compose stack instead. See [docs/caddy.md](docs/caddy.md) for TLS modes, site-block patterns, and the LAN-bandwidth escape hatch. |
 
@@ -296,6 +296,15 @@ Resolution rules:
 Escape hatch: set `compose_deploy_stacks: [...]` explicitly in host_vars
 to skip auto-discovery entirely (rare, mostly for transient debugging).
 
+Stack files are synced with their source mode preserved (the role does not
+force `0640`). This keeps build contexts usable: Docker `COPY` preserves
+modes, so a file that is private on the controller stays unreadable for a
+non-root user inside the image. Keep build-context files `0644`/`0755` and
+add a `chmod` in the `Dockerfile` if a private source mode cannot change.
+The rendered `.env` is still written `0640`; never put secrets in a file a
+build container must read. See
+[roles/compose_deploy/README.md](roles/compose_deploy/README.md#file-modes-and-build-contexts).
+
 ## Development
 
 ### Linting
@@ -309,6 +318,32 @@ make lint
 
 CI runs the same command on every push and pull request. Configuration lives in
 `.ansible-lint`; the workflow is `.github/workflows/ansible-lint.yml`.
+
+### Validating stack images
+
+```bash
+make validate-stacks ENV=prod
+make validate-stacks ENV=prod REGISTRY=1   # also query the registries
+```
+
+The check scans `configs/<ENV>/stacks/**/docker-compose.yml`,
+`compose.yml` and `compose.yaml` and validates every `image:` reference:
+
+- a malformed `@sha256:` digest is always an error (the value must be 64
+  hex characters);
+- an unpinned tag is a warning by default, so known moving tags do not block
+  provisioning;
+- with `REGISTRY=1`, every pinned digest must resolve to a real registry
+  manifest (uses `docker manifest inspect`, `skopeo`, or `crane`; needs
+  network access). Images without a digest are skipped by this check.
+
+Allowlist tags that intentionally follow a moving tag in
+`configs/<ENV>/stacks/validate-allowlist.txt` (one pattern per line, `#`
+comments) or pass `--allow-tags` directly to the script. A pattern matches
+when it is a case-insensitive substring of the repository, or a glob matched
+against the reference. Use `--strict-tags` to turn tag warnings into errors.
+
+`make provision` never queries a registry; digest checking is opt-in.
 
 ### Inspecting a host before provisioning
 
