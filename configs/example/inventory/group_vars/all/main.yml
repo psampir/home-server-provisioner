@@ -624,11 +624,11 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 # dns_client_search: home
 # dns_client_disable_resolved: true
 
-# --- caddy role (vpn_server only) --------------------------------------------
-# Native reverse proxy on the WireGuard hub. The hub is the only host with
-# (usually) a public IP and already terminates VPN + DNS, so it's the
-# natural single ingress point for all reverse-proxied services. Backends
-# are reached via the existing WG tunnel as http://10.10.0.X:<port>.
+# --- caddy role (native hub option) ------------------------------------------
+# Native reverse proxy on the WireGuard hub. This is the alternative to a
+# Caddy Compose stack on an app server; the sample deployment uses the
+# stack. Backends are reached via the existing WG tunnel as
+# http://10.10.0.X:<port>.
 #
 # Source layout (mirrored verbatim to /etc/caddy/):
 #   configs/<env>/caddy/Caddyfile             main config (required)
@@ -642,7 +642,8 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 # caddy_open_firewall: true
 # caddy_firewall_from: [any]    # CIDRs for defence-in-depth
 # caddy_open_http: true         # 80/tcp - required for ACME HTTP-01
-# caddy_open_https: true        # 443/tcp + 443/udp (HTTP/3)
+# caddy_open_https: true        # 443/tcp - HTTPS
+# caddy_open_http3: true        # 443/udp - HTTP/3; requires HTTPS
 #
 # TLS options inside the Caddyfile:
 #   tls internal                 Caddy's local CA - VPN/LAN-only sites, no
