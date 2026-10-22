@@ -351,6 +351,29 @@ build container must read. See
 
 ## Development
 
+### Make targets
+
+`make help` prints the current list. The most useful targets:
+
+| Target | Purpose |
+|---|---|
+| `make setup` | Install Ansible, ansible-lint, and the required collections |
+| `make init-config ENV=prod` | Create `configs/prod/` from the example tree |
+| `make bootstrap ENV=prod` | First run on fresh hosts |
+| `make provision ENV=prod` | Full site play |
+| `make ssh-config ENV=prod` | Regenerate the controller's `~/.ssh/config.d/` entry |
+| `make host HOST=<name>` | Show inventory variables, with secrets redacted |
+| `make plan LIMIT=<host>` | List the tasks that would run |
+| `make wireguard-keys ENV=prod` | Generate and prune client keys |
+| `make wireguard-render ENV=prod` | Render client `.conf` and QR code into `build/` |
+| `make vault-init`, `vault-edit`, `vault-view`, `vault-encrypt`, `vault-rekey` | Vault lifecycle |
+| `make vault-decrypt ENV=prod` | Decrypt the vault in place; dangerous, avoid on shared hosts |
+| `make notify-test HOST=<host>` | Send an `hsp-notify` smoke test |
+| `make test-env-create`, `test-env-status`, `test-env-destroy` | Manage the Incus test VMs |
+| `make test-bootstrap`, `test-provision`, `test-wireguard-render`, `test-nut`, `test-smoke`, `test-reboot` | Test suites |
+| `make validate-stacks ENV=prod` | Validate stack image digests and tags |
+| `make lint` | Run ansible-lint |
+
 ### Linting
 
 The repository lints clean at `ansible-lint`'s strictest built-in profile
@@ -429,8 +452,10 @@ make test-env-create        # Launch VMs, install sshd, create initial user
 make test-bootstrap         # Bootstrap the ansible service user
 make test-provision         # Run full provisioning
 make test-wireguard-render  # Render build/test/wireguard/test-controller.{conf,png}
+make test-nut               # Apply the NUT role with dummy-ups and check reactions
 make test-smoke             # End-to-end check via WG (sudo: brings the tunnel up, curls the proxied site, cleans up)
 make test-reboot            # Reboot every VM and verify services persist across reboots
+make test-env-status        # Show test VM status
 make test-env-destroy       # Tear down VMs
 ```
 
@@ -444,8 +469,8 @@ before granting sudo.
 
 `make test-reboot` restarts every test VM and asserts that the
 infrastructure services come back automatically - enabled **and** active
-on boot (ssh, fail2ban, WireGuard, plus dnsmasq/Caddy on the hub and
-Docker on app servers), the firewall is still up, and every timer that
+on boot (ssh, fail2ban, WireGuard, plus dnsmasq on the hub, Caddy on the
+app server, and Docker on app servers), the firewall is still up, and every timer that
 was active before the reboot is re-armed. This guards against
 provision-only-correct setups that silently fail to survive a power
 cycle.
