@@ -1,6 +1,7 @@
 services:
   whoami:
-    image: traefik/whoami:latest
+    # Pin a digest in production; a version tag is enough for the example.
+    image: traefik/whoami:v1.10.3
     container_name: whoami
     restart: unless-stopped
     ports:

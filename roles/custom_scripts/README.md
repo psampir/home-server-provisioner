@@ -71,7 +71,7 @@ filesystem.
   it just copies and chmods. Bring your own shebang and tooling.
 - **No language tooling installation.** If your script needs `python3`,
   `jq`, `curl`, etc., install them via your usual mechanism (e.g. a
-  `base_packages_extra` list, or a small wrapper role you write
+  `base_packages` list, or a small wrapper role you write
   yourself).
 - **You can also use this role to ship `hsp-notify` callers.** The
   `notifications` role's `hsp-notify` is unconditionally available on
