@@ -1,7 +1,8 @@
 # Networking
 
 How the fleet is wired: a single WireGuard hub, a DNS resolver that rides
-the same tunnel, and one inbound port in the whole system.
+the same tunnel, and one public inbound port for the VPN. Individual hosts
+may still expose services on their own LAN or VPN address.
 
 ## Topology: one hub, dial-out spokes
 
@@ -40,9 +41,10 @@ VPS's public IP or a DNS name that resolves to it.
 
 Consequences:
 
-- **Only the hub needs an inbound port** (UDP 51820). Peers and client
-  devices open an outbound UDP socket and keep the mapping alive with
-  `PersistentKeepalive = 25`.
+- **Only the hub needs a public inbound port** for WireGuard (UDP 51820).
+  Peers and client devices open an outbound UDP socket and keep the mapping
+  alive with `PersistentKeepalive = 25`. Other services, such as Caddy on
+  an app server, are separate listeners on the LAN or VPN address.
 - A peer behind NAT, CGNAT, or a mobile network works without any port
   forwarding, and its address can change freely.
 - If a peer is unreachable, the fix is on the hub/endpoint side, not a
@@ -148,9 +150,13 @@ change to trigger a restart; the **second** `make provision` restarts
 letting `dns_client` write a static file - is what makes re-provisioning
 idempotent.
 
-External clients are unaffected: `client.conf.j2` always emits
-`DNS = {{ wireguard_client_dns }}` and has no `resolvectl` hooks, because
-phones and laptops do run their own resolver.
+External clients are different: `client.conf.j2` always emits
+`DNS = {{ wireguard_client_dns }}` and has no `resolvectl` hooks. That sends
+all client DNS queries to the hub resolver, which forwards them upstream.
+It is full DNS through the hub, not split DNS. For split DNS, add a
+domain-scoped setting such as `~home` to the client configuration, or
+configure split DNS in the operating system. The template does not do that
+by default.
 
 ## Local records beyond the inventory
 
@@ -210,7 +216,7 @@ Other roles open the ports they need directly and are intentionally
 | --- | --- |
 | `firewall` | 22/tcp (always), plus `firewall_allow_rules` |
 | `wireguard` | 51820/udp from `wireguard_firewall_from` (hub only) |
-| `dnsmasq` | 53/tcp + 53/udp from `dnsmasq_firewall_from`; 67/udp and 547/udp when DHCP is enabled |
+| `dnsmasq` | 53/tcp + 53/udp from `dnsmasq_firewall_from`; 67/udp when DHCPv4 is enabled, and 547/udp only for `dhcpv6` or `both` |
 | `caddy` | Native role only: 80/tcp (ACME), 443/tcp, and 443/udp (HTTP/3) when a Caddyfile exists. A Caddy Compose stack publishes ports through Docker and bypasses UFW. |
 
 Both `wireguard_firewall_from` and `dnsmasq_firewall_from` default to

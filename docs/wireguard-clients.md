@@ -84,8 +84,12 @@ Pruning is deliberately conservative:
   changes other than `vault.yml`**, the script refuses to prune. This is
   the "typo in the client name" guard: mid-edit, a client looks deleted,
   and silently destroying its key would be unrecoverable.
-- If the vault is not in a git repo at all (e.g. the test environment),
-  there is no history to lose, so pruning proceeds unconditionally.
+- If the vault is not in a git repository at all, there is no history to
+  lose, so pruning proceeds unconditionally. The bundled test environment
+  lives inside the provisioner repository, so its vault is covered by that
+  repository's status check. Run the test flow from a clean tree if you
+  expect pruning to happen; `make test-provision` passes `--no-commit` so
+  the test itself does not create commits.
 - The `--no-commit` flag skips the auto-commit step; `make test-provision`
   passes it so the test env does not create commits. `make wireguard-keys`
   accepts it via `WG_KEYS_FLAGS=--no-commit`.
@@ -177,13 +181,19 @@ safely - unlike on server peers, where `dns_client` owns
 [`docs/networking.md`](networking.md#why-wg-quick-must-not-manage-peer-dns)
 for that failure mode.
 
-Together with the default split tunnel this gives you local names over
-the VPN: `whoami.home` resolves through dnsmasq on the hub, while
-everything else is answered by whatever resolver the device normally
-uses.
+By default, `DNS = {{ wireguard_client_dns }}` sends **all** client DNS
+queries to the hub resolver, which forwards non-local names upstream. This
+is full DNS through the hub, not split DNS: the device does not keep using
+its normal resolver for public names.
+
+For split DNS, add a domain-scoped DNS setting to the client configuration,
+for example `DNS = 10.10.0.1 ~home`, so only `home` queries go to the hub.
+`wg-quick` passes that setting to the platform resolver; support and syntax
+depend on the operating system. The template does not add a scope by
+default.
 
 Set `wireguard_client_dns` to another address if you want clients to use
-a different resolver - but if it is behind the tunnel, remember that it
+a different resolver, but if it is behind the tunnel, remember that it
 must be reachable with the client's `AllowedIPs`.
 
 ## Preshared keys
