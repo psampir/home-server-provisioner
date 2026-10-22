@@ -72,6 +72,13 @@
       <stack>/compose.yaml under either directory (or set
       compose_deploy_stacks explicitly) to deploy something.
 
+- name: Ensure external Docker networks exist
+  community.docker.docker_network:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ compose_deploy_external_networks }}"
+  when: compose_deploy_external_networks | length > 0
+
 - name: Deploy compose stacks
   ansible.builtin.include_tasks: deploy_stack.yml
   loop: "{{ compose_deploy_effective_stacks }}"

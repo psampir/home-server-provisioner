@@ -1,6 +1,10 @@
 # Base directory where every stack lives on the target host.
 compose_deploy_base_dir: /opt/stacks
 
+# External Docker networks to create before deploying stacks. Useful for a
+# shared reverse-proxy network declared as `external: true` in the stacks.
+compose_deploy_external_networks: []
+
 # Default ownership for stack directories and files.
 # Falls back to root if no interactive admin user is defined.
 compose_deploy_owner: "{{ admin_user_name | default('root') }}"
