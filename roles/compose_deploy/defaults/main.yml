@@ -51,3 +51,26 @@ compose_deploy_host_subdir: "{{ inventory_hostname }}"
 #       env:
 #         WHOAMI_PORT: "8080"
 compose_deploy_stacks: []
+
+# Maximum number of concurrent pulls/builds per `docker compose` invocation.
+# Compose defaults to 5, which can trip registry rate limits when a fresh host
+# pulls many stacks in one run (observed with ghcr.io). 1 keeps pulls
+# sequential; raise it if your registry credentials and link can take it.
+compose_deploy_parallel_limit: 1
+
+# Permissions for the stack files synced from the controller.
+#
+# "preserve" keeps the mode of the source file (Ansible's copy module
+# supports it for files). That matters for build contexts: Docker COPY
+# preserves the mode, so a stack file synced as 0640 stays unreadable for a
+# non-root user inside the image. Keeping the source mode lets a repository
+# ship 0644/0755 build-context files without the role forcing them private.
+#
+# Set an octal mode (for example "0640") to force one for every file.
+compose_deploy_file_mode: preserve
+
+# Mode for directories created by the recursive copy. Ansible has no
+# "preserve" for directories, so "preserve" means "do not manage directory
+# modes": new directories get the system default and existing ones are left
+# alone. Set an octal mode to enforce one.
+compose_deploy_directory_mode: preserve

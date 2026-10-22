@@ -29,6 +29,42 @@ override, no file-level merge).
 | `compose_deploy_group` | `admin_user_name` | Group of the stack directories |
 | `compose_deploy_external_networks` | `[]` | Networks created before deployment, e.g. `[reverse_proxy]` |
 | `compose_deploy_stacks` | `[]` | Explicit stack list, overrides discovery |
+| `compose_deploy_parallel_limit` | `1` | `COMPOSE_PARALLEL_LIMIT` for pull/build concurrency |
+| `compose_deploy_file_mode` | `preserve` | Mode for synced stack files (`preserve` or octal) |
+| `compose_deploy_directory_mode` | `preserve` | Mode for created subdirectories (`preserve` or octal) |
+
+## File modes and build contexts
+
+Stack files are synced with `compose_deploy_file_mode`, which defaults to
+`preserve`: the mode of the file in `configs/<ENV>/stacks/` is kept. This
+matters when a stack builds an image from its own directory. Docker's `COPY`
+preserves file modes, so a build-context file synced as `0640 root:root`
+stays unreadable for a non-root user in the image, and the build or the
+container fails with a permission error.
+
+Keep build-context files world-readable (`0644` for files, `0755` for
+directories) in the config repository, or add an explicit `chmod` in the
+`Dockerfile` when the source mode cannot change. Do not "fix" this by
+loosening every stack file: configuration and secrets should stay private.
+
+Directories created by the recursive copy follow
+`compose_deploy_directory_mode`. Ansible has no `preserve` for directories,
+so the default `preserve` means directory modes are not managed (new
+directories get the system default). Set an octal mode to enforce one.
+
+The rendered `.env` file is always written `0640` and is not affected by
+`compose_deploy_file_mode`. It usually contains credentials, and Compose
+reads it as the deployment user, not as a user inside a build container.
+Never place secrets in a file that must be readable by a non-root build
+user; pass them at runtime instead.
+
+## Pull concurrency
+
+`compose_deploy_parallel_limit` (default `1`) is exported as
+`COMPOSE_PARALLEL_LIMIT` for every `docker compose` call. Compose defaults
+to 5 concurrent pulls/builds, which can hit registry rate limits when a
+fresh host deploys many stacks in one run. Raise it when the registry
+credentials and network link allow it.
 
 ## External networks
 
