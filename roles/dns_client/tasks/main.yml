@@ -18,6 +18,22 @@
     state: absent
   when: dns_client_resolv_stat.stat.islnk | default(false)
 
+# dhcpcd rewrites /etc/resolv.conf whenever it renews a lease, which would
+# silently undo the static file below. Pin it off before writing the file.
+- name: Stat /etc/dhcpcd.conf
+  ansible.builtin.stat:
+    path: /etc/dhcpcd.conf
+  register: dns_client_dhcpcd_conf
+
+- name: Keep dhcpcd from overwriting the static /etc/resolv.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dhcpcd.conf
+    regexp: '^\s*nohook\s+resolv\.conf\s*$'
+    line: nohook resolv.conf
+    insertbefore: '^(interface|ssid|profile)\s'
+    firstmatch: true
+  when: dns_client_dhcpcd_conf.stat.exists
+
 - name: Write static /etc/resolv.conf
   ansible.builtin.template:
     src: resolv.conf.j2

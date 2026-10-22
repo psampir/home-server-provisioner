@@ -1,6 +1,13 @@
 base_packages:
   - curl
 
+# Resolver written to /etc/resolv.conf when the host has none yet (fresh
+# Debian 13 with ifupdown + dhcpcd can ship an empty file). This is only a
+# placeholder so the first apt run can reach the network; roles/dns_client
+# writes the real configuration later. Set to an internal resolver if the
+# host cannot reach the public internet directly.
+base_resolv_fallback_nameserver: 1.1.1.1
+
 # Device GRUB is installed to (e.g. /dev/sda). Empty = auto-detect the boot
 # disk from /boot and pre-seed the grub-pc debconf question on BIOS hosts, so
 # an unattended upgrade never blocks on an interactive prompt.

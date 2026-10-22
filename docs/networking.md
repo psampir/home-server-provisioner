@@ -112,6 +112,13 @@ search home              # dns_client_search
 So split-horizon resolution works with no per-host DNS configuration:
 `hsp-app` asks the hub over the tunnel and gets `vpn_ip` answers back.
 
+Before `dns_client` runs, the earlier `base` role seeds a temporary
+`nameserver` when a fresh host has none, so the first apt call can reach the
+network. On hosts with `/etc/dhcpcd.conf` both roles also add
+`nohook resolv.conf`, otherwise dhcpcd would overwrite the static file on
+the next lease renewal. See [roles/base/README.md](../roles/base/README.md)
+and [roles/dns_client/README.md](../roles/dns_client/README.md).
+
 ### Backup targets get neither
 
 Hosts that are only in `backup_targets` run `borg_repo` and not

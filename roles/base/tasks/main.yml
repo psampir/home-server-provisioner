@@ -1,3 +1,56 @@
+# ---------------------------------------------------------------------------
+# Resolver preflight.
+#
+# A fresh Debian 13 install using ifupdown + dhcpcd can leave
+# /etc/resolv.conf without any nameserver. Every apt task below needs DNS, so
+# seed a public resolver first. roles/dns_client replaces this placeholder
+# with the real resolver configuration later in site.yml.
+# ---------------------------------------------------------------------------
+- name: Check whether dhcpcd is configured on this host
+  ansible.builtin.stat:
+    path: /etc/dhcpcd.conf
+  register: base_dhcpcd_conf
+
+- name: Keep dhcpcd from overwriting /etc/resolv.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dhcpcd.conf
+    regexp: '^\s*nohook\s+resolv\.conf\s*$'
+    line: nohook resolv.conf
+    insertbefore: '^(interface|ssid|profile)\s'
+    firstmatch: true
+  when: base_dhcpcd_conf.stat.exists
+
+- name: Check whether /etc/resolv.conf has a nameserver
+  ansible.builtin.command: grep -Eq '^[[:space:]]*nameserver[[:space:]]+[^[:space:]]' /etc/resolv.conf
+  register: base_resolv_nameserver
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Stat /etc/resolv.conf
+  ansible.builtin.stat:
+    path: /etc/resolv.conf
+  register: base_resolv_stat
+
+- name: Remove a stale /etc/resolv.conf symlink before seeding
+  ansible.builtin.file:
+    path: /etc/resolv.conf
+    state: absent
+  when:
+    - base_resolv_nameserver.rc != 0
+    - base_resolv_stat.stat.islnk | default(false)
+
+- name: Seed /etc/resolv.conf when no nameserver is configured
+  ansible.builtin.lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver {{ base_resolv_fallback_nameserver }}"
+    insertafter: EOF
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  when: base_resolv_nameserver.rc != 0
+
 - name: Update apt cache
   ansible.builtin.apt:
     update_cache: true
