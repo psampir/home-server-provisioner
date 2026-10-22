@@ -11,11 +11,14 @@
         == (nut_ups | map(attribute='name') | unique | list | length)
       - (nut_monitors | length) > 0
       - (nut_monitors | rejectattr('ups', 'in', nut_ups | map(attribute='name') | list) | list | length) == 0
+      - (nut_udev_rules | rejectattr('vendorid') | list | length) == 0
+      - (nut_udev_rules | rejectattr('productid') | list | length) == 0
       - (nut_users | selectattr('password', 'equalto', '') | list | length) == 0
       - (nut_monitors | selectattr('password', 'equalto', '') | list | length) == 0
     fail_msg: >-
       Invalid NUT configuration: nut_ups must be non-empty with unique names,
-      nut_monitors must be non-empty and reference existing UPS names, and
+      nut_monitors must be non-empty and reference existing UPS names, every
+      nut_udev_rules entry needs a non-empty vendorid and productid, and
       every user and monitor needs a non-empty password.
   no_log: true
 
@@ -33,6 +36,36 @@
     owner: root
     group: nut
     mode: "0755"
+
+# Select UPS entries that need a USB udev rule. dummy-ups and other serial
+# drivers have no USB ids, so they never produce a rule.
+- name: Select UPS entries that need a USB udev rule
+  ansible.builtin.set_fact:
+    nut_udev_ups: >-
+      {{ nut_ups | selectattr('driver', 'in', nut_udev_usb_drivers)
+                 | selectattr('vendorid')
+                 | selectattr('productid') | list }}
+
+- name: Render NUT USB udev rules
+  ansible.builtin.template:
+    src: nut-usbups.rules.j2
+    dest: "{{ nut_udev_rules_dir }}/{{ nut_udev_rules_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: ((nut_udev_ups | length) + (nut_udev_rules | length)) > 0
+  notify:
+    - nut_udev_reload
+    - Restart NUT
+
+- name: Remove the managed USB udev rule when no UPS needs one
+  ansible.builtin.file:
+    path: "{{ nut_udev_rules_dir }}/{{ nut_udev_rules_file }}"
+    state: absent
+  when: ((nut_udev_ups | length) + (nut_udev_rules | length)) == 0
+  notify:
+    - nut_udev_reload
+    - Restart NUT
 
 - name: Render NUT configuration
   ansible.builtin.template:
@@ -66,3 +99,58 @@
     enabled: true
     state: started
     daemon_reload: true
+
+# Run the queued udev reload and NUT restart now. Without this the udev rule
+# would only be applied at the end of the play, after the verification below
+# already tried (and failed) to open a device that is still root-only.
+- name: Apply pending NUT handlers before verification
+  ansible.builtin.meta: flush_handlers
+
+# Starting nut.target is idempotent: when the target is already active it
+# does not resurrect a driver instance that was stopped manually, crashed
+# without Restart=always succeeding, or was left down by an earlier failed
+# run. Start every configured instance explicitly so a re-run converges.
+- name: Ensure each NUT driver instance is running
+  ansible.builtin.systemd:
+    name: "nut-driver@{{ item.name }}.service"
+    state: started
+  loop: "{{ nut_ups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# upsd needs a moment to bind and the driver needs to claim the device, so
+# retry instead of failing on the first probe. failed_when: false keeps the
+# retry loop going and lets the assert below produce one clear message.
+- name: Verify each configured UPS is reachable through upsd
+  ansible.builtin.command:
+    cmd: "upsc {{ item.name }}"
+  register: nut_upsc_check
+  changed_when: false
+  failed_when: false
+  until: nut_upsc_check.rc == 0
+  retries: "{{ nut_verify_retries }}"
+  delay: "{{ nut_verify_delay }}"
+  loop: "{{ nut_ups }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - nut_verify_ups | bool
+    - not ansible_check_mode
+
+- name: Fail when a UPS is not reachable through upsd
+  ansible.builtin.assert:
+    that:
+      - item.rc | default(1) == 0
+    fail_msg: >-
+      upsc cannot read UPS "{{ item.item.name }}" after
+      {{ nut_verify_retries }} retries. Check
+      `systemctl status nut-driver@{{ item.item.name }}` and
+      `journalctl -u nut-driver@{{ item.item.name }}`. For a USB UPS also
+      check that vendorid/productid are set in nut_ups, so the role can
+      generate the udev rule that grants group nut access to the device.
+  loop: "{{ nut_upsc_check.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when:
+    - nut_verify_ups | bool
+    - not ansible_check_mode

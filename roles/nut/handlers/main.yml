@@ -1,4 +1,17 @@
 ---
+# udev handlers run before Restart NUT: the new rule must be loaded and
+# applied to the device before the driver is restarted, otherwise the driver
+# starts again without permission to open the UPS.
+- name: Reload udev rules
+  ansible.builtin.command: udevadm control --reload-rules
+  listen: nut_udev_reload
+  changed_when: false
+
+- name: Trigger udev for USB devices
+  ansible.builtin.command: udevadm trigger --subsystem-match=usb
+  listen: nut_udev_reload
+  changed_when: false
+
 - name: Restart NUT
   ansible.builtin.systemd:
     name: "{{ item }}"

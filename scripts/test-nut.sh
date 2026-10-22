@@ -37,6 +37,12 @@ battery.charge: 100
 ups.load: 10
 ups.temperature: 25
 EOF
+# The previous run may have left the driver active with an OB/FSD state from
+# the transition tests. Reload the freshly written OL state when it is
+# already running; the role starts it later when it is not. upsd also keeps
+# an FSD flag from the previous run, so restart it as well.
+systemctl try-restart nut-driver@dummy.service || true
+systemctl try-restart nut-server.service || true
 '
 
 cat > "$TMPDIR/vars.yml" <<'EOF'

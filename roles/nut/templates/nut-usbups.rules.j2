@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+#
+# USB access for NUT drivers. A USB UPS is normally owned by root:root with
+# mode 0664 or stricter, so a driver running as the nut user cannot open it
+# and reports "insufficient permissions". These rules grant group nut
+# read/write access to the devices declared in the inventory.
+{% for ups in nut_udev_ups %}
+SUBSYSTEM=="usb", ATTR{idVendor}=="{{ ups.vendorid }}", ATTR{idProduct}=="{{ ups.productid }}", MODE="{{ ups.mode | default(nut_udev_rule_mode) }}", GROUP="{{ ups.group | default(nut_udev_rule_group) }}"
+{% endfor %}
+{% for rule in nut_udev_rules %}
+SUBSYSTEM=="usb", ATTR{idVendor}=="{{ rule.vendorid }}", ATTR{idProduct}=="{{ rule.productid }}", MODE="{{ rule.mode | default(nut_udev_rule_mode) }}", GROUP="{{ rule.group | default(nut_udev_rule_group) }}"
+{% endfor %}

@@ -15,11 +15,46 @@ nut_ups_global_options:
   maxretry: 3
 
 # UPS sections. Each entry:
-#   name:   section name, also the driver instance name
-#   driver: NUT driver, e.g. usbhid-ups, blazer_usb, dummy-ups
-#   port:   driver port, usually auto
-#   desc:   optional description
+#   name:      section name, also the driver instance name
+#   driver:    NUT driver, e.g. usbhid-ups, blazer_usb, dummy-ups
+#   port:      driver port, usually auto
+#   desc:      optional description
+#   vendorid:  optional USB vendor id, e.g. "0001"
+#   productid: optional USB product id, e.g. "0000"
+#   subdriver: optional driver subdriver, e.g. "megatec"
+#
+# vendorid and productid are written to ups.conf when present and are also
+# used to generate a USB udev rule for the device (see nut_udev_rules).
 nut_ups: []
+
+# USB drivers that need a udev rule when a nut_ups entry declares
+# vendorid/productid. A rule grants group nut read/write access, without
+# which drivers such as blazer_usb fail with "insufficient permissions".
+nut_udev_usb_drivers:
+  - blazer_usb
+  - nutdrv_qx
+  - usbhid-ups
+
+# Extra udev rules for USB devices that are not listed in nut_ups (for
+# example a UPS monitored in netclient mode, or a second device). Each entry:
+#   vendorid:  USB vendor id
+#   productid: USB product id
+#   group:     optional, defaults to nut_udev_rule_group
+#   mode:      optional, defaults to nut_udev_rule_mode
+nut_udev_rules: []
+
+nut_udev_rules_dir: /etc/udev/rules.d
+# 99- prefix so this file wins over the distribution's 62-nut-usbups.rules.
+nut_udev_rules_file: 99-nut-usbups.rules
+nut_udev_rule_mode: "0660"
+nut_udev_rule_group: nut
+
+# Verify that upsd can read every configured UPS after NUT starts. Disable
+# this on hosts where upsd is not expected to answer yet, for example a
+# netclient whose remote server comes up later.
+nut_verify_ups: true
+nut_verify_retries: 10
+nut_verify_delay: 3
 
 # Addresses upsd listens on.
 nut_listen:
