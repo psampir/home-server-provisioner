@@ -1,0 +1,8 @@
+---
+# Apply only the nut role. Used by scripts/test-nut.sh against the Incus test
+# environment with the dummy-ups driver.
+- name: NUT role test
+  hosts: all
+  become: true
+  roles:
+    - nut

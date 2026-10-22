@@ -1,36 +1,72 @@
 ---
-# NUT (Network UPS Tools) for a single locally attached UPS.
+# NUT (Network UPS Tools) on Debian 13 with systemd.
 #
-# Disabled by default. Enable it on the host physically connected to the UPS.
+# Disabled by default. Enable it on hosts that attach to a UPS.
 
 nut_enabled: false
 
-# upsd.conf: listen address. Loopback is enough for a local upsmon.
+# standalone: local UPS. netserver: serve UPS data to other hosts.
+# netclient: monitor a remote upsd.
 nut_mode: standalone
-nut_listen_address: 127.0.0.1
-nut_listen_port: 3493
 
-# UPS definition (ups.conf).
-nut_ups_name: ups
-nut_ups_driver: usbhid-ups
-nut_ups_port: auto
-nut_ups_desc: ""
+# Global options written at the top of ups.conf.
+nut_ups_global_options:
+  pollinterval: 5
+  maxretry: 3
 
-# Users in upsd.users. Both passwords must come from the vault.
-nut_admin_user: admin
-nut_admin_password: "{{ vault_nut_admin_password | default('') }}"
-nut_monitor_user: monuser
-nut_monitor_password: "{{ vault_nut_monitor_password | default('') }}"
-# NUT 2.8 uses primary/secondary. master still works but is deprecated.
-nut_monitor_role: primary
+# UPS sections. Each entry:
+#   name:   section name, also the driver instance name
+#   driver: NUT driver, e.g. usbhid-ups, blazer_usb, dummy-ups
+#   port:   driver port, usually auto
+#   desc:   optional description
+nut_ups: []
 
-# upsmon.conf
+# Addresses upsd listens on.
+nut_listen:
+  - address: 127.0.0.1
+    port: 3493
+
+# Users in upsd.users. Optional fields: actions, instcmds, upsmon.
+nut_users:
+  - name: admin
+    password: "{{ vault_nut_admin_password | default('') }}"
+    actions: SET
+    instcmds: ALL
+  - name: monuser
+    password: "{{ vault_nut_monitor_password | default('') }}"
+    upsmon: primary
+
+# MONITOR lines in upsmon.conf. Each entry:
+#   ups, host, powervalue, user, password, role
+nut_monitors: []
+
+# upsmon.conf tuning.
 nut_shutdown_command: "/sbin/shutdown -h +0"
+nut_min_supplies: 1
+nut_poll_freq: 5
+nut_poll_freq_alert: 5
 
-# upssched-cmd: how long to wait for the UPS to come back after losing
-# communication before shutting down.
+# NOTIFYFLAG lines. Use SYSLOG+EXEC for events that should reach upssched.
+nut_notify_flags:
+  ONLINE: SYSLOG
+  ONBATT: SYSLOG
+  LOWBATT: SYSLOG
+  NOCOMM: SYSLOG+EXEC
+
+# upssched rules. Each entry: event, timer, command.
+nut_upssched_rules:
+  - event: NOCOMM
+    timer: "*"
+    command: nocomm
+
+# Optional notification command prefix, called with the message as one
+# argument. Empty means journal logging only.
+nut_notify_command: ""
+
+# upssched-cmd: grace period after losing communication with the UPS.
 nut_nocomm_grace_seconds: 300
 nut_nocomm_poll_seconds: 10
+nut_nocomm_shutdown_command: "/sbin/shutdown -h now"
 
 # Debian package defaults.
 nut_config_dir: /etc/nut

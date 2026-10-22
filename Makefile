@@ -111,7 +111,7 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password
 # Test env is just ENV=test with a pre-built configs/test/ tree that is
 # regenerated from scratch by scripts/test-env.sh (gitignored).
 
-.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision test-wireguard-render test-smoke test-reboot
+.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision test-wireguard-render test-smoke test-reboot test-nut
 
 test-env-create: ## Create test VMs and seed configs/test/
 	./scripts/test-env.sh create
@@ -136,6 +136,9 @@ test-smoke: ## end-to-end smoke test from the controller via WG (needs sudo)
 
 test-reboot: ## reboot every test VM and verify services persist across reboots
 	@./scripts/test-reboot-check.sh
+
+test-nut: ## test the nut role with the dummy UPS driver (ENV=test)
+	@./scripts/test-nut.sh
 
 # --- Setup ---
 

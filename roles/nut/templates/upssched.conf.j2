@@ -2,4 +2,6 @@
 CMDSCRIPT {{ nut_config_dir }}/upssched-cmd
 PIPEFN /run/nut/upssched.pipe
 LOCKFN /run/nut/upssched.lock
-AT NOCOMM * EXECUTE nocomm
+{% for rule in nut_upssched_rules %}
+AT {{ rule.event }} {{ rule.timer }} EXECUTE {{ rule.command }}
+{% endfor %}

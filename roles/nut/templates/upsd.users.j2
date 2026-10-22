@@ -1,9 +1,14 @@
 # {{ ansible_managed }}
-[{{ nut_admin_user }}]
-	password = {{ nut_admin_password }}
-	actions = SET
-	instcmds = ALL
-
-[{{ nut_monitor_user }}]
-	password = {{ nut_monitor_password }}
-	upsmon {{ nut_monitor_role }}
+{% for user in nut_users %}
+[{{ user.name }}]
+	password = {{ user.password }}
+{% if user.actions is defined and user.actions %}
+	actions = {{ user.actions }}
+{% endif %}
+{% if user.instcmds is defined and user.instcmds %}
+	instcmds = {{ user.instcmds }}
+{% endif %}
+{% if user.upsmon is defined and user.upsmon %}
+	upsmon {{ user.upsmon }}
+{% endif %}
+{% endfor %}

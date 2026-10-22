@@ -1,46 +1,68 @@
 #!/bin/sh
 # {{ ansible_managed }}
 #
-# Logs UPS events and enforces a grace period after losing communication
-# with the UPS. Low-battery shutdown is handled by upsmon's SHUTDOWNCMD.
+# Logs UPS events, optionally forwards them through nut_notify_command, and
+# enforces a grace period after losing communication with the UPS. Low-battery
+# shutdown is handled by upsmon through SHUTDOWNCMD.
 
 set -eu
 
-UPS="{{ nut_ups_name }}@{{ nut_listen_address }}"
+UPS_LIST="{{ nut_ups | map(attribute='name') | join(' ') }}"
 GRACE={{ nut_nocomm_grace_seconds }}
 POLL={{ nut_nocomm_poll_seconds }}
+SHUTDOWN="{{ nut_nocomm_shutdown_command }}"
+NOTIFY="{{ nut_notify_command }}"
 
 log() {
     logger -t upssched -- "$*"
 }
 
+notify() {
+    [ -n "$NOTIFY" ] || return 0
+    sh -c "$NOTIFY \"\$1\"" _ "$1" || log "notification command failed"
+}
+
 case "${1:-}" in
     online)
-        log "UPS on line power"
+        msg="UPS on line power"
+        log "$msg"
+        notify "$msg"
         ;;
     onbatt)
-        log "UPS on battery"
+        msg="UPS on battery"
+        log "$msg"
+        notify "$msg"
         ;;
     lowbatt)
-        log "UPS battery low; upsmon will shut down"
+        msg="UPS battery low; upsmon will shut down"
+        log "$msg"
+        notify "$msg"
         ;;
     nocomm)
-        log "lost communication with ${UPS}; waiting ${GRACE}s"
+        msg="Lost communication with UPS; waiting ${GRACE}s"
+        log "$msg"
+        notify "$msg"
         elapsed=0
         while [ "$elapsed" -lt "$GRACE" ]; do
-            if status=$(timeout 5 upsc "$UPS" 2>/dev/null); then
-                case "$status" in
-                    *ups.status*OL*|*ups.status*OB*)
-                        log "communication with ${UPS} restored"
-                        exit 0
-                        ;;
-                esac
-            fi
+            for ups in $UPS_LIST; do
+                if status=$(timeout 5 upsc "$ups" 2>/dev/null); then
+                    case "$status" in
+                        *ups.status*OL*|*ups.status*OB*)
+                            msg="Communication restored with ${ups}"
+                            log "$msg"
+                            notify "$msg"
+                            exit 0
+                            ;;
+                    esac
+                fi
+            done
             sleep "$POLL"
             elapsed=$((elapsed + POLL))
         done
-        log "communication with ${UPS} not restored after ${GRACE}s; shutting down"
-        /sbin/shutdown -h now
+        msg="UPS communication not restored after ${GRACE}s; shutting down"
+        log "$msg"
+        notify "$msg"
+        $SHUTDOWN
         ;;
     *)
         log "unknown event: ${1:-}"

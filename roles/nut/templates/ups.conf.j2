@@ -1,10 +1,13 @@
 # {{ ansible_managed }}
-pollinterval = 5
-maxretry = 3
+{% for key, value in nut_ups_global_options.items() %}
+{{ key }} = {{ value }}
+{% endfor %}
+{% for ups in nut_ups %}
 
-[{{ nut_ups_name }}]
-	driver = "{{ nut_ups_driver }}"
-	port = "{{ nut_ups_port }}"
-{% if nut_ups_desc %}
-	desc = "{{ nut_ups_desc }}"
+[{{ ups.name }}]
+	driver = "{{ ups.driver }}"
+	port = "{{ ups.port }}"
+{% if ups.desc is defined and ups.desc %}
+	desc = "{{ ups.desc }}"
 {% endif %}
+{% endfor %}

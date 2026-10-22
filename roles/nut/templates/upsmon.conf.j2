@@ -1,8 +1,12 @@
 # {{ ansible_managed }}
-MONITOR {{ nut_ups_name }}@{{ nut_listen_address }} 1 {{ nut_monitor_user }} {{ nut_monitor_password }} {{ nut_monitor_role }}
+{% for monitor in nut_monitors %}
+MONITOR {{ monitor.ups }}@{{ monitor.host }} {{ monitor.powervalue }} {{ monitor.user }} {{ monitor.password }} {{ monitor.role }}
+{% endfor %}
+MINSUPPLIES {{ nut_min_supplies }}
+POLLFREQ {{ nut_poll_freq }}
+POLLFREQALERT {{ nut_poll_freq_alert }}
 SHUTDOWNCMD "{{ nut_shutdown_command }}"
 NOTIFYCMD /usr/sbin/upssched
-NOTIFYFLAG ONLINE SYSLOG
-NOTIFYFLAG ONBATT SYSLOG
-NOTIFYFLAG LOWBATT SYSLOG
-NOTIFYFLAG NOCOMM SYSLOG+EXEC
+{% for event, flags in nut_notify_flags.items() %}
+NOTIFYFLAG {{ event }} {{ flags }}
+{% endfor %}

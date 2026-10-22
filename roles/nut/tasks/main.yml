@@ -3,14 +3,20 @@
   ansible.builtin.meta: end_role
   when: not nut_enabled
 
-- name: Validate NUT passwords are set
+- name: Validate the NUT configuration
   ansible.builtin.assert:
     that:
-      - (nut_admin_password | length) > 0
-      - (nut_monitor_password | length) > 0
+      - (nut_ups | length) > 0
+      - (nut_ups | map(attribute='name') | list | length)
+        == (nut_ups | map(attribute='name') | unique | list | length)
+      - (nut_monitors | length) > 0
+      - (nut_monitors | rejectattr('ups', 'in', nut_ups | map(attribute='name') | list) | list | length) == 0
+      - (nut_users | selectattr('password', 'equalto', '') | list | length) == 0
+      - (nut_monitors | selectattr('password', 'equalto', '') | list | length) == 0
     fail_msg: >-
-      nut_enabled is true but vault_nut_admin_password or
-      vault_nut_monitor_password is empty. Add both to the vault.
+      Invalid NUT configuration: nut_ups must be non-empty with unique names,
+      nut_monitors must be non-empty and reference existing UPS names, and
+      every user and monitor needs a non-empty password.
   no_log: true
 
 - name: Install NUT

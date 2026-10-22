@@ -1,2 +1,4 @@
 # {{ ansible_managed }}
-LISTEN {{ nut_listen_address }} {{ nut_listen_port }}
+{% for listen in nut_listen %}
+LISTEN {{ listen.address }} {{ listen.port }}
+{% endfor %}
