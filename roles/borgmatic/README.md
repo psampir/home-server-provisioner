@@ -60,6 +60,34 @@ drop-in.
    `/usr/local/bin/hsp-borgmatic-notify`.
 7. Enables `borgmatic.timer`.
 
+## Provisioning order: target first, source second
+
+`borgmatic_repositories` is the single source of truth for both sides, but
+the two roles run in different plays: `borgmatic` (source) in the early
+`servers` play, `borg_repo` (target) in the later `backup_targets` play. On
+a **first** provision the target repository therefore does not exist yet
+when the source is configured.
+
+Recommended order:
+
+1. Provision the backup target (`borg_repo`) first, so the repository, the
+   authorized push key and the append-only forced command exist.
+2. Provision the source (`borgmatic`) second.
+
+The role runs a non-destructive reachability preflight after rendering the
+config and before enabling `borgmatic.timer`: `borgmatic repo-info
+--repository <label>` for every entry. `repo-info` reads repository
+metadata only and succeeds on a freshly created, still empty repository,
+which `list --archive latest` would not. An unreachable repository produces
+a clear warning but does not fail provisioning by default, because the
+first-run order above is expected to produce one. The timer is still
+enabled, so the first scheduled backup succeeds once the target is ready.
+
+Set `borgmatic_require_reachable: true` to turn the warning into a failure
+(for example in a re-provision pipeline where the target must already
+exist). An empty `borgmatic_repositories` list skips the preflight entirely
+along with the rest of the enabled path.
+
 ## Custom hook commands
 
 Five opt-in lists add your own commands to borgmatic's command hooks:
@@ -168,6 +196,8 @@ package ever moves to 2.x, that block needs migrating.
 | `borgmatic_after_everything_commands` | `[]` | Extra `after_everything` hook commands (once per invocation). |
 | `borgmatic_on_error_commands` | `[]` | Extra `on_error` hook commands. |
 | `borgmatic_remote_repo_base` | `/srv/borg` | Fallback target repo base when the target host does not define `borg_repo_base`. |
+| `borgmatic_require_reachable` | `false` | Fail provisioning when the reachability preflight cannot read a repository. |
+| `borgmatic_preflight_timeout` | `60` | Seconds before one repository probe is aborted. |
 | `borgmatic_exclude_patterns` | `[]` | Borg `--exclude` patterns. |
 
 ## Repository entry forms

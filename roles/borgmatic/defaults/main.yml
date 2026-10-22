@@ -100,6 +100,22 @@ borgmatic_ssh_command: "ssh -i {{ borgmatic_ssh_key_path }} -o StrictHostKeyChec
 # vaulted - the target re-authorizes it on the next provision).
 borgmatic_ssh_key_path: /root/.ssh/id_borg
 
+# Reachability preflight run after the config is rendered and before
+# borgmatic.timer is enabled. Each repository is probed with
+# `borgmatic repo-info --repository <label>`, which reads repository
+# metadata only and works on a freshly created, still empty repository.
+#
+# The target repo is created by the borg_repo role in a LATER play, so on a
+# first provision it does not exist yet. The default therefore only warns:
+# provisioning succeeds, the timer is enabled, and the first backup fails
+# until the target exists. Set to true when the target must already be
+# reachable (for example a re-provision pipeline or a CI check).
+borgmatic_require_reachable: false
+
+# Seconds before one repository probe is aborted. Keeps a blackholed target
+# from stalling the play.
+borgmatic_preflight_timeout: 60
+
 # --- Scheduling ------------------------------------------------------------
 # systemd OnCalendar expression for the nightly backup. Uses borgmatic's
 # own packaged borgmatic.timer, retargeted via a drop-in.

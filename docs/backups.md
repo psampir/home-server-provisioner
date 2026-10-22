@@ -74,6 +74,13 @@ Provisioning initializes the repo on the target and authorizes the
 source. The first backup runs at the next timer tick - or trigger one
 manually (see below).
 
+On a first provision the source play runs before the later
+`backup_targets` play that creates the repository. The `borgmatic`
+reachability preflight therefore prints a warning and still enables the
+timer; the first scheduled backup succeeds once the target exists. To
+make provisioning fail until the target is reachable, provision the
+target first and set `borgmatic_require_reachable: true`.
+
 > **Back up the passphrase out-of-band** (password manager, printed copy
 > in a safe). Losing it makes every archive unrecoverable.
 
