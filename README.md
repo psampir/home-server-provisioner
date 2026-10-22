@@ -17,13 +17,22 @@ flowchart LR
 
     CTRL -->|"SSH"| HUB
     CTRL -->|"SSH"| APP
+    CTRL -->|"SSH"| BKP
+    CTRL -->|"SSH"| OFF
     APP -->|"wg0 dials out"| HUB
     BKP -->|"wg0 dials out"| HUB
     OFF -->|"wg0 dials out"| HUB
     CLI -->|"WireGuard dials out"| HUB
+    APP -.->|"DNS"| HUB
+    CLI -.->|"DNS + HTTPS"| HUB
+    HUB -.->|"tunnel traffic"| APP
     APP -->|"borgmatic push"| BKP
     APP -->|"borgmatic push"| OFF
 ```
+
+The diagram shows the stack-based ingress: Caddy runs on the app server and
+the hub only forwards tunnel traffic. With the native role, Caddy runs on
+the hub instead. See [docs/caddy.md](docs/caddy.md).
 
 The fleet is hub-and-spoke: exactly one host acts as the hub (the
 `vpn_server` group, usually a VPS with a public IP), and it is the only
@@ -496,7 +505,7 @@ when running multiple envs side-by-side to avoid collisions with the
 - [Networking](docs/networking.md) - hub-and-spoke topology, `vpn_ip` addressing, DNS ownership, firewall interaction
 - [WireGuard clients](docs/wireguard-clients.md) - onboarding phones and laptops, key management, split vs full tunnel
 - [Backups](docs/backups.md) - borgmatic/borg topology, restore, passphrase rotation, monitoring
-- [Caddy reverse proxy](docs/caddy.md) - TLS modes, site-block patterns, LAN-bandwidth escape hatch, troubleshooting
+- [Caddy reverse proxy](docs/caddy.md) - stack-based and native modes, TLS, DNS, firewall, troubleshooting
 - [Deployment Guide](docs/deployment-guide.md) - multi-site setups, off-site hosts, and VPN connectivity
 - [Conventions](docs/conventions.md) - role, variable, template, and make-target naming rules this repo enforces
 

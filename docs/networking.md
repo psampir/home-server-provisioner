@@ -162,9 +162,13 @@ Two variables extend what dnsmasq answers:
 
   ```yaml
   dnsmasq_extra_hosts:
-    - { name: printer, ip: 192.168.1.7 }        # → printer.home
-    - { name: nas.example.lan, ip: 192.168.1.5 } # → nas.example.lan
+    - { name: nas, ip: 10.10.0.5 }               # → nas.home
+    - { name: files.example.lan, ip: 10.10.0.2 } # → files.example.lan
   ```
+
+  Use addresses that VPN peers can reach. The hub does not route to the
+  home LAN, so a `192.168.x.x` record would resolve but the connection would
+  fail. For LAN-only names, use a LAN resolver instead.
 
 - `dnsmasq_extra_addresses` - `address=` entries, rendered **before** the
   upstream forwarders so they win the priority race. Use these to answer
@@ -207,7 +211,7 @@ Other roles open the ports they need directly and are intentionally
 | `firewall` | 22/tcp (always), plus `firewall_allow_rules` |
 | `wireguard` | 51820/udp from `wireguard_firewall_from` (hub only) |
 | `dnsmasq` | 53/tcp + 53/udp from `dnsmasq_firewall_from`; 67/udp and 547/udp when DHCP is enabled |
-| `caddy` | 80/tcp (ACME), 443/tcp and 443/udp (HTTP/3) when a Caddyfile exists |
+| `caddy` | Native role only: 80/tcp (ACME), 443/tcp, and 443/udp (HTTP/3) when a Caddyfile exists. A Caddy Compose stack publishes ports through Docker and bypasses UFW. |
 
 Both `wireguard_firewall_from` and `dnsmasq_firewall_from` default to
 `any`. dnsmasq can afford that because `bind-dynamic` only listens on

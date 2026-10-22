@@ -1,72 +1,276 @@
 # Caddy
 
-Reverse proxy for everything you self-host. Runs natively on the WireGuard
-hub (`vpn_server` group) and proxies traffic to backends across the
-mesh through the existing WG tunnel.
+Caddy terminates TLS and reverse-proxies the services you self-host. The
+toolkit supports two deployment modes, and they can coexist in one
+environment.
 
-## Why on the hub
+## Choosing a mode
 
-The same machine that already terminates VPN traffic (`wireguard`) and
-answers DNS (`dnsmasq`) is the natural single ingress for HTTP/HTTPS:
+| | Stack-based ingress | Native hub role |
+|---|---|---|
+| Runs on | An app server, next to the workloads | The `vpn_server` hub |
+| Managed by | `compose_deploy` | The `caddy` role |
+| Source on controller | `configs/<ENV>/stacks/<host>/caddy/` | `configs/<ENV>/caddy/` |
+| Service | Docker container | Native `systemd` service |
+| Ports | Published by Docker | Opened in UFW by the role |
+| CA and data | A bind mount, usually under `/srv/data` | `/var/lib/caddy/` |
+| Backends | Container names on a shared Docker network | `10.10.0.x` addresses over WireGuard |
+| Best for | Workloads that should stay close to their data | A public ingress on a VPS, or a hub-only setup |
 
-- **One TLS surface.** Public DNS for every site you publish points at the
-  hub (it's the only host with a stable public address). Centralising
-  Caddy there means one cert store, one Caddyfile, one ACME account.
-- **No new Docker on the hub.** `docker_runtime` is only deployed to
-  `app_servers`. Putting Caddy in a container on the hub would install
-  Docker just for it - running it natively from the Debian repo is
-  cleaner.
-- **HTTP-01 ACME works out of the box.** The hub has port 80 reachable
-  from the internet, so Let's Encrypt validation needs no DNS plugin or
-  shared secret with your registrar.
-- **Backends are reachable as `10.10.0.X:<port>` over WG.** The hub
-  already routes the tunnel, so `reverse_proxy 10.10.0.2:8080` Just Works
-  with no extra firewall surgery.
+The sample deployment uses the stack-based mode: Caddy runs on the app
+server and the WireGuard hub runs only `wireguard` and `dnsmasq`. The native
+role remains available for environments that want Caddy on the hub, and
+`playbooks/site.yml` still applies it to `vpn_server` when
+`configs/<ENV>/caddy/` exists.
 
-The hub-and-spoke topology means every public request lands on the hub
-anyway (it's the only public-IP host). Whether Caddy sits there or on an
-app server, the bytes pass through the hub. Putting Caddy on the hub
-just removes one redundant TCP-proxy hop.
+Do not enable both modes for the same hostnames. Pick one ingress owner per
+environment.
 
-## Layout
+## Stack-based ingress
 
-Source-of-truth lives on the controller, mirrored verbatim to `/etc/caddy/`:
+### Layout
 
 ```
-configs/<env>/caddy/
+configs/<ENV>/stacks/<host>/caddy/
+├── compose.yaml
+└── Caddyfile
+```
+
+`compose_deploy` syncs the directory to `/opt/stacks/caddy/` on the host and
+runs Compose. The Caddyfile is mounted read-only into the container.
+
+### Compose file
+
+```yaml
+services:
+  caddy:
+    container_name: caddy
+    image: caddy:2.9.1
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/data/docker-apps-data/caddy-data/caddy_data:/data
+      - /srv/data/docker-apps-data/caddy-data/caddy_config:/config
+    networks:
+      - reverse_proxy
+
+networks:
+  reverse_proxy:
+    external: true
+```
+
+Pin a specific Caddy tag. The example uses `2.9.1`; update it deliberately
+and run `make validate-stacks` after changing an image.
+
+If the ingress should be reachable only over the VPN or LAN, bind the
+published ports to one address instead of all interfaces:
+
+```yaml
+    ports:
+      - "10.10.0.2:80:80"
+      - "10.10.0.2:443:443"
+      - "10.10.0.2:443:443/udp"
+```
+
+Use the app server's `vpn_ip` from the inventory. Binding to `0.0.0.0`
+publishes the ports on every interface, including a public one if the host
+has it.
+
+### Shared network
+
+The Caddy container and every backend it proxies must share a Docker
+network. The convention in this project is an external network named
+`reverse_proxy`, created by `compose_deploy` before the stacks start:
+
+```yaml
+compose_deploy_external_networks:
+  - reverse_proxy
+```
+
+Each backend stack joins it:
+
+```yaml
+services:
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:<digest>
+    networks:
+      - reverse_proxy
+
+networks:
+  reverse_proxy:
+    external: true
+```
+
+Caddy then uses the backend's container name, not its host address:
+
+```caddy
+immich.gr15 {
+    tls internal
+    reverse_proxy immich_server:2283
+}
+```
+
+If the name or port is wrong, Caddy starts but returns 502. Check the
+backend's `container_name` and the port it listens on inside the container.
+
+### Caddyfile
+
+```caddy
+{
+    pki {
+        ca internal
+    }
+}
+
+immich.gr15 {
+    tls {
+        issuer internal {
+            ca internal
+        }
+    }
+    reverse_proxy immich_server:2283
+}
+
+joplin.gr15 {
+    tls {
+        issuer internal {
+            ca internal
+        }
+    }
+    reverse_proxy joplin:22300
+}
+```
+
+The global `pki` block names the internal CA. Each site block uses that CA
+explicitly, so a future public site can use ACME without changing the
+internal sites.
+
+### Internal CA
+
+The stack stores CA data in `/data` inside the container. With the bind
+mount above, the root certificate is also visible on the host at:
+
+```
+/srv/data/docker-apps-data/caddy-data/caddy_data/pki/authorities/local/root.crt
+```
+
+Read it through the container to avoid guessing the path:
+
+```bash
+docker exec caddy cat /data/pki/authorities/local/root.crt
+```
+
+Trust this certificate once on every client that should use the internal
+names. On Linux:
+
+```bash
+sudo cp caddy-root.crt /usr/local/share/ca-certificates/caddy-root.crt
+sudo update-ca-certificates
+```
+
+For browsers and phones, import the same file through the system or browser
+certificate store.
+
+### Firewall
+
+Docker publishes container ports with its own rules, which bypass UFW. That
+means the `caddy` role's UFW rules do not apply to this mode, and adding
+80/443 to `firewall_allow_rules` does not close or open the container.
+
+Control exposure with the `ports` binding:
+
+- `10.10.0.2:443:443` exposes HTTPS only on the VPN address.
+- `127.0.0.1:8080:80` exposes it only to processes on the host.
+- `443:443` exposes it on every interface.
+
+If the host has a public interface and you need a public site, publish 80
+and 443 there deliberately and add a host firewall rule for the Docker
+chain. See [roles/firewall/README.md](../roles/firewall/README.md#docker-bypasses-ufw).
+
+### DNS
+
+`dnsmasq` runs on the WireGuard hub. For a wildcard internal name:
+
+```yaml
+dnsmasq_extra_addresses:
+  - { name: gr15, ip: 10.10.0.2 }
+```
+
+This answers every `*.gr15` query from VPN peers with the app server's VPN
+address. The name does not need a per-host record.
+
+LAN clients cannot use the hub resolver: the hub is a VPS, it is not on the
+home LAN, and VPN clients are not routed to the LAN. If LAN clients should
+reach the local Caddy, give them a LAN resolver that returns the app
+server's LAN address, or add a local `/etc/hosts` entry. Do not add a LAN
+address to `dnsmasq_extra_hosts` and expect VPN clients to reach it.
+
+### Operations
+
+```bash
+# Validate the rendered config inside the running container
+docker exec caddy caddy validate --config /etc/caddy/Caddyfile
+
+# Reload after a config change
+docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+
+# Follow logs
+docker logs -f caddy
+
+# Recreate the stack after changing compose.yaml
+docker compose -f /opt/stacks/caddy/compose.yaml up -d
+```
+
+`compose_deploy` runs `docker compose up -d` for the stack. A Caddyfile
+change alone needs a reload; a Compose change needs a recreate.
+
+The complete stack example lives in the sample deployment tree under
+`configs/<ENV>/stacks/<host>/caddy/` if you have a private config repo.
+
+## Native hub role
+
+Use this mode when Caddy should be the single public ingress on the
+WireGuard hub, or when the hub is the only host with a stable public
+address.
+
+### Layout
+
+```
+configs/<ENV>/caddy/
 ├── Caddyfile               # main config (required)
 └── conf.d/                 # optional snippets
     ├── public.caddy
     └── internal.caddy
 ```
 
-Pull snippets in from the main Caddyfile with:
+The role mirrors the tree to `/etc/caddy/`. Pull snippets in with:
 
 ```caddy
 import /etc/caddy/conf.d/*.caddy
 ```
 
-Snippet order is undefined - each `*.caddy` file must contain complete
+Snippet order is undefined, so each `*.caddy` file must contain complete
 site blocks, not fragments.
 
-Every change to either the Caddyfile or any snippet runs `caddy validate`
-**before** reloading the service. A typo never takes existing sites
-down.
+Every change runs `caddy validate` before the reload handler, so a typo
+does not take existing sites down.
 
-## Opting out
+### Opting out
 
-If `configs/<env>/caddy/` does not exist on the controller, the role
-becomes a no-op: Caddy is not installed, no firewall ports are opened,
-nothing changes. Use this to keep the role in `playbooks/site.yml`
-without paying any cost on environments that don't need a reverse proxy
-yet.
+If `configs/<ENV>/caddy/` does not exist on the controller, the role is a
+no-op: Caddy is not installed and no firewall ports are opened. This keeps
+the role in `playbooks/site.yml` without affecting environments that use a
+stack instead.
 
-If the directory exists but is empty (no `Caddyfile`), the role fails
-loudly - that's almost certainly a mistake.
+If the directory exists but has no `Caddyfile`, the role fails loudly.
 
-## TLS modes
+### TLS modes
 
-### `tls internal` (default for VPN-only sites)
+#### `tls internal`
 
 ```caddy
 whoami.home {
@@ -75,12 +279,17 @@ whoami.home {
 }
 ```
 
-Caddy mints certs from its own local CA. Clients see a warning unless they
-trust the CA root once (`/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`
-on the hub). Perfect for `*.home` names that resolve through `dnsmasq`
-and only exist inside the tunnel.
+Caddy mints certificates from its local CA. Trust the root once on each
+client:
 
-### `acme` HTTP-01 (default for public sites)
+```bash
+sudo cat /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+```
+
+This is the right mode for names that resolve only through `dnsmasq` and
+exist only inside the tunnel.
+
+#### ACME HTTP-01
 
 ```caddy
 {
@@ -93,12 +302,13 @@ app.example.com {
 ```
 
 Requires:
-- Public DNS A/AAAA for `app.example.com` → hub's public IP.
-- Inbound 80/tcp reachable on the hub (UFW handled by the role; if the
-  hub is behind NAT, forward 80 on the router too).
-- `email` set in the global block.
 
-### `acme` DNS-01 (for wildcards / hosts without public 80)
+- A public A/AAAA record for the name pointing at the hub.
+- Inbound 80/tcp reachable on the hub. The role opens it in UFW; a NAT
+  router in front of the hub also needs a forward.
+- `email` in the global block.
+
+#### ACME DNS-01
 
 ```caddy
 *.example.com {
@@ -109,47 +319,52 @@ Requires:
 }
 ```
 
-Needs a DNS provider plugin compiled into Caddy. The Debian package
-ships only the stock build - switch to `xcaddy` or the official "with
-DNS" build if you go this route.
+The Debian package ships the stock Caddy build. DNS-01 needs a provider
+plugin, so use an `xcaddy` build or an official image with the plugin.
 
-## Firewall
+### Firewall
 
-The role manages its own UFW rules; you do not add anything to
-`firewall_allow_rules` for Caddy itself:
+The role manages its own UFW rules. Do not add Caddy ports to
+`firewall_allow_rules`.
 
-| Port | Why |
-|---|---|
-| 80/tcp | HTTP + ACME HTTP-01 challenge |
-| 443/tcp | HTTPS |
-| 443/udp | HTTP/3 (QUIC) |
-
-Knobs (`roles/caddy/defaults/main.yml`):
+| Port | Why | Variable |
+|---|---|---|
+| 80/tcp | HTTP and ACME HTTP-01 | `caddy_open_http` |
+| 443/tcp | HTTPS | `caddy_open_https` |
+| 443/udp | HTTP/3 (QUIC) | `caddy_open_http3` |
 
 ```yaml
-caddy_open_firewall: true        # set false to manage UFW yourself
-caddy_firewall_from: [any]       # restrict to CIDRs for VPN-only exposure
-caddy_open_http: true            # leave on unless you're sure no site uses ACME HTTP-01
-caddy_open_https: true           # 443/tcp + 443/udp together
+caddy_open_firewall: true
+caddy_firewall_from: [any]       # use 10.10.0.0/24 for VPN-only exposure
+caddy_open_http: true
+caddy_open_https: true
+caddy_open_http3: true           # set false to leave 443/udp closed
 ```
 
-Common tightenings:
+For a VPN-only hub with no public sites:
 
 ```yaml
-# Only WG peers can hit Caddy (no public web)
 caddy_firewall_from:
   - 10.10.0.0/24
+caddy_open_http: false
+caddy_open_https: true
+caddy_open_http3: false
 ```
 
-```yaml
-# Public site without HTTP/3
-caddy_open_https: true
-# (leave the rest at defaults; the role will still open 443/udp, just
-#  don't expect QUIC unless you announce Alt-Svc - most browsers will
-#  fall back to TCP cleanly)
+### Operations
+
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo caddy adapt --config /etc/caddy/Caddyfile | jq .
+sudo systemctl reload caddy
+sudo systemctl restart caddy       # only when reload is not enough
+journalctl -u caddy -f
 ```
 
 ## Site-block patterns
+
+These work in both modes. Use container names in stack mode and
+`10.10.0.x` addresses in native mode.
 
 ### One backend behind one hostname
 
@@ -163,15 +378,15 @@ git.example.com {
 
 ```caddy
 git.example.com {
-    reverse_proxy 10.10.0.2:3000      # forgejo on app-1
+    reverse_proxy 10.10.0.2:3000
 }
 
 files.example.com {
-    reverse_proxy 10.10.0.3:3923      # copyparty on app-2
+    reverse_proxy 10.10.0.3:3923
 }
 ```
 
-### Split internal / public copies of one app
+### Split internal and public copies of one app
 
 ```caddy
 git.example.com {
@@ -184,8 +399,9 @@ git.home {
 }
 ```
 
-Then add `git.home → 10.10.0.1` to `dnsmasq_extra_hosts` so WG peers
-reach the internal copy without going through public DNS.
+Add `git.home` to DNS only if clients should resolve the internal name.
+In stack mode this is a `dnsmasq_extra_addresses` wildcard or a per-host
+record; in native mode it is `dnsmasq_extra_hosts`.
 
 ### Static file root
 
@@ -197,103 +413,126 @@ files.home {
 }
 ```
 
-(Note: serves files from the hub's filesystem, not from an app server.)
+This serves files from the Caddy container or host filesystem, depending on
+the mode. Mount the directory into the container if you use stack mode.
 
-## LAN bandwidth - when the hub becomes a bottleneck
+## LAN bandwidth
 
-The hub-on-VPS topology means a laptop on the same LAN as `app-1`,
-downloading a 50 GB file from `copyparty` on `app-1` via
-`copyparty.example.com`, routes every byte through the VPS in Frankfurt.
-Bandwidth = VPS uplink, latency = round-trip to Frankfurt and back.
+A hub-based ingress routes LAN traffic through the VPS. A laptop on the same
+LAN as `app-1`, downloading a large file from `copyparty` on `app-1` via
+`copyparty.example.com`, sends every byte through the hub and back.
 
-For the typical homelab UI traffic (Forgejo dashboards, monitoring,
-config screens) this is invisible. For bulk file transfers it hurts.
+For dashboards and configuration UIs this is invisible. For bulk transfers
+it hurts. The stack-based mode avoids the detour because Caddy and the
+backend are on the same LAN, and clients connect to the app server directly.
 
-**Escape hatch - second Caddy on the app server as a Docker stack:**
-
-```
-configs/<env>/stacks/<app-hostname>/caddy-lan/
-├── compose.yaml
-└── Caddyfile
-```
-
-`compose.yaml`:
-
-```yaml
-services:
-  caddy:
-    image: caddy:2-alpine
-    container_name: caddy-lan
-    restart: unless-stopped
-    ports: ["80:80", "443:443"]
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-volumes:
-  caddy_data:
-```
-
-`Caddyfile`:
-
-```caddy
-copyparty.home {
-    tls internal
-    reverse_proxy localhost:3923
-}
-```
-
-Add `copyparty.home → 192.168.1.10` (LAN IP of `app-1`) to
-`dnsmasq_extra_hosts`. Now LAN clients hit the local Caddy directly
-(gigabit), while `copyparty.example.com` on the hub continues to work
-for remote access.
-
-No new roles or magic - `compose_deploy` already auto-discovers per-host
-stacks under `configs/<env>/stacks/<hostname>/`.
+If you use the native hub role and bulk transfers matter, move ingress to a
+stack on the app server instead of adding a second Caddy. Two ingress
+owners for the same names is harder to reason about than one.
 
 ## Troubleshooting
 
-### Validate a config without deploying
+### Validate without deploying
+
+Stack mode:
 
 ```bash
-caddy validate --adapter caddyfile --config configs/<env>/caddy/Caddyfile
+docker exec caddy caddy validate --config /etc/caddy/Caddyfile
 ```
 
-(On any machine with Caddy installed - same binary the role uses.)
-
-### See what Caddy is doing on the hub
+Native mode:
 
 ```bash
-ssh hub
-journalctl -u caddy -f          # live logs
-sudo systemctl status caddy     # service state + recent log lines
-sudo caddy adapt --config /etc/caddy/Caddyfile | jq .   # rendered JSON config
+sudo caddy validate --config /etc/caddy/Caddyfile
 ```
 
-### Why is my browser warning about the cert?
+### Follow logs
 
-If you used `tls internal`, that's expected - Caddy minted the cert from
-its own CA. Trust the local root cert (once per browser/system):
+Stack mode:
 
 ```bash
-ssh hub
-sudo cat /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
-# Copy into your local trust store; on Linux:
-sudo cp <pasted file> /usr/local/share/ca-certificates/caddy-hub.crt
-sudo update-ca-certificates
+docker logs -f caddy
 ```
 
-For browsers, import the same `.crt` via their certificate manager.
-
-### Reload didn't pick up my changes
-
-The role runs `systemctl reload caddy`. If the config has a syntax
-error, validate failed during sync and the file was never written -
-check the playbook output. If validate passed but Caddy still serves
-the old config, force a full restart:
+Native mode:
 
 ```bash
-sudo systemctl restart caddy
+journalctl -u caddy -f
+sudo systemctl status caddy
 ```
 
-(Reload is graceful and almost always sufficient - restart drops
-in-flight connections.)
+### Browser warns about the certificate
+
+This is expected with `tls internal`. Trust the root certificate once:
+
+- Stack mode: `docker exec caddy cat /data/pki/authorities/local/root.crt`
+- Native mode: `sudo cat /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`
+
+Import the file into the system or browser trust store. A certificate
+warning after trusting the root usually means the client is connecting to a
+different name than the one in the certificate, or an old certificate is
+cached.
+
+### 502 Bad Gateway
+
+Caddy reached the site block but could not reach the backend.
+
+- Stack mode: the backend container must be on the same Docker network and
+  the name in `reverse_proxy` must match its `container_name` or service
+  alias. Check the port inside the container, not the published port.
+- Native mode: the backend must be reachable at the `10.10.0.x` address
+  over WireGuard. Check `ping` and `curl` from the hub.
+
+### Reload did not pick up the change
+
+Stack mode:
+
+```bash
+docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+```
+
+Native mode:
+
+```bash
+sudo systemctl reload caddy
+```
+
+If validation failed, the file was not replaced. Check the playbook or
+Compose output first. A full restart drops in-flight connections; use it
+only when a reload is not enough.
+
+### Port is open even though UFW says it is closed
+
+This is the Docker bypass. Published container ports are handled by Docker's
+own rules before UFW. Change the `ports` binding in `compose.yaml`, not
+`firewall_allow_rules`. See
+[roles/firewall/README.md](../roles/firewall/README.md#docker-bypasses-ufw).
+
+### DNS resolves to the wrong address
+
+Check from the client:
+
+```bash
+getent hosts immich.gr15
+resolvectl query immich.gr15
+```
+
+VPN peers should receive the app server's `vpn_ip`. LAN clients should
+receive the LAN address from a LAN resolver. The hub resolver is not
+reachable from the LAN and VPN clients do not route to the LAN.
+
+## Migrating from the native role to a stack
+
+1. Create `configs/<ENV>/stacks/<host>/caddy/` with the Compose file and
+   Caddyfile.
+2. Move the site blocks from `configs/<ENV>/caddy/Caddyfile` into the stack
+   Caddyfile. Replace `10.10.0.x` backends with container names where the
+   backends share the `reverse_proxy` network.
+3. Point DNS at the app server's `vpn_ip`.
+4. Apply the stack with `compose_deploy`.
+5. Trust the new internal CA root on clients.
+6. Remove `configs/<ENV>/caddy/` and re-provision to make the native role a
+   no-op, or disable the role for that environment.
+
+Do not run both ingress modes against the same hostnames during the
+transition. Move DNS last so clients switch in one step.

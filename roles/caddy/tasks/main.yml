@@ -175,6 +175,7 @@
     - caddy_caddyfile_stat.stat.exists | default(false)
     - caddy_open_firewall
     - caddy_open_https
+    - caddy_open_http3
   community.general.ufw:
     rule: allow
     port: "443"

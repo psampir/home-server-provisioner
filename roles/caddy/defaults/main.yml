@@ -20,4 +20,5 @@ caddy_firewall_from:
   - any
 
 caddy_open_http: true     # 80/tcp  - required for ACME HTTP-01
-caddy_open_https: true    # 443/tcp + 443/udp (HTTP/3)
+caddy_open_https: true    # 443/tcp - HTTPS
+caddy_open_http3: true    # 443/udp - HTTP/3 (QUIC), requires caddy_open_https
