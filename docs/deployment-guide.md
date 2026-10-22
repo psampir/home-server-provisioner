@@ -159,7 +159,7 @@ make provision ENV=prod LIMIT=app-host
 
 To make the source fail when the target is missing, set
 `borgmatic_require_reachable: true` in the source host vars. See
-[docs/backups.md](backups.md#provisioning-order-target-first-source-second).
+[roles/borgmatic/README.md](../roles/borgmatic/README.md#provisioning-order-target-first-source-second).
 
 ## Updating and rollback
 
