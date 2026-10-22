@@ -310,6 +310,16 @@ make lint
 CI runs the same command on every push and pull request. Configuration lives in
 `.ansible-lint`; the workflow is `.github/workflows/ansible-lint.yml`.
 
+### Inspecting a host before provisioning
+
+```bash
+make host HOST=app-1        # inventory variables, obvious secrets redacted
+make plan LIMIT=app-1       # tasks the playbook would run
+```
+
+`make plan` does not evaluate `when:` conditions, so it lists every task in the
+play, including ones that would be skipped on that host.
+
 ## Testing
 
 The project includes tooling for local testing with [Incus](https://linuxcontainers.org/incus/) VMs (Linux only).

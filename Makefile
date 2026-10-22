@@ -44,7 +44,7 @@ WG_KEYS_FLAGS ?=
 
 # --- Ansible ---
 
-.PHONY: bootstrap provision wireguard-keys wireguard-render ssh-config notify-test
+.PHONY: bootstrap provision wireguard-keys wireguard-render ssh-config host plan notify-test
 
 bootstrap: ## First run on fresh hosts (ENV=prod by default)
 	ansible-playbook playbooks/bootstrap.yml -i $(INVENTORY) -e 'ansible_user={{ bootstrap_user }}' $(BOOTSTRAP_FLAGS) $(LIMIT_FLAG)
@@ -54,6 +54,13 @@ provision: wireguard-keys ## Run full site playbook (ENV=prod by default)
 
 ssh-config: ## Regenerate the local ~/.ssh/config.d entry for ENV
 	ansible-playbook playbooks/site.yml -i $(INVENTORY) --limit localhost
+
+host: ## Show inventory variables for HOST, with secrets redacted
+	@test -n "$(HOST)" || { echo "usage: make host HOST=<name>"; exit 2; }
+	@ansible-inventory -i $(INVENTORY) --host $(HOST) | scripts/show-host-vars.py
+
+plan: ## List the tasks the playbook would run for LIMIT
+	ansible-playbook playbooks/site.yml -i $(INVENTORY) $(LIMIT_FLAG) --list-tasks
 
 wireguard-keys: ## Generate/prune WireGuard client keys (vaulted, auto-committed)
 	scripts/wg-ensure-keys.py --inventory $(INVENTORY) $(WG_KEYS_FLAGS)
