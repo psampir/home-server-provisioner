@@ -10,12 +10,23 @@ to **BorgBackup**) in a **push, append-only** topology:
         |               (over WireGuard,        ^
         |                SSH append-only)       |
         |                                  borg prune + compact
-        |                                  (local, scheduled)
+        |                                  hsp-borg-maintenance.timer
+        |                                  hsp-notify on failure
   id_borg keypair  ----- authorized -----> ~borg/.ssh/authorized_keys
                        (forced command:
                         borg serve --append-only
                         --restrict-to-path /srv/borg/<source>)
 ```
+
+`/srv/borg` is the role default. A deployment that keeps backup data on a
+separate disk sets `borg_repo_base`, for example `/srv/data/borg`, and the
+same repository paths are relative to that root. Source directories are
+configurable per host; the diagram uses `/opt/stacks` and `/etc` as
+examples.
+
+The diagram shows the supported layout with a local and an off-site
+target. A deployment can start with one target and add the second later;
+the sample config does that until its off-site host is provisioned.
 
 Two roles cooperate:
 
@@ -224,7 +235,9 @@ automatic).
 
 ## Test environment
 
-`make test-env-create` provisions **five** VMs (`scripts/test-vms.conf`):
+`make test-env-create` provisions **five managed VMs** from
+`scripts/test-vms.conf`, plus a throwaway `hsp-client` fixture for the
+DNS/DHCP lab segment. The fixture is not part of the Ansible inventory.
 
 | VM | Groups | `vpn_ip` |
 | --- | --- | --- |

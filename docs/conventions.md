@@ -1,8 +1,9 @@
 # Conventions
 
 Short, factual rules this repository follows. They are why `ansible-lint`
-(profile `production`) passes without per-rule skips, and why a role's
-interface is readable from its directory alone.
+(profile `production`) passes with only two documented `args[module]`
+exceptions for `community.general.ufw`, and why a role's interface is
+readable from its directory alone.
 
 ## Role names
 
@@ -26,7 +27,7 @@ input to one role. They are intentionally **not** prefixed:
 
 | Name | Consumers | Why it stays unprefixed |
 |---|---|---|
-| `vpn_ip` | `wireguard`, `firewall`, `dnsmasq`, `network_mounts`, stacks | One address per host, read by many roles and written by every inventory. |
+| `vpn_ip` | `wireguard`, `dnsmasq`, `borgmatic`, stacks | One address per host, read by many roles and written by every inventory. |
 | `bootstrap_user` | `bootstrap.yml`, `base`, `admin_user` | The only account that exists before `admin_user` is created. |
 | `ansible_*` | Ansible itself | Connection variables owned by the inventory/Ansible, not by a role. |
 
@@ -43,11 +44,12 @@ reference in docs, inventory examples, and scripts is updated with it.
 
 ## Templates and files
 
-`<role>.<purpose>.<ext>.j2` - `scheduled_jobs.service.j2`,
-`borgmatic.timer-dropin.conf.j2`, `base/templates/99-hsp.conf.j2`. Where the
-rendered target differs from the template name (systemd drop-ins, files
-carrying the `hsp-` prefix), the destination documented in the task and role
-README is the source of truth.
+Prefer `<role>.<purpose>.<ext>.j2` for new templates, for example
+`scheduled_jobs.service.j2`, `borgmatic.timer-dropin.conf.j2`, and
+`base/templates/99-hsp.conf.j2`. Some templates mirror an upstream package
+path instead, such as `ups.conf.j2` or `resolv.conf.j2`; the destination
+documented in the task and role README is the source of truth, not the
+filename convention.
 
 ## Role pairing
 

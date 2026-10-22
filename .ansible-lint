@@ -4,8 +4,10 @@
 # configs/* is gitignored except configs/example, so private environment
 # trees are never linted in a fresh clone. These exclusions are defensive:
 # they keep local/private material out when it exists on a developer machine.
-# Locked to the strictest built-in profile that the repository passes without
-# per-rule skips. Raise only by fixing findings, never by adding ignores.
+# Locked to the strictest built-in profile the repository passes. The only
+# inline exceptions are two args[module] noqa comments for the ufw module,
+# whose direction and policy arguments the linter does not know. Raise only
+# by fixing findings, never by adding ignores.
 profile: production
 
 exclude_paths:
