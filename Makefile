@@ -140,6 +140,13 @@ test-reboot: ## reboot every test VM and verify services persist across reboots
 test-nut: ## test the nut role with the dummy UPS driver (ENV=test)
 	@./scripts/test-nut.sh
 
+# --- Validation ---
+
+.PHONY: validate-stacks
+
+validate-stacks: ## Validate stack image digests/tags (REGISTRY=1 to query registries)
+	@scripts/validate-stacks.py --env "$(ENV)" $(if $(filter 1 yes true,$(REGISTRY)),--check-registry,)
+
 # --- Setup ---
 
 .PHONY: setup init-config lint
