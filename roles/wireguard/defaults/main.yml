@@ -52,12 +52,9 @@ wireguard_persistent_keepalive: 25
 # updated vault into the `configs/<ENV>/` repo for an audit trail.
 wireguard_clients: []
 
-# Map of client name → {privkey, pubkey, psk}. Sourced from the vault.
-# Defaults to an empty dict so dry-runs and the test environment work
-# without any vaulted content. In practice you re-export the vault var:
-#     wireguard_client_keys: "{{ vault_wireguard_client_keys }}"
-# (done automatically in configs/example/inventory/group_vars/all/main.yml).
-wireguard_client_keys: {}
+# Map of client name -> {privkey, pubkey, psk}, sourced from the vault.
+# Defaults to an empty dict when the vault has no client keys yet.
+wireguard_client_keys: "{{ vault_wireguard_client_keys | default({}) }}"
 
 # Default split-tunnel: clients only route the VPN subnet through us.
 # Override per-client with `allowed_ips: 0.0.0.0/0` for full tunnel.

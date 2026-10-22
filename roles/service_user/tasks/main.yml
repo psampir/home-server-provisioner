@@ -10,6 +10,8 @@
     name: "{{ service_user_name }}"
     shell: "{{ service_user_shell }}"
     create_home: true
+    # System UID keeps UID 1000 free for the admin user on a fresh host.
+    system: true
     state: present
 
 - name: Grant passwordless sudo
