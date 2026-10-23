@@ -33,11 +33,24 @@ See `defaults/main.yml` for the full list.
 | `wireguard_hub_ip` | `10.10.0.1` | Hub address inside the VPN |
 | `wireguard_subnet_prefix` | `24` | Prefix length written after each `Address` |
 | `wireguard_client_dns` | `wireguard_hub_ip` | DNS forced into **external client** configs |
+| `wireguard_client_dns_search` | `[]` | Domains appended to the client DNS line; `~domain` enables split DNS with wg-quick |
 | `wireguard_peer_manage_dns` | `false` | Whether wg-quick manages DNS on **server peers** |
 | `wireguard_peer_dns` | `wireguard_hub_ip` | DNS server written to peer configs when the above is true |
 | `wireguard_hub_domain` | `""` | Split-DNS search domain for the hub (peer configs only) |
 
 Per-host: `vpn_ip` is required (`.2`-`.19` by convention).
+Per-client `dns` and `dns_search` entries override the global client DNS
+values.
+
+External client configs render:
+
+```ini
+DNS = {{ wireguard_client_dns }}{% if wireguard_client_dns_search %}, {{ wireguard_client_dns_search | join(', ') }}{% endif %}
+```
+
+Set `wireguard_client_dns_search: ["~gr15"]` for split DNS on wg-quick.
+The `~` prefix is platform-specific; see
+[docs/wireguard-clients.md](../../docs/wireguard-clients.md#dns).
 
 ## DNS on managed peers
 

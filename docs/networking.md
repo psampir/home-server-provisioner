@@ -150,13 +150,19 @@ change to trigger a restart; the **second** `make provision` restarts
 letting `dns_client` write a static file - is what makes re-provisioning
 idempotent.
 
-External clients are different: `client.conf.j2` always emits
-`DNS = {{ wireguard_client_dns }}` and has no `resolvectl` hooks. That sends
-all client DNS queries to the hub resolver, which forwards them upstream.
-It is full DNS through the hub, not split DNS. For split DNS, add a
-domain-scoped setting such as `~home` to the client configuration, or
-configure split DNS in the operating system. The template does not do that
-by default.
+External clients are different: `client.conf.j2` emits a `DNS` line and
+has no `resolvectl` hooks. With an empty `wireguard_client_dns_search`,
+all client DNS queries go to the hub resolver, which forwards them
+upstream. To route only selected domains through the hub, set:
+
+```yaml
+wireguard_client_dns_search:
+  - "~gr15"
+```
+
+`wg-quick` with systemd-resolved treats `~gr15` as a routing domain. The
+iOS and Android WireGuard apps may not support domain-scoped DNS, so check
+the platform before relying on split DNS there.
 
 ## Local records beyond the inventory
 
