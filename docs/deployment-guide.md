@@ -60,7 +60,7 @@ Keep the host on the local network and use its LAN address:
 backup_targets:
   hosts:
     offsite-backup:
-      ansible_host: 192.168.1.50    # local IP while at home
+      ansible_host: 192.168.1.20    # local IP while at home
       bootstrap_user: jan
 ```
 

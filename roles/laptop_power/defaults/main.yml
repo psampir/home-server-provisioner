@@ -10,14 +10,14 @@ laptop_power_lid_switch_external_power: "{{ laptop_power_lid_switch }}"
 laptop_power_lid_switch_docked: "ignore"
 
 # Battery charge limit. Point this at the sysfs attribute exposed by the
-# hardware and set the value it expects. Sony VAIO exposes
+# hardware and set the value it expects. Some Sony laptops expose
 # /sys/devices/platform/sony-laptop/battery_care_limiter with a percentage
 # (50 or 80). Leave the path empty to skip the limit.
 laptop_power_battery_care_sysfs: ""
 laptop_power_battery_care_value: "50"
 
-# Kernel module to load before writing the battery attribute. Sony VAIO
-# uses sony_laptop. Empty means "do not load a module".
+# Kernel module to load before writing the battery attribute. Some Sony
+# laptops use sony_laptop. Empty means "do not load a module".
 laptop_power_battery_care_module: ""
 
 # Where the logind drop-in is written.

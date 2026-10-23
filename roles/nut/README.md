@@ -31,7 +31,7 @@ permissions` even though the device is present. Declare the USB ids in
 
 ```yaml
 nut_ups:
-  - name: greencell
+  - name: main-ups
     driver: blazer_usb
     port: auto
     vendorid: "0001"
@@ -106,15 +106,15 @@ empty password.
 nut_enabled: true
 
 nut_ups:
-  - name: greencell
+  - name: main-ups
     driver: blazer_usb
     port: auto
     vendorid: "0001"
     productid: "0000"
-    desc: "Green Cell UPS"
+    desc: "Main UPS"
 
 nut_monitors:
-  - ups: greencell
+  - ups: main-ups
     host: 127.0.0.1
     powervalue: 1
     user: monuser

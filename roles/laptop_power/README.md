@@ -38,7 +38,7 @@ depend on the hardware. Common examples:
 | Attribute | Typical value | Hardware |
 |---|---|---|
 | `/sys/class/power_supply/BAT0/charge_control_end_threshold` | `50` to `100` | Many modern laptops (ThinkPad, Framework, some Dell and ASUS) |
-| `/sys/devices/platform/sony-laptop/battery_care_limiter` | `50` or `80` | Sony VAIO with the `sony_laptop` module |
+| `/sys/devices/platform/sony-laptop/battery_care_limiter` | `50` or `80` | Sony laptop with the `sony_laptop` module |
 | `/sys/class/power_supply/BAT0/charge_behaviour` | `auto`, `inhibit-charge` | Drivers that expose a behaviour instead of a percentage |
 
 Use the value the driver expects. The role does not translate percentages
@@ -58,7 +58,7 @@ laptop_power_battery_care_sysfs: /sys/class/power_supply/BAT0/charge_control_end
 laptop_power_battery_care_value: "80"
 ```
 
-## Sony VAIO example
+## Sony laptop example
 
 ```yaml
 laptop_power_enabled: true
