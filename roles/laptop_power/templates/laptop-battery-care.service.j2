@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Set the laptop battery charge limit
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+{% if laptop_power_battery_care_module | length > 0 %}
+ExecStartPre=-/sbin/modprobe {{ laptop_power_battery_care_module }}
+{% endif %}
+ExecStart=/bin/sh -c 'printf "%s\n" "{{ laptop_power_battery_care_value }}" > "{{ laptop_power_battery_care_sysfs }}"'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

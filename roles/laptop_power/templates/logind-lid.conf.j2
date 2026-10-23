@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+#
+# Keep the lid switch from suspending the host. This is a headless server:
+# closing the lid must not interrupt backups or containers.
+[Login]
+HandleLidSwitch={{ laptop_power_lid_switch }}
+HandleLidSwitchExternalPower={{ laptop_power_lid_switch_external_power }}
+HandleLidSwitchDocked={{ laptop_power_lid_switch_docked }}

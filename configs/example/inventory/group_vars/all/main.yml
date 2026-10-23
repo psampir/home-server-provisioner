@@ -329,6 +329,22 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 # You normally do NOT need to touch this - set borg_repo_base instead.
 # borgmatic_remote_repo_base: /srv/borg
 
+# --- laptop_power role ---------------------------------------------------------
+# Generic settings for laptops used as servers. Disabled by default.
+# laptop_power_enabled: false
+# laptop_power_lid_switch: ignore
+# laptop_power_lid_switch_external_power: ignore
+# laptop_power_lid_switch_docked: ignore
+#
+# Battery charge limit. Use the sysfs attribute and value exposed by the
+# hardware. Common examples:
+#   /sys/class/power_supply/BAT0/charge_control_end_threshold  (50-100)
+#   /sys/devices/platform/sony-laptop/battery_care_limiter     (50 or 80)
+#   /sys/class/power_supply/BAT0/charge_behaviour              (auto, inhibit-charge)
+# laptop_power_battery_care_sysfs: /sys/class/power_supply/BAT0/charge_control_end_threshold
+# laptop_power_battery_care_value: "80"
+# laptop_power_battery_care_module: ""
+
 # --- journal role --------------------------------------------------------------
 # journal_storage: persistent
 # Empty strings keep systemd defaults.

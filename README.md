@@ -232,6 +232,7 @@ Each role is self-contained. The full list:
 | `hostname` | Sets the host's `/etc/hostname` from the inventory name |
 | `timezone_locale` | Sets timezone and generates locales |
 | `time_sync` | Verifies / configures `systemd-timesyncd` |
+| `laptop_power` | Lid-switch policy and battery charge limit for laptops used as servers |
 | `journal` | Enables persistent journald, optional size/retention limits |
 | `auto_updates` | `unattended-upgrades` for security updates, optional auto-reboot |
 

@@ -1,0 +1,27 @@
+---
+# Laptop power management. Disabled by default and inert on servers.
+laptop_power_enabled: false
+
+# Lid switch behaviour written to a systemd-logind drop-in. Empty means
+# "do not manage the drop-in". Values: ignore, suspend, hibernate,
+# hybrid-sleep, poweroff, lock, kexec.
+laptop_power_lid_switch: ""
+laptop_power_lid_switch_external_power: "{{ laptop_power_lid_switch }}"
+laptop_power_lid_switch_docked: "ignore"
+
+# Battery charge limit. Point this at the sysfs attribute exposed by the
+# hardware and set the value it expects. Sony VAIO exposes
+# /sys/devices/platform/sony-laptop/battery_care_limiter with a percentage
+# (50 or 80). Leave the path empty to skip the limit.
+laptop_power_battery_care_sysfs: ""
+laptop_power_battery_care_value: "50"
+
+# Kernel module to load before writing the battery attribute. Sony VAIO
+# uses sony_laptop. Empty means "do not load a module".
+laptop_power_battery_care_module: ""
+
+# Where the logind drop-in is written.
+laptop_power_logind_dropin: /etc/systemd/logind.conf.d/10-hsp-lid.conf
+
+# Service that reapplies the battery limit at boot.
+laptop_power_battery_service: laptop-battery-care.service

@@ -6,6 +6,7 @@
     - time_sync
     - service_user
     - base
+    - laptop_power
     - nut
     - admin_user
     - admin_dotfiles

@@ -1,0 +1,105 @@
+---
+- name: Stop here when laptop power management is disabled
+  ansible.builtin.meta: end_role
+  when: not laptop_power_enabled
+
+- name: Validate laptop power settings
+  ansible.builtin.assert:
+    that:
+      - laptop_power_lid_switch in ['', 'ignore', 'suspend', 'hibernate', 'hybrid-sleep', 'poweroff', 'lock', 'kexec']
+      - laptop_power_lid_switch_external_power in ['', 'ignore', 'suspend', 'hibernate', 'hybrid-sleep', 'poweroff', 'lock', 'kexec']
+      - laptop_power_lid_switch_docked in ['', 'ignore', 'suspend', 'hibernate', 'hybrid-sleep', 'poweroff', 'lock', 'kexec']
+      - (laptop_power_battery_care_sysfs | length == 0) or (laptop_power_battery_care_value | string | length > 0)
+    fail_msg: >-
+      Invalid laptop_power settings: lid switch values must be one of
+      ignore, suspend, hibernate, hybrid-sleep, poweroff, lock, kexec,
+      or empty to leave the setting unmanaged.
+
+- name: Ensure the logind drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ laptop_power_logind_dropin | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: laptop_power_lid_switch | length > 0
+
+- name: Render the lid switch drop-in
+  ansible.builtin.template:
+    src: logind-lid.conf.j2
+    dest: "{{ laptop_power_logind_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: laptop_power_lid_switch | length > 0
+  notify: Restart systemd-logind
+
+- name: Remove the lid switch drop-in when it is not managed
+  ansible.builtin.file:
+    path: "{{ laptop_power_logind_dropin }}"
+    state: absent
+  when: laptop_power_lid_switch | length == 0
+  notify: Restart systemd-logind
+
+- name: Load the battery care kernel module
+  community.general.modprobe:
+    name: "{{ laptop_power_battery_care_module }}"
+    state: present
+  when: laptop_power_battery_care_module | length > 0
+
+- name: Check the battery care sysfs attribute
+  ansible.builtin.stat:
+    path: "{{ laptop_power_battery_care_sysfs }}"
+  register: laptop_power_battery_stat
+  when: laptop_power_battery_care_sysfs | length > 0
+
+- name: Fail when the configured battery care attribute is missing
+  ansible.builtin.assert:
+    that:
+      - laptop_power_battery_stat.stat.exists | default(false)
+    fail_msg: >-
+      {{ laptop_power_battery_care_sysfs }} does not exist. Check the
+      kernel module and the sysfs path for this laptop model.
+  when: laptop_power_battery_care_sysfs | length > 0
+
+- name: Read the current battery care value
+  ansible.builtin.slurp:
+    src: "{{ laptop_power_battery_care_sysfs }}"
+  register: laptop_power_battery_current
+  when: laptop_power_battery_care_sysfs | length > 0
+
+- name: Apply the battery care limit now
+  ansible.builtin.shell:
+    cmd: >-
+      printf '%s\n' '{{ laptop_power_battery_care_value }}'
+      > '{{ laptop_power_battery_care_sysfs }}'
+  changed_when: true
+  when:
+    - laptop_power_battery_care_sysfs | length > 0
+    - (laptop_power_battery_current.content | default('') | b64decode | trim)
+      != laptop_power_battery_care_value
+
+- name: Render the battery care service
+  ansible.builtin.template:
+    src: laptop-battery-care.service.j2
+    dest: "/etc/systemd/system/{{ laptop_power_battery_service }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: laptop_power_battery_care_sysfs | length > 0
+  notify: Reload systemd for laptop power
+
+- name: Enable and start the battery care service
+  ansible.builtin.systemd:
+    name: "{{ laptop_power_battery_service }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: laptop_power_battery_care_sysfs | length > 0
+
+- name: Remove the battery care service when no attribute is configured
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ laptop_power_battery_service }}"
+    state: absent
+  when: laptop_power_battery_care_sysfs | length == 0
+  notify: Reload systemd for laptop power
