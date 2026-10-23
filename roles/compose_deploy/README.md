@@ -7,8 +7,10 @@ and runs `docker compose up -d`.
 
 - discovers stacks under `configs/<ENV>/stacks/_common/<name>/` and
   `configs/<ENV>/stacks/<hostname>/<name>/`
-- copies each stack directory verbatim, including `.env`, Caddyfiles and
-  `config/` directories
+- copies each stack directory, including `.env`, Caddyfiles and `config/`
+  directories
+- renders deployment `*.j2` files from the stack source on the controller and
+  writes them next to the stack without the `.j2` suffix (the secret-file path)
 - creates any external Docker networks listed in
   `compose_deploy_external_networks` before deploying
 - brings each stack up with `docker compose up -d`
@@ -32,6 +34,7 @@ override, no file-level merge).
 | `compose_deploy_parallel_limit` | `1` | `COMPOSE_PARALLEL_LIMIT` for pull/build concurrency |
 | `compose_deploy_file_mode` | `preserve` | Mode for synced stack files (`preserve` or octal) |
 | `compose_deploy_directory_mode` | `preserve` | Mode for created subdirectories (`preserve` or octal) |
+| `compose_deploy_template_mode` | `0640` | Mode for files rendered from `*.j2` templates |
 
 ## File modes and build contexts
 
@@ -57,6 +60,59 @@ The rendered `.env` file is always written `0640` and is not affected by
 reads it as the deployment user, not as a user inside a build container.
 Never place secrets in a file that must be readable by a non-root build
 user; pass them at runtime instead.
+
+## Secret files and `.j2` templates
+
+Keep secrets out of the stack source. Put them in the Ansible vault and
+reference the `vault_*` variables from a `.j2` file in the stack directory:
+
+```text
+configs/<ENV>/stacks/<host>/<stack>/.env.j2
+```
+
+```jinja
+DB_PASSWORD={{ vault_example_db_password }}
+PUBLIC_URL=https://example.invalid
+```
+
+The role renders deployment templates on the controller with the target
+host's variables (including vault variables) and writes the result to the
+same relative path without the suffix. `.env.j2` becomes `.env`,
+`config/users.j2` becomes `config/users`, and so on. Rendered files use
+`compose_deploy_template_mode` (default `0640`); the `.j2` source itself
+contains only variable references and can be committed.
+
+Only these `.j2` files are rendered:
+
+- top-level files, for example `.env.j2` or `config.conf.j2`
+- files anywhere under `config/` or `secrets/`
+
+Application template directories such as `controller/templates/` are copied
+unchanged and are not rendered. This keeps a stack's own source templates
+safe.
+
+If a rendered file must be readable by a container that runs as another user,
+adjust the stack directory ownership or use a group that both the deploy user
+and the container share. Rendered files default to `0640`; do not weaken that
+for `.env` files.
+
+The recursive copy still syncs the `.j2` files to the host, but only the
+rendered file without the suffix contains values. Do not commit a plaintext
+`.env` next to a `.env.j2`. The role fails the play when it sees both, because
+the rendered file would silently win while the plaintext file still leaked
+into the source tree and git history.
+
+Ansible renders `.j2` files; Docker Compose reads the rendered `.env`:
+
+- `{{ vault_example_password }}` is resolved by Ansible at deploy time.
+- `${EXAMPLE_PORT}` in a compose file is resolved by Compose from `.env`.
+
+Do not use `${...}` inside `.env.j2` for vault values. If a file needs a
+literal `{{` or `{%`, wrap that section in `{% raw %}...{% endraw %}`.
+
+The explicit `stack.env` dict remains supported for small per-host values.
+When both are present, the `.j2` renderer runs after the dict renderer and
+wins.
 
 ## Pull concurrency
 

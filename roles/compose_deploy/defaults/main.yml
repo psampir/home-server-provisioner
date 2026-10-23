@@ -19,8 +19,11 @@ compose_deploy_group: "{{ admin_user_name | default('root') }}"
 # A stack present in both wins from the host-specific directory (full
 # directory override - no file-level merging).
 #
-# Each <stack>/ subtree is copied verbatim to the host, so put any
-# .env / Caddyfile / config/ files right next to compose.yaml.
+# Each <stack>/ subtree is copied to the host, so put any
+# .env / .env.j2 / Caddyfile / config/ files right next to compose.yaml.
+# Deployment .j2 files (top level, or under config/ and secrets/) are
+# rendered on the controller; .env.j2 is the secret path and becomes .env
+# on the host. Application templates in other subdirectories are left alone.
 compose_deploy_src_root: "{{ inventory_dir }}/../stacks"
 compose_deploy_common_subdir: _common
 compose_deploy_host_subdir: "{{ inventory_hostname }}"
@@ -42,7 +45,7 @@ compose_deploy_host_subdir: "{{ inventory_hostname }}"
 #   src_dir: Optional override for the source tree on the controller.
 #            Default: {{ compose_deploy_src_root }}/{{ name }}
 #   env:     Dict rendered into a .env file inside the stack directory.
-#            Auto-discovered stacks ship their own .env as a static file
+#            Auto-discovered stacks normally use .env.j2 or a static .env
 #            inside the stack dir; the templated env is escape-hatch only.
 #
 # Example:
@@ -74,3 +77,7 @@ compose_deploy_file_mode: preserve
 # modes": new directories get the system default and existing ones are left
 # alone. Set an octal mode to enforce one.
 compose_deploy_directory_mode: preserve
+
+# Mode for files rendered from a stack's *.j2 templates. These files usually
+# contain secrets, so keep them private by default.
+compose_deploy_template_mode: "0640"
