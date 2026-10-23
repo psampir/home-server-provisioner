@@ -48,11 +48,11 @@ External client configs render:
 DNS = {{ wireguard_client_dns }}{% if wireguard_client_dns_search %}, {{ wireguard_client_dns_search | join(', ') }}{% endif %}
 ```
 
-Set `wireguard_client_dns_search: ["~gr15"]` for split DNS on wg-quick.
+Set `wireguard_client_dns_search: ["~home"]` for split DNS on wg-quick.
 The `~` prefix is platform-specific; see
 [docs/wireguard-clients.md](../../docs/wireguard-clients.md#dns).
 
-The Android app rejects `~gr15` in `DNS` with `Cannot parse IP address`.
+The Android app rejects `~home` in `DNS` with `Cannot parse IP address`.
 Set a per-client `dns_search: []` for Android (and any app that rejects the
 line); those clients then use the hub resolver for all names.
 

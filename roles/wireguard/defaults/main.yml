@@ -64,7 +64,7 @@ wireguard_client_dns: "{{ wireguard_hub_ip }}"
 
 # DNS search/routing domains appended to the client DNS line. On wg-quick,
 # prefix a domain with `~` to route only that domain through the tunnel
-# (split DNS), for example ["~gr15"]. Empty keeps the line server-only.
+# (split DNS), for example ["~home"]. Empty keeps the line server-only.
 # Client entries may override this with their own `dns_search` list.
 wireguard_client_dns_search: []
 

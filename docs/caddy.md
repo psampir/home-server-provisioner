@@ -108,7 +108,7 @@ networks:
 Caddy then uses the backend's container name, not its host address:
 
 ```caddy
-immich.gr15 {
+immich.home {
     tls internal
     reverse_proxy immich_server:2283
 }
@@ -126,7 +126,7 @@ backend's `container_name` and the port it listens on inside the container.
     }
 }
 
-immich.gr15 {
+immich.home {
     tls {
         issuer internal {
             ca internal
@@ -135,7 +135,7 @@ immich.gr15 {
     reverse_proxy immich_server:2283
 }
 
-joplin.gr15 {
+joplin.home {
     tls {
         issuer internal {
             ca internal
@@ -197,10 +197,10 @@ chain. See [roles/firewall/README.md](../roles/firewall/README.md#docker-bypasse
 
 ```yaml
 dnsmasq_extra_addresses:
-  - { name: gr15, ip: 10.10.0.2 }
+  - { name: home, ip: 10.10.0.2 }
 ```
 
-This answers every `*.gr15` query from VPN peers with the app server's VPN
+This answers every `*.home` query from VPN peers with the app server's VPN
 address. The name does not need a per-host record.
 
 LAN clients cannot use the hub resolver: the hub is a VPS, it is not on the
@@ -513,8 +513,8 @@ own rules before UFW. Change the `ports` binding in `compose.yaml`, not
 Check from the client:
 
 ```bash
-getent hosts immich.gr15
-resolvectl query immich.gr15
+getent hosts immich.home
+resolvectl query immich.home
 ```
 
 VPN peers should receive the app server's `vpn_ip`. LAN clients should
