@@ -157,10 +157,10 @@ upstream. To route only selected domains through the hub, set:
 
 ```yaml
 wireguard_client_dns_search:
-  - "~gr15"
+  - "~home"
 ```
 
-`wg-quick` with systemd-resolved treats `~gr15` as a routing domain. The
+`wg-quick` with systemd-resolved treats `~home` as a routing domain. The
 iOS and Android WireGuard apps may not support domain-scoped DNS, so check
 the platform before relying on split DNS there.
 
@@ -198,10 +198,10 @@ is a one-liner:
 
 ```yaml
 dnsmasq_extra_addresses:
-  - { name: gr15, ip: 10.10.0.2 }   # renders: address=/gr15/10.10.0.2
+  - { name: home, ip: 10.10.0.2 }   # renders: address=/home/10.10.0.2
 ```
 
-That resolves `gr15` and every `*.gr15` name to `10.10.0.2`; Caddy on
+That resolves `home` and every `*.home` name to `10.10.0.2`; Caddy on
 that host then dispatches by `Host` header. No wildcard syntax is needed.
 
 ## Firewall interaction

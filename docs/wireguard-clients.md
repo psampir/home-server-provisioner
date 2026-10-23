@@ -190,18 +190,18 @@ For split DNS, set `wireguard_client_dns_search`:
 
 ```yaml
 wireguard_client_dns_search:
-  - "~gr15"
+  - "~home"
 ```
 
 The generated line is:
 
 ```ini
-DNS = 10.10.0.1, ~gr15
+DNS = 10.10.0.1, ~home
 ```
 
 On `wg-quick` with systemd-resolved, `~` marks a routing domain: only
-`gr15` queries go to the hub, and other names use the device resolver.
-The Android app rejects `~gr15` with `Cannot parse IP address`; set
+`home` queries go to the hub, and other names use the device resolver.
+The Android app rejects `~home` with `Cannot parse IP address`; set
 `dns_search: []` on those clients. They then use `DNS = 10.10.0.1` for all
 names. iOS and macOS may also not support domain-scoped DNS. Strict split
 DNS on mobile needs a local DNS proxy outside this toolkit. Per-client

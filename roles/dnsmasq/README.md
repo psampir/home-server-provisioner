@@ -27,7 +27,7 @@ See `defaults/main.yml`. Common knobs: `dnsmasq_domain`,
 `dnsmasq_extra_hosts`, `dnsmasq_extra_addresses`, `dnsmasq_log_queries`.
 
 `dnsmasq_extra_addresses` is the usual way to point a whole domain at one
-host, for example `{ name: gr15, ip: 10.10.0.2 }` to answer every `*.gr15`
+host, for example `{ name: home, ip: 10.10.0.2 }` to answer every `*.home`
 name with the app server's VPN address. Use addresses that VPN peers can
 reach; the hub does not route to the home LAN.
 
