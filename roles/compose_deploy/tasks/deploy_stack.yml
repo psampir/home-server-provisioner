@@ -28,6 +28,27 @@
         group: "{{ compose_deploy_group }}"
         mode: "0750"
 
+    - name: "Check for conflicting .env sources - {{ stack.name }}"
+      delegate_to: localhost
+      become: false
+      ansible.builtin.find:
+        paths: "{{ stack.src_dir | default(compose_deploy_src_root + '/' + stack.name) }}"
+        patterns:
+          - ".env"
+          - ".env.j2"
+        recurse: false
+        file_type: file
+        hidden: true
+      register: compose_deploy_stack_env_sources
+
+    - name: "Fail when both .env and .env.j2 exist - {{ stack.name }}"
+      ansible.builtin.fail:
+        msg: >-
+          Stack {{ stack.name }} has both .env and .env.j2 in
+          {{ stack.src_dir | default(compose_deploy_src_root + '/' + stack.name) }}.
+          Keep secrets in .env.j2 and delete the plaintext .env.
+      when: compose_deploy_stack_env_sources.matched | int > 1
+
     - name: "Sync stack files from controller - {{ stack.name }}"
       ansible.builtin.copy:
         src: "{{ stack.src_dir | default(compose_deploy_src_root + '/' + stack.name) }}/"
@@ -47,6 +68,42 @@
         group: "{{ compose_deploy_group }}"
         mode: "0640"
       when: stack.env | default({}) | length > 0
+
+    # Files ending in .j2 are rendered on the controller with the target's
+    # variables and copied to the same relative path without the suffix.
+    # This is the secret-file path: .env.j2 and config/users.j2 contain only
+    # vault references, while the rendered files stay 0640 on the host.
+    - name: "Discover stack templates - {{ stack.name }}"
+      delegate_to: localhost
+      become: false
+      ansible.builtin.find:
+        paths: "{{ stack.src_dir | default(compose_deploy_src_root + '/' + stack.name) }}"
+        patterns: "*.j2"
+        recurse: true
+        file_type: file
+        hidden: true
+      register: compose_deploy_stack_templates
+
+    - name: "Render stack templates - {{ stack.name }}"
+      vars:
+        _stack_src: "{{ stack.src_dir | default(compose_deploy_src_root + '/' + stack.name) }}"
+        _template_rel: "{{ item.path | relpath(_stack_src) }}"
+      ansible.builtin.copy:
+        content: "{{ lookup('template', item.path) }}"
+        dest: "{{ compose_deploy_base_dir }}/{{ stack.name }}/{{ _template_rel | regex_replace('[.]j2$', '') }}"
+        owner: "{{ compose_deploy_owner }}"
+        group: "{{ compose_deploy_group }}"
+        mode: "{{ compose_deploy_template_mode }}"
+      loop: "{{ compose_deploy_stack_templates.files | default([]) }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+      # Do not render application templates that happen to live in the stack
+      # source (for example bta/controller/templates/*.j2). Only the stack
+      # root and the config/ and secrets/ trees are deployment secrets.
+      when: >
+        _template_rel is match('^[^/]+[.]j2$')
+        or _template_rel is match('^(config|secrets)/.+[.]j2$')
+      no_log: true
 
     - name: "Bring stack up - {{ stack.name }}"
       environment:
