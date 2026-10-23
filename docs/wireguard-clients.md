@@ -201,8 +201,10 @@ DNS = 10.10.0.1, ~gr15
 
 On `wg-quick` with systemd-resolved, `~` marks a routing domain: only
 `gr15` queries go to the hub, and other names use the device resolver.
-The iOS and Android WireGuard apps may not honour domain-scoped DNS; on
-those platforms the VPN resolver may still receive all queries. Per-client
+The Android app rejects `~gr15` with `Cannot parse IP address`; set
+`dns_search: []` on those clients. They then use `DNS = 10.10.0.1` for all
+names. iOS and macOS may also not support domain-scoped DNS. Strict split
+DNS on mobile needs a local DNS proxy outside this toolkit. Per-client
 `dns` and `dns_search` entries override the global values.
 
 Set `wireguard_client_dns` to another address if you want clients to use
