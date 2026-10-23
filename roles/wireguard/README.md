@@ -52,6 +52,10 @@ Set `wireguard_client_dns_search: ["~gr15"]` for split DNS on wg-quick.
 The `~` prefix is platform-specific; see
 [docs/wireguard-clients.md](../../docs/wireguard-clients.md#dns).
 
+The Android app rejects `~gr15` in `DNS` with `Cannot parse IP address`.
+Set a per-client `dns_search: []` for Android (and any app that rejects the
+line); those clients then use the hub resolver for all names.
+
 ## DNS on managed peers
 
 `wireguard_peer_manage_dns` controls whether the peer template emits a
