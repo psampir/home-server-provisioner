@@ -186,11 +186,24 @@ queries to the hub resolver, which forwards non-local names upstream. This
 is full DNS through the hub, not split DNS: the device does not keep using
 its normal resolver for public names.
 
-For split DNS, add a domain-scoped DNS setting to the client configuration,
-for example `DNS = 10.10.0.1 ~home`, so only `home` queries go to the hub.
-`wg-quick` passes that setting to the platform resolver; support and syntax
-depend on the operating system. The template does not add a scope by
-default.
+For split DNS, set `wireguard_client_dns_search`:
+
+```yaml
+wireguard_client_dns_search:
+  - "~gr15"
+```
+
+The generated line is:
+
+```ini
+DNS = 10.10.0.1, ~gr15
+```
+
+On `wg-quick` with systemd-resolved, `~` marks a routing domain: only
+`gr15` queries go to the hub, and other names use the device resolver.
+The iOS and Android WireGuard apps may not honour domain-scoped DNS; on
+those platforms the VPN resolver may still receive all queries. Per-client
+`dns` and `dns_search` entries override the global values.
 
 Set `wireguard_client_dns` to another address if you want clients to use
 a different resolver, but if it is behind the tunnel, remember that it

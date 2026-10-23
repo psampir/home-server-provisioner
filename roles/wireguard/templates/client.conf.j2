@@ -3,7 +3,9 @@
 [Interface]
 PrivateKey = {{ keys.privkey }}
 Address    = {{ item.vpn_ip }}/32
-DNS        = {{ wireguard_client_dns }}
+{% set client_dns = item.dns | default(wireguard_client_dns) %}
+{% set client_dns_search = item.dns_search | default(wireguard_client_dns_search) %}
+DNS        = {{ ([client_dns] + client_dns_search) | join(', ') }}
 
 [Peer]
 PublicKey           = {{ hostvars[wireguard_hub_host].wireguard_pubkey }}

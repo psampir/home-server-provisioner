@@ -62,6 +62,12 @@ wireguard_client_default_allowed_ips: "{{ wireguard_subnet }}"
 # DNS pushed to clients via their generated .conf
 wireguard_client_dns: "{{ wireguard_hub_ip }}"
 
+# DNS search/routing domains appended to the client DNS line. On wg-quick,
+# prefix a domain with `~` to route only that domain through the tunnel
+# (split DNS), for example ["~gr15"]. Empty keeps the line server-only.
+# Client entries may override this with their own `dns_search` list.
+wireguard_client_dns_search: []
+
 # Whether wg-quick manages DNS for server peers. Off by default: app_servers
 # run dns_client, which masks systemd-resolved, so wg-quick's resolvconf call
 # would fail on every re-provision. External clients are unaffected.
