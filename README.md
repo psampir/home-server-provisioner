@@ -128,6 +128,16 @@ make provision              # ENV=prod by default
 
 Runs the full provisioning playbook as the `ansible` user. Safe to re-run - all tasks are idempotent.
 
+### 5. Deploy only Compose stacks
+
+```bash
+make stacks ENV=prod LIMIT=app1
+```
+
+Runs only the `compose_deploy` role. Use this to apply stack, `.env.j2` or
+`Caddyfile.j2` changes without running the full system provisioning. Docker
+and the external networks must already exist on the host.
+
 ### Multiple environments
 
 Every command takes an `ENV=<name>` override. Each environment is a self-contained tree under `configs/<name>/`:
@@ -362,6 +372,7 @@ build container must read. See
 | `make init-config ENV=prod` | Create `configs/prod/` from the example tree |
 | `make bootstrap ENV=prod` | First run on fresh hosts |
 | `make provision ENV=prod` | Full site play |
+| `make stacks ENV=prod LIMIT=<host>` | Deploy only Compose stacks |
 | `make ssh-config ENV=prod` | Regenerate the controller's `~/.ssh/config.d/` entry |
 | `make host HOST=<name>` | Show inventory variables, with secrets redacted |
 | `make plan LIMIT=<host>` | List the tasks that would run |
