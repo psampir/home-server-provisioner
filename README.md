@@ -387,6 +387,7 @@ build container must read. See
 | `make test-local` | Fast local tests: `.j2` rendering, Makefile wiring, vault rekey |
 | `make notify-test HOST=<host>` | Send an `hsp-notify` smoke test |
 | `make test-local` | Fast local tests, no Incus or Docker |
+| `make test-borgmatic` | Test borgmatic host override, lz4, hooks and OnFailure |
 | `make test-env-create`, `test-env-status`, `test-env-destroy` | Manage the Incus test VMs |
 | `make test-bootstrap`, `test-provision`, `test-wireguard-render`, `test-nut`, `test-smoke`, `test-reboot` | Test suites |
 | `make validate-stacks ENV=prod` | Validate stack image digests and tags |
