@@ -7,10 +7,12 @@
       register: compose_deploy_stack_dir
 
     - name: "Stop and remove containers - {{ stack.name }}"
+      when:
+        - compose_deploy_stack_dir.stat.exists
+        - not compose_deploy_skip_docker
       community.docker.docker_compose_v2:
         project_src: "{{ compose_deploy_base_dir }}/{{ stack.name }}"
         state: absent
-      when: compose_deploy_stack_dir.stat.exists
 
     - name: "Remove stack directory - {{ stack.name }}"
       ansible.builtin.file:
@@ -106,6 +108,7 @@
       no_log: true
 
     - name: "Bring stack up - {{ stack.name }}"
+      when: not compose_deploy_skip_docker
       environment:
         COMPOSE_PARALLEL_LIMIT: "{{ compose_deploy_parallel_limit }}"
       community.docker.docker_compose_v2:

@@ -384,7 +384,9 @@ build container must read. See
 | `make wireguard-render ENV=prod` | Render client `.conf` and QR code into `build/` |
 | `make vault-init`, `vault-edit`, `vault-view`, `vault-encrypt`, `vault-rekey` | Vault lifecycle |
 | `make vault-decrypt ENV=prod` | Decrypt the vault in place; dangerous, avoid on shared hosts |
+| `make test-local` | Fast local tests: `.j2` rendering, Makefile wiring, vault rekey |
 | `make notify-test HOST=<host>` | Send an `hsp-notify` smoke test |
+| `make test-local` | Fast local tests, no Incus or Docker |
 | `make test-env-create`, `test-env-status`, `test-env-destroy` | Manage the Incus test VMs |
 | `make test-bootstrap`, `test-provision`, `test-wireguard-render`, `test-nut`, `test-smoke`, `test-reboot` | Test suites |
 | `make validate-stacks ENV=prod` | Validate stack image digests and tags |

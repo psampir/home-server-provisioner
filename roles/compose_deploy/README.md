@@ -35,6 +35,7 @@ override, no file-level merge).
 | `compose_deploy_file_mode` | `preserve` | Mode for synced stack files (`preserve` or octal) |
 | `compose_deploy_directory_mode` | `preserve` | Mode for created subdirectories (`preserve` or octal) |
 | `compose_deploy_template_mode` | `0640` | Mode for files rendered from `*.j2` templates |
+| `compose_deploy_skip_docker` | `false` | Skip Docker install/network/up steps; for local file and render tests |
 
 ## File modes and build contexts
 

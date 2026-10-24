@@ -124,6 +124,21 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 	trap - 0 1 2 3 15; \
 	echo "Rekeyed $(VAULT_FILE); updated $$old"
 
+# --- Local tests (no VMs, no Docker) ---
+
+.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey
+
+test-local: test-makefile test-compose-deploy test-vault-rekey ## Run fast local tests
+
+test-makefile: ## Test Makefile target wiring
+	python3 tests/test_makefile.py
+
+test-compose-deploy: ## Test compose_deploy .j2 rendering and conflict guardrail
+	python3 tests/test_compose_deploy.py
+
+test-vault-rekey: ## Test vault-rekey on a temporary environment
+	python3 tests/test_vault_rekey.py
+
 # --- Test environment ---
 #
 # Test env is just ENV=test with a pre-built configs/test/ tree that is
