@@ -199,6 +199,7 @@ package ever moves to 2.x, that block needs migrating.
 | `borgmatic_require_reachable` | `false` | Fail provisioning when the reachability preflight cannot read a repository. |
 | `borgmatic_preflight_timeout` | `60` | Seconds before one repository probe is aborted. |
 | `borgmatic_exclude_patterns` | `[]` | Borg `--exclude` patterns. |
+| `borgmatic_compression` | `auto,lz4` | Borg compression for new archives. |
 
 ## Repository entry forms
 
@@ -213,6 +214,7 @@ borgmatic_repositories:
   #   <borg_repo_base>/<this_host>/main  on the target, where borg_repo_base
   #   is the target's setting (default /srv/borg).
   - target: hsp-backup
+    host: 192.0.2.10            # optional; defaults to the target's vpn_ip
     path: main
     label: offsite
     retention:                # optional; overrides borgmatic_keep_*

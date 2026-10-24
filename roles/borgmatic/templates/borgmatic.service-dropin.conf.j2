@@ -1,7 +1,11 @@
 # {{ ansible_managed }}
+[Unit]
+# OnFailure= is a [Unit] directive. Putting it in [Service] makes systemd
+# silently ignore it.
+OnFailure=hsp-notify-failure@%n.service
+
 [Service]
 # Run create-only: prune/compact happen server-side (append-only repos).
 ExecStart=
 ExecStart=/usr/bin/borgmatic create --stats --verbosity 0
 EnvironmentFile={{ borgmatic_env_path }}
-OnFailure=hsp-notify-failure@%n.service
