@@ -155,6 +155,10 @@ Sensitive material (WireGuard client private keys and PSKs) lives in
 [ansible-vault](https://docs.ansible.com/ansible/latest/vault_guide/index.html).
 You never edit this file by hand - it is auto-managed.
 
+`make vault-rekey ENV=<name>` prompts for a new password, re-encrypts the
+vault, and replaces `.vault_pass` with the new password (mode 600). Commit
+the changed vault file afterwards; `.vault_pass` remains gitignored.
+
 **Setup (one-time, per environment):**
 
 ```bash

@@ -106,8 +106,23 @@ vault-encrypt: ## Encrypt a plain-text vault file in place (one-time)
 vault-decrypt: ## Decrypt $(VAULT_FILE) to plain text in place (DANGEROUS)
 	ansible-vault decrypt $(VAULT_FILE)
 
-vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password
-	ansible-vault rekey $(VAULT_FILE)
+vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pass)
+	@old="$(ENV_DIR)/.vault_pass"; new="$$(mktemp)"; \
+	trap 'stty echo; rm -f "$$new"' 0 1 2 3 15; \
+	stty -echo; \
+	printf "New vault password for ENV=$(ENV): "; read -r pw; echo; \
+	printf "Confirm new vault password: "; read -r pw2; echo; \
+	stty echo; \
+	if [ -z "$$pw" ]; then echo "Empty password; aborting."; exit 1; fi; \
+	if [ "$$pw" != "$$pw2" ]; then echo "Passwords do not match; aborting."; exit 1; fi; \
+	printf "%s" "$$pw" > "$$new"; chmod 600 "$$new"; \
+	env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-vault rekey \
+		--vault-password-file "$$old" \
+		--new-vault-password-file "$$new" \
+		"$(VAULT_FILE)"; \
+	mv "$$new" "$$old"; chmod 600 "$$old"; \
+	trap - 0 1 2 3 15; \
+	echo "Rekeyed $(VAULT_FILE); updated $$old"
 
 # --- Test environment ---
 #
