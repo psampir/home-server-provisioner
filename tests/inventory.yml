@@ -1,0 +1,7 @@
+---
+all:
+  hosts:
+    test-target:
+      ansible_connection: local
+      vpn_ip: 192.0.2.99
+      borg_repo_base: /srv/borg

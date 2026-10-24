@@ -126,9 +126,9 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 # --- Local tests (no VMs, no Docker) ---
 
-.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey
+.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic
 
-test-local: test-makefile test-compose-deploy test-vault-rekey ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -138,6 +138,9 @@ test-compose-deploy: ## Test compose_deploy .j2 rendering and conflict guardrail
 
 test-vault-rekey: ## Test vault-rekey on a temporary environment
 	python3 tests/test_vault_rekey.py
+
+test-borgmatic: ## Test borgmatic host override, lz4 and OnFailure placement
+	env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i tests/inventory.yml tests/borgmatic.yml
 
 # --- Test environment ---
 #

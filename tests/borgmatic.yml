@@ -1,0 +1,56 @@
+---
+- name: Render borgmatic templates
+  hosts: test-target
+  gather_facts: false
+  become: false
+  vars:
+    borgmatic_source_directories:
+      - /srv/data
+    borgmatic_repositories:
+      - target: test-target
+        host: 192.0.2.10
+        path: main
+        label: local
+    borgmatic_compression: auto,lz4
+    borgmatic_exclude_patterns:
+      - /srv/data/live
+    borgmatic_before_everything_commands:
+      - /usr/local/bin/hsp-db-dump
+    borgmatic_before_backup_commands: []
+    borgmatic_after_backup_commands: []
+    borgmatic_on_error_commands: []
+    borgmatic_after_everything_commands: []
+    borgmatic_notify_on_failure: true
+    borgmatic_notify_on_success: false
+    borgmatic_notify_wrapper_path: /usr/local/bin/hsp-borgmatic-notify
+    borgmatic_env_path: /etc/borgmatic/borgmatic.env
+    borgmatic_ssh_command: "ssh -i /root/.ssh/id_borg"
+    borgmatic_remote_user: borg
+    borgmatic_remote_repo_base: /srv/borg
+  tasks:
+    - name: Render the borgmatic configuration
+      ansible.builtin.set_fact:
+        borgmatic_test_config: >-
+          {{ lookup('template', playbook_dir + '/../roles/borgmatic/templates/config.yaml.j2') }}
+
+    - name: Assert the rendered repository, compression and hooks
+      ansible.builtin.assert:
+        that:
+          - "'ssh://borg@192.0.2.10/srv/borg/test-target/main' in borgmatic_test_config"
+          - "'compression: auto,lz4' in borgmatic_test_config"
+          - "'before_everything:' in borgmatic_test_config"
+          - "'/usr/local/bin/hsp-db-dump' in borgmatic_test_config"
+          - "'/srv/data/live' in borgmatic_test_config"
+          - "'/usr/local/bin/hsp-borgmatic-notify failure' in borgmatic_test_config"
+
+    - name: Render the service drop-in
+      ansible.builtin.set_fact:
+        borgmatic_test_service: >-
+          {{ lookup('template', playbook_dir + '/../roles/borgmatic/templates/borgmatic.service-dropin.conf.j2') }}
+
+    - name: Assert OnFailure is in the Unit section only
+      ansible.builtin.assert:
+        that:
+          - "'OnFailure=hsp-notify-failure@%n.service' in borgmatic_test_service"
+          - "borgmatic_test_service.splitlines() | select('search', '^OnFailure=hsp-notify-failure@') | list | length == 1"
+          - "borgmatic_test_service.find('OnFailure=hsp-notify-failure@') < borgmatic_test_service.find('\\n[Service]\\n')"
