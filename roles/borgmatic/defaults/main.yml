@@ -32,6 +32,7 @@ borgmatic_exclude_patterns: []
 #
 # Managed-target entry (primary form):
 #   - target: hsp-backup        # inventory host running the borg_repo role
+#     host: 192.0.2.10         # optional address override; defaults to vpn_ip
 #     path: main                # repo dir name; the final repo lives at
 #                               #   <borg_repo_base>/<this_host>/<path> on
 #                               #   the target (borg_repo_base defaults to
@@ -95,6 +96,12 @@ borgmatic_remote_repo_base: /srv/borg
 # over WireGuard). Tighten StrictHostKeyChecking to "yes" once known_hosts
 # is seeded if you prefer.
 borgmatic_ssh_command: "ssh -i {{ borgmatic_ssh_key_path }} -o StrictHostKeyChecking=accept-new"
+
+# Borg compression for new archives. lz4 is a good default for media-heavy
+# homelab data: zstd spends CPU without shrinking already-compressed photos
+# and videos. Set to "auto,zstd,3" or an explicit compressor if the source
+# data is mostly text.
+borgmatic_compression: "auto,lz4"
 
 # Dedicated SSH keypair for backup pushes (host-local, regenerable, never
 # vaulted - the target re-authorizes it on the next provision).

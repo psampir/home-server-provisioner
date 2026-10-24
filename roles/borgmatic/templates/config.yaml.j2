@@ -15,7 +15,7 @@ repositories:
     - path: {{ repo.url }}
       label: {{ repo.label | default(repo.url | basename) }}
 {% else %}
-    - path: "ssh://{{ borgmatic_remote_user }}@{{ hostvars[repo.target].vpn_ip }}{{ hostvars[repo.target].borg_repo_base | default(borgmatic_remote_repo_base) }}/{{ inventory_hostname }}/{{ repo.path }}"
+    - path: "ssh://{{ borgmatic_remote_user }}@{{ repo.host | default(hostvars[repo.target].vpn_ip) }}{{ hostvars[repo.target].borg_repo_base | default(borgmatic_remote_repo_base) }}/{{ inventory_hostname }}/{{ repo.path }}"
       label: {{ repo.label | default(repo.path) }}
 {% endif %}
 {% endfor %}
@@ -26,6 +26,7 @@ repositories:
 encryption_passphrase: ${BORG_PASSPHRASE}
 
 ssh_command: {{ borgmatic_ssh_command }}
+compression: {{ borgmatic_compression }}
 
 {% if borgmatic_exclude_patterns | length > 0 %}
 exclude_patterns:
