@@ -1,0 +1,5 @@
+---
+- name: Deploy Docker Compose stacks
+  hosts: app_servers
+  roles:
+    - compose_deploy
