@@ -1,4 +1,5 @@
 - name: Install Docker SDK for Python (docker_compose_v2 prereq)
+  when: not compose_deploy_skip_docker
   ansible.builtin.apt:
     name: python3-docker
     state: present
@@ -73,11 +74,13 @@
       compose_deploy_stacks explicitly) to deploy something.
 
 - name: Ensure external Docker networks exist
+  when:
+    - compose_deploy_external_networks | length > 0
+    - not compose_deploy_skip_docker
   community.docker.docker_network:
     name: "{{ item }}"
     state: present
   loop: "{{ compose_deploy_external_networks }}"
-  when: compose_deploy_external_networks | length > 0
 
 - name: Deploy compose stacks
   ansible.builtin.include_tasks: deploy_stack.yml

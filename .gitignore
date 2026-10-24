@@ -18,6 +18,9 @@ scripts/*.conf
 # Local environment overrides
 .env
 
+# The compose_deploy conflict fixture intentionally contains a plaintext .env.
+!tests/fixtures/compose_deploy/conflict-stack/.env
+
 # Per-environment config trees (each has its own private git repo).
 # configs/example/ is the template tracked here; everything else is private.
 configs/*

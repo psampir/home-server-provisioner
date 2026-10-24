@@ -1,0 +1,92 @@
+---
+- name: Render compose deployment templates
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: false
+  vars_files:
+    - "{{ test_vault_file }}"
+  vars:
+    compose_deploy_base_dir: "{{ test_root }}/secret-out"
+    compose_deploy_src_root: "{{ playbook_dir }}/fixtures/compose_deploy"
+    compose_deploy_owner: "{{ ansible_user_id }}"
+    compose_deploy_group: "{{ ansible_user_gid }}"
+    compose_deploy_external_networks: []
+    compose_deploy_skip_docker: true
+    compose_deploy_stacks:
+      - name: secret-stack
+        src_dir: "{{ playbook_dir }}/fixtures/compose_deploy/secret-stack"
+  tasks:
+    - name: Deploy the fixture stack
+      ansible.builtin.include_role:
+        name: compose_deploy
+
+    - name: Stat rendered and template files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ compose_deploy_base_dir }}/secret-stack/.env"
+        - "{{ compose_deploy_base_dir }}/secret-stack/config/users"
+        - "{{ compose_deploy_base_dir }}/secret-stack/config.conf"
+        - "{{ compose_deploy_base_dir }}/secret-stack/.env.j2"
+        - "{{ compose_deploy_base_dir }}/secret-stack/app/templates/keep.j2"
+        - "{{ compose_deploy_base_dir }}/secret-stack/app/templates/keep"
+      register: compose_test_stats
+
+    - name: Assert rendered files, modes and unrendered application templates
+      ansible.builtin.assert:
+        that:
+          - compose_test_stats.results[0].stat.exists
+          - compose_test_stats.results[0].stat.mode == '0640'
+          - compose_test_stats.results[1].stat.exists
+          - compose_test_stats.results[1].stat.mode == '0640'
+          - compose_test_stats.results[2].stat.exists
+          - compose_test_stats.results[2].stat.mode == '0640'
+          - compose_test_stats.results[3].stat.exists
+          - compose_test_stats.results[4].stat.exists
+          - not compose_test_stats.results[5].stat.exists
+
+    - name: Read rendered deployment files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - "{{ compose_deploy_base_dir }}/secret-stack/.env"
+        - "{{ compose_deploy_base_dir }}/secret-stack/config/users"
+        - "{{ compose_deploy_base_dir }}/secret-stack/config.conf"
+      register: compose_test_contents
+
+    - name: Assert rendered content came from the vault
+      ansible.builtin.assert:
+        that:
+          - "'PLAIN=value' in (compose_test_contents.results[0].content | b64decode)"
+          - "'SECRET=' ~ test_secret in (compose_test_contents.results[0].content | b64decode)"
+          - "'user:' ~ test_secret in (compose_test_contents.results[1].content | b64decode)"
+          - "'password = ' ~ test_secret in (compose_test_contents.results[2].content | b64decode)"
+
+- name: Reject conflicting environment sources
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: false
+  vars:
+    compose_deploy_base_dir: "{{ test_root }}/conflict-out"
+    compose_deploy_src_root: "{{ playbook_dir }}/fixtures/compose_deploy"
+    compose_deploy_owner: "{{ ansible_user_id }}"
+    compose_deploy_group: "{{ ansible_user_gid }}"
+    compose_deploy_external_networks: []
+    compose_deploy_skip_docker: true
+    compose_deploy_stacks:
+      - name: conflict-stack
+        src_dir: "{{ playbook_dir }}/fixtures/compose_deploy/conflict-stack"
+  tasks:
+    - name: Expect the conflict guardrail to fail the role
+      block:
+        - name: Deploy the conflicting stack
+          ansible.builtin.include_role:
+            name: compose_deploy
+      rescue:
+        - name: Assert the guardrail message
+          ansible.builtin.assert:
+            that:
+              - ansible_failed_result is defined
+              - "'both .env and .env.j2' in (ansible_failed_result.msg | default(''))"

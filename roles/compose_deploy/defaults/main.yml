@@ -81,3 +81,8 @@ compose_deploy_directory_mode: preserve
 # Mode for files rendered from a stack's *.j2 templates. These files usually
 # contain secrets, so keep them private by default.
 compose_deploy_template_mode: "0640"
+
+# Skip all Docker operations (SDK install, external networks, compose up)
+# while still syncing and rendering stack files. Intended for local role
+# tests; do not use for a real deployment.
+compose_deploy_skip_docker: false
