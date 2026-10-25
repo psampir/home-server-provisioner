@@ -126,9 +126,9 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 # --- Local tests (no VMs, no Docker) ---
 
-.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic
+.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config
 
-test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -141,6 +141,12 @@ test-vault-rekey: ## Test vault-rekey on a temporary environment
 
 test-borgmatic: ## Test borgmatic host override, lz4 and OnFailure placement
 	env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i tests/inventory.yml tests/borgmatic.yml
+
+test-borg-repo: ## Test borg_repo integrity check templates
+	env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i tests/inventory.yml tests/borg_repo.yml
+
+test-ssh-config: ## Test generated SSH aliases (VPN first, LAN alias)
+	env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i tests/inventory_ssh.yml tests/ssh_config.yml
 
 # --- Test environment ---
 #

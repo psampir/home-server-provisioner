@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# Monthly integrity check for append-only borg repos. Runs as the borg user
+# with BORG_PASSPHRASE supplied by the systemd EnvironmentFile. Unlike the
+# maintenance pass this reads archive manifests, so it is scheduled separately.
+# Any failure exits non-zero so the unit's OnFailure= hook notifies via
+# hsp-notify.
+set -euo pipefail
+
+{% for r in borg_repo_repos | sort(attribute='repo_path') %}
+echo "==> check {{ r.repo_path }}"
+borg check{% if borg_repo_check_repository_only %} --repository-only{% endif %}{% if borg_repo_check_verify_data %} --verify-data{% endif %} \
+    "{{ r.repo_path }}"
+{% endfor %}
+
+echo "borg check complete."

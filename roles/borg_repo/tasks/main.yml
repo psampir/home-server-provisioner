@@ -35,12 +35,63 @@
   ansible.builtin.set_fact:
     borg_repo_enabled: "{{ (borg_repo_source_hosts | default([])) | length > 0 }}"
 
+# A source's SSH key is published as a host fact by the borgmatic role. A
+# narrow --limit can therefore hide a declared source and make this role
+# disable itself, which would silently stop authorising its backups. Detect
+# that case and fail loudly instead.
+- name: Detect declared sources whose SSH key was not published in this run
+  ansible.builtin.set_fact:
+    borg_repo_missing_sources: >-
+      {{ borg_repo_missing_sources | default([]) + [item] }}
+  loop: "{{ groups['all'] | default([]) | sort }}"
+  loop_control:
+    label: "{{ item }}"
+  when:
+    - item != 'localhost'
+    - item not in (borg_repo_source_hosts | default([]))
+    - >-
+      hostvars[item].borgmatic_repositories | default([])
+      | selectattr('target', 'defined')
+      | selectattr('target', 'equalto', inventory_hostname)
+      | list | length > 0
+
+- name: Fail when every declared source was skipped
+  ansible.builtin.fail:
+    msg: >-
+      {{ borg_repo_missing_sources | join(', ') }} declare a repository on
+      {{ inventory_hostname }}, but their borgmatic SSH key fact is missing
+      because the borgmatic role did not run on them in this play. This role
+      would disable itself and stop authorising backups. Re-run with the
+      target and its sources in the limit, for example
+      --limit '{{ inventory_hostname }},{{ borg_repo_missing_sources | join(',') }}'.
+  when:
+    - not borg_repo_enabled
+    - (borg_repo_missing_sources | default([])) | length > 0
+
+- name: Warn about declared sources skipped in this run
+  ansible.builtin.debug:
+    msg: >-
+      Skipped {{ borg_repo_missing_sources | join(', ') }}: their borgmatic
+      SSH key fact is missing. Re-run with them in the limit if this is not
+      intentional.
+  when:
+    - borg_repo_enabled
+    - (borg_repo_missing_sources | default([])) | length > 0
+
 # ---------------------------------------------------------------------------
 # Disabled path: nothing targets this host. Tear down maintenance timer.
 # ---------------------------------------------------------------------------
 - name: Disable maintenance timer when no sources target this host
   ansible.builtin.systemd:
     name: hsp-borg-maintenance.timer
+    state: stopped
+    enabled: false
+  failed_when: false
+  when: not borg_repo_enabled
+
+- name: Disable integrity check timer when no sources target this host
+  ansible.builtin.systemd:
+    name: hsp-borg-check.timer
     state: stopped
     enabled: false
   failed_when: false
@@ -57,6 +108,16 @@
       Source hosts target this repo server but borg_repo_passphrase is empty.
       Provide it via ansible-vault (vault_borgmatic_passphrase) - it is needed
       to initialize repos and to run prune/compact.
+  when: borg_repo_enabled
+
+- name: Validate integrity check options are not contradictory
+  ansible.builtin.assert:
+    that:
+      - not (borg_repo_check_verify_data and borg_repo_check_repository_only)
+    fail_msg: >-
+      borg_repo_check_verify_data and borg_repo_check_repository_only are
+      mutually exclusive. Use a full check without --verify-data for the
+      scheduled run, and --verify-data only for manual restore drills.
   when: borg_repo_enabled
 
 - name: Install borgbackup
@@ -185,12 +246,48 @@
   notify: Reload systemd for borg_repo
   when: borg_repo_enabled
 
+- name: Install borg integrity check script
+  ansible.builtin.template:
+    src: hsp-borg-check.j2
+    dest: "{{ borg_repo_check_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: borg_repo_enabled
+
+- name: Install borg integrity check service unit
+  ansible.builtin.template:
+    src: hsp-borg-check.service.j2
+    dest: /etc/systemd/system/hsp-borg-check.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for borg_repo
+  when: borg_repo_enabled
+
+- name: Install borg integrity check timer unit
+  ansible.builtin.template:
+    src: hsp-borg-check.timer.j2
+    dest: /etc/systemd/system/hsp-borg-check.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for borg_repo
+  when: borg_repo_enabled
+
 - name: Flush handlers so the maintenance units are loaded before enabling
   ansible.builtin.meta: flush_handlers
 
 - name: Enable and start the borg maintenance timer
   ansible.builtin.systemd:
     name: hsp-borg-maintenance.timer
+    state: started
+    enabled: true
+  when: borg_repo_enabled
+
+- name: Enable and start the borg integrity check timer
+  ansible.builtin.systemd:
+    name: hsp-borg-check.timer
     state: started
     enabled: true
   when: borg_repo_enabled

@@ -175,16 +175,41 @@ To make the source fail when the target is missing, set
   possible with `ansible-playbook`, but some roles need real changes before
   later tasks can be evaluated.
 
-## Updating ansible_host after network changes
+## Reaching hosts from outside the LAN
 
-`ansible_host` should always reflect how the control machine can currently
-reach the host:
+A control machine that travels needs two paths to the same host: the fast LAN
+address at home and the stable WireGuard address everywhere else. The
+inventory models both, and `ansible_host` follows an environment switch, so
+there is nothing to edit when you leave the house:
 
-| Scenario | ansible_host |
-|---|---|
-| Host on the same LAN | Local IP (for example `192.168.1.x`) |
-| Host reachable via VPN | VPN IP (for example `10.10.0.x`) |
-| Host with a public IP | Public IP or DNS name |
+```yaml
+wyse:
+  lan_ip: 192.168.1.20
+  vpn_ip: 10.10.0.2
+  ansible_host: "{{ lookup('env', 'HSP_REMOTE') | ternary(vpn_ip, lan_ip) }}"
+```
 
-When a host moves between networks, update `ansible_host` and re-run
-`make provision`. The VPN address is stable once the tunnel is active.
+```bash
+make provision ENV=prod                 # LAN address, fast at home
+HSP_REMOTE=1 make provision ENV=prod    # WireGuard address, works anywhere
+```
+
+`make ssh-config` writes both aliases:
+
+```text
+Host wyse          HostName 10.10.0.2     # VPN first, works anywhere
+Host wyse-lan      HostName 192.168.1.20  # direct LAN, fastest at home
+```
+
+The hub is always reached at its public address, because its `vpn_ip` only
+exists inside the tunnel. Hosts without `vpn_ip` keep a single alias pointing
+at `ansible_host`.
+
+First contact with a VPN address asks for host key confirmation. Confirm that
+the fingerprint matches the LAN entry (`ssh-keygen -F 192.168.1.20`), then
+accept it. A changed key means the host was reinstalled or something is
+intercepting the tunnel, and should not be accepted.
+
+If you prefer a manual switch instead, set `ansible_host` directly and skip
+the ternary. Everything else keeps working. The VPN address is stable once
+the tunnel is active.

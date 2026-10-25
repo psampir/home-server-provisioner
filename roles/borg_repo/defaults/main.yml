@@ -35,6 +35,18 @@ borg_repo_keep_monthly: 6
 borg_repo_maintenance_schedule: "*-*-* 05:00:00"
 borg_repo_maintenance_randomized_delay: "30m"
 
+# --- Integrity check schedule ----------------------------------------------
+# Separate monthly pass. `borg check` reads repository metadata and archive
+# manifests; it is much heavier than prune/compact, so it does not share the
+# nightly timer. `--verify-data` additionally decrypts and hashes every chunk,
+# which on a multi-terabyte repository means hours of I/O. Keep it off for the
+# scheduled run and use it manually during restore drills.
+borg_repo_check_schedule: "*-*-01 06:00:00"
+borg_repo_check_randomized_delay: "30m"
+borg_repo_check_verify_data: false
+borg_repo_check_repository_only: false
+borg_repo_check_bin: /usr/local/bin/hsp-borg-check
+
 # Maintenance failures are routed to hsp-notify via the unit's
 # OnFailure=hsp-notify-failure@%n.service hook (see templates).
 

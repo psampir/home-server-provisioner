@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Schedule borg repository integrity check
+
+[Timer]
+OnCalendar={{ borg_repo_check_schedule }}
+{% if borg_repo_check_randomized_delay %}
+RandomizedDelaySec={{ borg_repo_check_randomized_delay }}
+{% endif %}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

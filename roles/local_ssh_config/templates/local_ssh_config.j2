@@ -1,11 +1,27 @@
 # Managed by home-server-provisioner - do not edit manually
 # Regenerate with: make ssh-config ENV=<env>
+#
+# `Host <name>` prefers the WireGuard address for app and backup hosts, so the
+# alias works both at home and away. `Host <name>-lan` pins the LAN address
+# for transfers that should not go through the VPN hub. The hub itself is
+# always reached at its public address.
 
 {% for host in groups['servers'] | default([]) | sort %}
+{% set hv = hostvars[host] %}
+{% set vpn = hv['vpn_ip'] | default('') %}
+{% set lan = hv['lan_ip'] | default(hv['ansible_host'] | default(host)) %}
+{% set is_hub = host in (groups['vpn_server'] | default([])) %}
 Host {{ local_ssh_config_host_prefix }}{{ host }}
-    HostName {{ hostvars[host]['ansible_host'] | default(host) }}
-    User {{ hostvars[host]['admin_user_name'] }}
+    HostName {{ hv['ansible_host'] if is_hub else (vpn if vpn else lan) }}
+    User {{ hv['admin_user_name'] }}
     IdentityFile {{ local_ssh_config_private_key }}
+{% if not is_hub and vpn and lan and vpn != lan %}
+
+Host {{ local_ssh_config_host_prefix }}{{ host }}-lan
+    HostName {{ lan }}
+    User {{ hv['admin_user_name'] }}
+    IdentityFile {{ local_ssh_config_private_key }}
+{% endif %}
 {% if not loop.last %}
 
 {% endif %}

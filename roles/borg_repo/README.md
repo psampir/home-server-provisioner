@@ -40,6 +40,12 @@ For each source host that targets this server (matched via the published
 4. Installs a local maintenance job - `hsp-borg-maintenance.timer` →
    `borg prune` + `borg compact` per repo - that enforces retention with
    full local access. Failures fire `OnFailure=hsp-notify-failure@%n`.
+5. Installs a separate monthly integrity pass -
+   `hsp-borg-check.timer` → `borg check` per repo. It reads archive
+   manifests, so it is kept off the nightly prune/compact window.
+   `--verify-data` stays disabled by default because decrypting and hashing
+   every chunk of a multi-terabyte repository takes hours; enable it only
+   for a manual restore drill.
 
 ## Why the target prunes
 
@@ -84,8 +90,28 @@ source-side view.
 | `borg_repo_encryption_mode` | `repokey-blake2` | `borg init` key mode. |
 | `borg_repo_keep_daily/weekly/monthly` | `7 / 4 / 6` | Retention fallback when a source omits `retention:`. |
 | `borg_repo_maintenance_schedule` | `*-*-* 05:00:00` | Prune+compact `OnCalendar`. |
+| `borg_repo_check_schedule` | `*-*-01 06:00:00` | Integrity check `OnCalendar`. |
+| `borg_repo_check_verify_data` | `false` | Add `--verify-data` to the check (hours of I/O, manual drills only). |
+| `borg_repo_check_repository_only` | `false` | Add `--repository-only`, skipping archive checks. |
 | `borg_repo_base` | `/srv/borg` | Parent dir; one subdir per source host. Set in inventory if relocated. |
 | `borg_repo_user` / `borg_repo_group` | `borg` | Repo-serving identity. |
+
+## Scoped runs and `--limit`
+
+The role discovers sources from `borgmatic_repositories`, but it can only
+authorise a source whose `borgmatic_ssh_pubkey` fact was published by the
+`borgmatic` role in the same play. A limit that excludes the sources hides
+that fact.
+
+A run that skips every declared source fails with an explanatory message
+instead of silently disabling the role and leaving backups unauthorised.
+When only some sources are skipped, the role warns and continues with the
+rest. In both cases, include the target and its sources:
+
+```bash
+ansible-playbook playbooks/site.yml -i inventory \
+  --limit 'backup-host,source-a,source-b'
+```
 
 ## Retention as a source property
 
