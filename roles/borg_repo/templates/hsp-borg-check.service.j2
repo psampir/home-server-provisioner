@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Borg repository integrity check
+After=network-online.target
+OnFailure=hsp-notify-failure@%n.service
+
+[Service]
+Type=oneshot
+User={{ borg_repo_user }}
+Group={{ borg_repo_group }}
+EnvironmentFile={{ borg_repo_env_path }}
+ExecStart={{ borg_repo_check_bin }}

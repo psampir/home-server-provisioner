@@ -1,0 +1,36 @@
+---
+- name: Render the managed SSH config
+  hosts: hub
+  gather_facts: false
+  connection: local
+  vars:
+    local_ssh_config_host_prefix: ""
+    local_ssh_config_private_key: "~/.ssh/id_test"
+  tasks:
+    - name: Render the template
+      ansible.builtin.set_fact:
+        ssh_config: >-
+          {{ lookup('template', playbook_dir + '/../roles/local_ssh_config/templates/local_ssh_config.j2') }}
+
+    - name: Assert the hub is reached at its public address
+      ansible.builtin.assert:
+        that:
+          - "ssh_config.splitlines()[ssh_config.splitlines().index('Host hub') + 1].strip() == 'HostName 203.0.113.10'"
+          - "'Host hub-lan' not in ssh_config.splitlines()"
+
+    - name: Assert the app host prefers the VPN address
+      ansible.builtin.assert:
+        that:
+          - "ssh_config.splitlines()[ssh_config.splitlines().index('Host node') + 1].strip() == 'HostName 10.10.0.2'"
+
+    - name: Assert the LAN alias points at the local address
+      ansible.builtin.assert:
+        that:
+          - "'Host node-lan' in ssh_config.splitlines()"
+          - "ssh_config.splitlines()[ssh_config.splitlines().index('Host node-lan') + 1].strip() == 'HostName 192.0.2.20'"
+
+    - name: Assert both aliases use the configured user and key
+      ansible.builtin.assert:
+        that:
+          - "ssh_config.count('User test') == 3"
+          - "ssh_config.count('IdentityFile ~/.ssh/id_test') == 3"

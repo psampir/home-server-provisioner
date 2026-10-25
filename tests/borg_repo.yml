@@ -1,0 +1,97 @@
+---
+- name: Render borg_repo templates
+  hosts: test-target
+  gather_facts: false
+  become: false
+  vars:
+    borg_repo_repos:
+      - repo_path: /srv/borg/source/main
+        keep_daily: 14
+        keep_weekly: 8
+        keep_monthly: 12
+    borg_repo_user: borg
+    borg_repo_group: borg
+    borg_repo_env_path: /etc/hsp-borg/borg.env
+    borg_repo_maintenance_bin: /usr/local/bin/hsp-borg-maintenance
+    borg_repo_check_bin: /usr/local/bin/hsp-borg-check
+    borg_repo_check_schedule: "*-*-01 06:00:00"
+    borg_repo_check_randomized_delay: "30m"
+    borg_repo_check_verify_data: false
+    borg_repo_check_repository_only: false
+  tasks:
+    - name: Render the check script
+      ansible.builtin.set_fact:
+        borg_check_script: >-
+          {{ lookup('template', playbook_dir + '/../roles/borg_repo/templates/hsp-borg-check.j2') }}
+
+    - name: Assert a full check without data verification
+      ansible.builtin.assert:
+        that:
+          - "'borg check' in borg_check_script"
+          - "'/srv/borg/source/main' in borg_check_script"
+          - "'--verify-data' not in borg_check_script"
+          - "'--repository-only' not in borg_check_script"
+
+    - name: Render the check script with verify-data enabled
+      ansible.builtin.set_fact:
+        borg_check_script_verify: >-
+          {{ lookup('template', playbook_dir + '/../roles/borg_repo/templates/hsp-borg-check.j2') }}
+      vars:
+        borg_repo_check_verify_data: true
+
+    - name: Assert verify-data is rendered
+      ansible.builtin.assert:
+        that:
+          - "'--verify-data' in borg_check_script_verify"
+
+    - name: Render the check script in repository-only mode
+      ansible.builtin.set_fact:
+        borg_check_script_repo_only: >-
+          {{ lookup('template', playbook_dir + '/../roles/borg_repo/templates/hsp-borg-check.j2') }}
+      vars:
+        borg_repo_check_repository_only: true
+
+    - name: Assert repository-only is rendered without verify-data
+      ansible.builtin.assert:
+        that:
+          - "'--repository-only' in borg_check_script_repo_only"
+          - "'--verify-data' not in borg_check_script_repo_only"
+
+    - name: Render the check service unit
+      ansible.builtin.set_fact:
+        borg_check_service: >-
+          {{ lookup('template', playbook_dir + '/../roles/borg_repo/templates/hsp-borg-check.service.j2') }}
+
+    - name: Assert the service runs as borg with env and failure hook
+      ansible.builtin.assert:
+        that:
+          - "'User=borg' in borg_check_service"
+          - "'EnvironmentFile=/etc/hsp-borg/borg.env' in borg_check_service"
+          - "'ExecStart=/usr/local/bin/hsp-borg-check' in borg_check_service"
+          - "'OnFailure=hsp-notify-failure@%n.service' in borg_check_service"
+          - "borg_check_service.splitlines().index('OnFailure=hsp-notify-failure@%n.service') < borg_check_service.splitlines().index('[Service]')"
+
+    - name: Render the check timer unit
+      ansible.builtin.set_fact:
+        borg_check_timer: >-
+          {{ lookup('template', playbook_dir + '/../roles/borg_repo/templates/hsp-borg-check.timer.j2') }}
+
+    - name: Assert the timer is monthly and persistent
+      ansible.builtin.assert:
+        that:
+          - "'OnCalendar=*-*-01 06:00:00' in borg_check_timer"
+          - "'RandomizedDelaySec=30m' in borg_check_timer"
+          - "'Persistent=true' in borg_check_timer"
+
+    - name: Render the maintenance script
+      ansible.builtin.set_fact:
+        borg_maintenance_script: >-
+          {{ lookup('template', playbook_dir + '/../roles/borg_repo/templates/hsp-borg-maintenance.j2') }}
+
+    - name: Assert retention still renders and check stays separate
+      ansible.builtin.assert:
+        that:
+          - "'borg prune --stats' in borg_maintenance_script"
+          - "'--keep-daily 14' in borg_maintenance_script"
+          - "'borg compact' in borg_maintenance_script"
+          - "'borg check' not in borg_maintenance_script"
