@@ -202,7 +202,8 @@ Host wyse-lan      HostName 192.168.1.20  # direct LAN, fastest at home
 ```
 
 The hub is always reached at its public address, because its `vpn_ip` only
-exists inside the tunnel. Hosts without `vpn_ip` keep a single alias pointing
+exists inside the tunnel. The role identifies it by `wireguard_role: hub`,
+not by a group name. Hosts without `vpn_ip` keep a single alias pointing
 at `ansible_host`.
 
 First contact with a VPN address asks for host key confirmation. Confirm that

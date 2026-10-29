@@ -2,19 +2,16 @@
 all:
   children:
     servers:
-      children:
-        vpn_server:
-          hosts:
-            hub:
-              ansible_connection: local
-              ansible_host: 203.0.113.10
-              vpn_ip: 10.10.0.1
-              admin_user_name: test
-        app_servers:
-          hosts:
-            node:
-              ansible_connection: local
-              ansible_host: 192.0.2.20
-              lan_ip: 192.0.2.20
-              vpn_ip: 10.10.0.2
-              admin_user_name: test
+      hosts:
+        hub:
+          ansible_connection: local
+          ansible_host: 203.0.113.10
+          vpn_ip: 10.10.0.1
+          wireguard_role: hub
+          admin_user_name: test
+        node:
+          ansible_connection: local
+          ansible_host: 192.0.2.20
+          lan_ip: 192.0.2.20
+          vpn_ip: 10.10.0.2
+          admin_user_name: test

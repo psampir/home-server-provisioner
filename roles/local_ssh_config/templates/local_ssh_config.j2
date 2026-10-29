@@ -10,7 +10,8 @@
 {% set hv = hostvars[host] %}
 {% set vpn = hv['vpn_ip'] | default('') %}
 {% set lan = hv['lan_ip'] | default(hv['ansible_host'] | default(host)) %}
-{% set is_hub = host in (groups['vpn_server'] | default([])) %}
+{# The wireguard role asserts exactly one host with wireguard_role=hub. #}
+{% set is_hub = hv['wireguard_role'] | default('peer') == 'hub' %}
 Host {{ local_ssh_config_host_prefix }}{{ host }}
     HostName {{ hv['ansible_host'] if is_hub else (vpn if vpn else lan) }}
     User {{ hv['admin_user_name'] }}
