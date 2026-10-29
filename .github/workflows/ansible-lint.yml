@@ -27,3 +27,6 @@ jobs:
 
       - name: Run ansible-lint
         run: ansible-lint
+
+      - name: Run local tests
+        run: make test-local
