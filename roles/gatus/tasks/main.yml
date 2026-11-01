@@ -1,0 +1,177 @@
+---
+- name: Stop here when Gatus is disabled
+  ansible.builtin.meta: end_role
+  when: not gatus_enabled
+
+- name: Validate Gatus configuration
+  ansible.builtin.assert:
+    that:
+      - gatus_config | length > 0
+      - gatus_version | length > 0
+      - not gatus_ntfy_enabled or gatus_ntfy_topic | length > 0
+    fail_msg: >-
+      gatus_enabled is true but the configuration is incomplete. Set
+      gatus_config, and set gatus_ntfy_topic when gatus_ntfy_enabled is true.
+
+- name: Install Gatus install tools
+  ansible.builtin.apt:
+    name: "{{ gatus_tools_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when:
+    - gatus_binary_src | length == 0
+    - gatus_install_tools
+
+- name: Create Gatus group
+  ansible.builtin.group:
+    name: "{{ gatus_group }}"
+    system: true
+
+- name: Create Gatus user
+  ansible.builtin.user:
+    name: "{{ gatus_user }}"
+    group: "{{ gatus_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ gatus_data_dir }}"
+    create_home: true
+
+- name: Ensure Gatus config and data directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ gatus_config_dir }}"
+      owner: root
+      group: "{{ gatus_group }}"
+      mode: "0750"
+    - path: "{{ gatus_data_dir }}"
+      owner: "{{ gatus_user }}"
+      group: "{{ gatus_group }}"
+      mode: "0750"
+
+- name: Check installed Gatus version marker
+  ansible.builtin.stat:
+    path: "{{ gatus_version_marker }}"
+  register: gatus_marker
+
+- name: Read installed Gatus version marker
+  ansible.builtin.slurp:
+    src: "{{ gatus_version_marker }}"
+  register: gatus_marker_raw
+  when: gatus_marker.stat.exists
+
+- name: Resolve installed Gatus version
+  ansible.builtin.set_fact:
+    gatus_installed_version: >-
+      {{ (gatus_marker_raw.content | b64decode | trim)
+         if gatus_marker.stat.exists else '' }}
+
+- name: Install Gatus from a local binary
+  ansible.builtin.copy:
+    src: "{{ gatus_binary_src }}"
+    dest: "{{ gatus_bin_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: gatus_binary_src | length > 0
+  notify: Restart gatus
+
+- name: Record the local Gatus version
+  ansible.builtin.copy:
+    content: "{{ gatus_version }}\n"
+    dest: "{{ gatus_version_marker }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: gatus_binary_src | length > 0
+
+- name: Install Gatus from the official image
+  when:
+    - gatus_binary_src | length == 0
+    - gatus_installed_version != gatus_version
+  block:
+    - name: Clean the Gatus extraction directory
+      ansible.builtin.file:
+        path: "{{ gatus_extract_dir }}"
+        state: absent
+
+    - name: Recreate the Gatus extraction directory
+      ansible.builtin.file:
+        path: "{{ gatus_extract_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Copy the Gatus image to an OCI layout
+      ansible.builtin.command:
+        cmd: >-
+          skopeo copy
+          --override-arch {{ gatus_arch }}
+          docker://{{ gatus_image }}:{{ gatus_version }}{{ ('@' ~ gatus_image_digest) if gatus_image_digest | length > 0 else '' }}
+          oci:{{ gatus_extract_dir }}/oci:{{ gatus_version }}
+      changed_when: true
+
+    - name: Unpack the Gatus image
+      ansible.builtin.command:
+        cmd: >-
+          umoci unpack
+          --image {{ gatus_extract_dir }}/oci:{{ gatus_version }}
+          {{ gatus_extract_dir }}/rootfs
+      changed_when: true
+
+    - name: Install the Gatus binary
+      ansible.builtin.copy:
+        src: "{{ gatus_extract_dir }}/rootfs/rootfs/gatus"
+        dest: "{{ gatus_bin_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+        remote_src: true
+      notify: Restart gatus
+
+    - name: Record the installed Gatus version
+      ansible.builtin.copy:
+        content: "{{ gatus_version }}\n"
+        dest: "{{ gatus_version_marker }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Remove the Gatus extraction directory
+      ansible.builtin.file:
+        path: "{{ gatus_extract_dir }}"
+        state: absent
+
+- name: Render the Gatus configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ gatus_config_path }}"
+    owner: root
+    group: "{{ gatus_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart gatus
+
+- name: Install the Gatus service unit
+  ansible.builtin.template:
+    src: gatus.service.j2
+    dest: "/etc/systemd/system/{{ gatus_service_name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd for gatus
+    - Restart gatus
+
+- name: Enable and start Gatus
+  ansible.builtin.systemd:
+    name: "{{ gatus_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true

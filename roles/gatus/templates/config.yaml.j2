@@ -1,0 +1,20 @@
+# {{ ansible_managed }}
+{% if gatus_ntfy_enabled %}
+{% set cfg = gatus_config | combine({
+    'alerting': {
+      'ntfy': {
+        'url': gatus_ntfy_url,
+        'topic': gatus_ntfy_topic,
+        'priority': gatus_ntfy_priority,
+        'default-alert': {
+          'failure-threshold': gatus_ntfy_failure_threshold,
+          'success-threshold': gatus_ntfy_success_threshold,
+          'send-on-resolved': gatus_ntfy_send_on_resolved
+        }
+      }
+    }
+  }, recursive=True) %}
+{% else %}
+{% set cfg = gatus_config %}
+{% endif %}
+{{ cfg | to_nice_yaml(indent=2, sort_keys=false) }}
