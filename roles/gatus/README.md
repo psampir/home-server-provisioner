@@ -32,6 +32,8 @@ gatus_after_units:
   - wg-quick@wg0.service
 gatus_wants_units:
   - wg-quick@wg0.service
+gatus_part_of_units:
+  - wg-quick@wg0.service
 gatus_ntfy_topic: "{{ notifications_ntfy_url | urlsplit('path') | regex_replace('^/', '') }}"
 gatus_config:
   storage:
@@ -91,6 +93,7 @@ task uses `no_log`, because the ntfy topic and push tokens are secrets.
 | `gatus_ntfy_failure_threshold` | `2` | Failures before alerting |
 | `gatus_ntfy_success_threshold` | `2` | Successes before resolving |
 | `gatus_after_units` / `gatus_wants_units` | `[]` | Extra systemd dependencies |
+| `gatus_part_of_units` | `[]` | Units whose restart restarts Gatus |
 
 ## Testing
 

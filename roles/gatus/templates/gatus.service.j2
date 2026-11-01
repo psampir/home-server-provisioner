@@ -3,6 +3,7 @@
 Description=Gatus health dashboard
 After=network-online.target{{ (' ' ~ (gatus_after_units | join(' '))) if gatus_after_units | length > 0 else '' }}
 Wants=network-online.target{{ (' ' ~ (gatus_wants_units | join(' '))) if gatus_wants_units | length > 0 else '' }}
+{{ ('PartOf=' ~ (gatus_part_of_units | join(' '))) if gatus_part_of_units | length > 0 else '' }}
 OnFailure=hsp-notify-failure@%n.service
 
 [Service]

@@ -35,6 +35,11 @@ gatus_extract_dir: /var/tmp/gatus-extract
 # Extra systemd dependencies for binding to a VPN address.
 gatus_after_units: []
 gatus_wants_units: []
+# Units whose stop/restart should restart Gatus too. Use this when Gatus
+# binds to an address owned by another unit (e.g. wg-quick@wg0.service):
+# without it a unit restart takes the address away and Gatus keeps a dead
+# socket.
+gatus_part_of_units: []
 
 # Gatus YAML configuration, rendered verbatim. Keep secrets out of logs
 # with no_log on the render task.
