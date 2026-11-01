@@ -128,7 +128,7 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 .PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check
 
-test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-docker-health ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -156,6 +156,9 @@ test-caddy: ## Test per-host Caddy source selection
 
 test-disk-check: ## Test hsp-disk-check thresholds, dedup and recovery
 	python3 tests/test_disk_check.py
+
+test-docker-health: ## Test hsp-docker-health container evaluation and push
+	python3 tests/test_docker_health.py
 
 # --- Test environment ---
 #

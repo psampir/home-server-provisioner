@@ -272,6 +272,7 @@ Each role is self-contained. The full list:
 |---|---|
 | `docker_runtime` | Installs Docker CE + Compose plugin from upstream apt repo |
 | `compose_deploy` | Auto-discovers and deploys Docker Compose stacks from `configs/<ENV>/stacks/_common/<name>/` (every app server) and `configs/<ENV>/stacks/<hostname>/<name>/` (per-host override). Per-stack directory is synced verbatim - drop `compose.yaml` + `.env` + `Caddyfile` + `config/` next to each other. |
+| `docker_health` | Pushes Docker container health (healthcheck status for listed containers, running state for the rest) to a Gatus external endpoint, so containers without a published port are monitored without exposing the Docker socket |
 
 > [!WARNING]
 > **Published container ports bypass UFW.** Docker writes its own
@@ -397,6 +398,8 @@ build container must read. See
 | `make test-ssh-config` | Test VPN-first SSH aliases and the `-lan` fallback |
 | `make test-gatus` | Test Gatus config, service and ntfy alerting templates |
 | `make test-caddy` | Test per-host and flat Caddy source selection |
+| `make test-disk-check` | Test disk check thresholds, dedup and recovery |
+| `make test-docker-health` | Test container evaluation and the Gatus push |
 | `make test-env-create`, `test-env-status`, `test-env-destroy` | Manage the Incus test VMs |
 | `make test-bootstrap`, `test-provision`, `test-wireguard-render`, `test-nut`, `test-smoke`, `test-reboot` | Test suites |
 | `make validate-stacks ENV=prod` | Validate stack image digests and tags |

@@ -39,6 +39,7 @@
     - dns_client
     - docker_runtime
     - compose_deploy
+    - docker_health
 
 - name: Backup repository targets
   hosts: backup_targets
