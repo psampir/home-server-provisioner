@@ -23,3 +23,18 @@ notifications_ntfy_priority_default: default
 notifications_bin_path: /usr/local/bin/hsp-notify
 notifications_env_path: /etc/hsp-notify.env
 notifications_failure_unit_path: /etc/systemd/system/hsp-notify-failure@.service
+
+# --- Disk usage check ---
+# The script is installed with the role; the timer is a scheduled job, so
+# an environment opts in by adding notifications_disk_check_bin to
+# scheduled_jobs_common. Paths and thresholds are environment specific.
+notifications_disk_check_bin: /usr/local/bin/hsp-disk-check
+notifications_disk_check_config: /etc/hsp/disk-check.conf
+notifications_disk_check_paths:
+  - /
+notifications_disk_check_warn: 80
+notifications_disk_check_crit: 90
+notifications_disk_check_inode_warn: 90
+# Re-alert while a path stays above a threshold, at most this often.
+notifications_disk_check_remind: 86400
+notifications_disk_check_state: /var/lib/hsp/disk-check.state

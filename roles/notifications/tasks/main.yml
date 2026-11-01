@@ -47,3 +47,38 @@
       via vault) to start delivering notifications. Calls to hsp-notify
       will currently be no-ops logged to the journal.
   when: notifications_ntfy_url | length == 0
+
+# ---------------------------------------------------------------------------
+# Disk usage check
+# ---------------------------------------------------------------------------
+- name: Ensure the notification config directory exists
+  ansible.builtin.file:
+    path: "{{ notifications_disk_check_config | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install hsp-disk-check
+  ansible.builtin.copy:
+    src: hsp-disk-check
+    dest: "{{ notifications_disk_check_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the disk check configuration
+  ansible.builtin.template:
+    src: hsp-disk-check.conf.j2
+    dest: "{{ notifications_disk_check_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure the disk check state directory exists
+  ansible.builtin.file:
+    path: "{{ notifications_disk_check_state | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"

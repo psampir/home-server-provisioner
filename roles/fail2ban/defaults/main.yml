@@ -10,3 +10,13 @@ fail2ban_ignoreip:
 fail2ban_trusted_networks: []
 # Port name (from /etc/services) or number for the sshd jail.
 fail2ban_ssh_port: ssh
+
+# --- Ban notifications ---
+# Install an action.d file that reports every ban through hsp-notify.
+# Off by default: it needs the notifications role to provide the binary,
+# and a jail that references a missing action fails to start.
+fail2ban_notify_action: false
+fail2ban_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
+fail2ban_notify_priority: low
+fail2ban_notify_tags: shield
+fail2ban_notify_action_path: /etc/fail2ban/action.d/hsp-notify.conf

@@ -32,3 +32,20 @@ Installs fail2ban and enables an SSH jail backed by the systemd journal.
   ban to be effective; fail2ban installs its own rules, but the host
   firewall must not allow a bypass path.
 - To inspect current bans, run `fail2ban-client status sshd` on the host.
+
+## Ban notifications
+
+Set `fail2ban_notify_action: true` to install
+`/etc/fail2ban/action.d/hsp-notify.conf` and add it to the `sshd` jail.
+Every ban then sends one `hsp-notify` message with the address, jail and
+failure count; unbans stay silent.
+
+| Variable | Default | Description |
+|---|---|---|
+| `fail2ban_notify_action` | `false` | Install and wire the action |
+| `fail2ban_notify_bin` | `hsp-notify` path | Binary the action calls |
+| `fail2ban_notify_priority` | `low` | ntfy priority of the message |
+| `fail2ban_notify_tags` | `shield` | ntfy tags of the message |
+
+Off by default because it needs the `notifications` role to provide the
+binary, and a jail that references a missing action fails to start.

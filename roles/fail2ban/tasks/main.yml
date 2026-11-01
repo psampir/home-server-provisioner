@@ -12,6 +12,23 @@
     mode: "0644"
   notify: Restart fail2ban
 
+- name: Install the hsp-notify ban action
+  when: fail2ban_notify_action
+  ansible.builtin.template:
+    src: hsp-notify.conf.j2
+    dest: "{{ fail2ban_notify_action_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Remove the hsp-notify ban action when disabled
+  when: not fail2ban_notify_action
+  ansible.builtin.file:
+    path: "{{ fail2ban_notify_action_path }}"
+    state: absent
+  notify: Restart fail2ban
+
 - name: Configure sshd jail
   ansible.builtin.template:
     src: sshd.local.j2

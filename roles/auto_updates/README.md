@@ -44,3 +44,14 @@ Configures unattended security upgrades and optional restart detection.
   reboot before the new kernel is active.
 - The role does not run `unattended-upgrade` immediately. The timer and APT
   periodic jobs run on their own schedule.
+
+## Failure notifications
+
+Every unit in `auto_updates_notify_failed_units` (default:
+`apt-daily-upgrade.service`) gets a drop-in with
+`OnFailure=hsp-notify-failure@%n.service`, so a failed automatic upgrade
+reaches the phone instead of stopping at the journal. The drop-in is safe
+on hosts without the `notifications` role: `hsp-notify` is inert when no
+backend is configured.
+
+Removing a unit from the list deletes its drop-in on the next run.

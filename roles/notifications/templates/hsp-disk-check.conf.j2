@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# Read by hsp-disk-check as a POSIX shell fragment. Keep one assignment per
+# line and no spaces around "=".
+PATHS="{{ notifications_disk_check_paths | join(' ') }}"
+WARN={{ notifications_disk_check_warn }}
+CRIT={{ notifications_disk_check_crit }}
+INODE_WARN={{ notifications_disk_check_inode_warn }}
+REMIND={{ notifications_disk_check_remind }}
+STATE_FILE={{ notifications_disk_check_state }}
+NOTIFY_BIN={{ notifications_bin_path }}

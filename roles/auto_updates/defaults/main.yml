@@ -31,3 +31,16 @@ auto_updates_needrestart_notify_bin: /usr/local/bin/hsp-needrestart-notify
 auto_updates_needrestart_notify_unit: sched-needrestart-notify
 auto_updates_needrestart_notify_schedule: "*-*-* 07:30:00"
 auto_updates_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
+
+# --- Failure notifications ---
+# Units that get a drop-in with OnFailure=hsp-notify-failure@%n.service, so
+# a failed automatic upgrade reaches the phone. hsp-notify is inert when no
+# backend is configured, so this is safe on hosts without notifications.
+auto_updates_notify_failed_units:
+  - apt-daily-upgrade.service
+
+# Every unit this role may manage. Removing an entry from the list above
+# deletes its drop-in on the next run.
+auto_updates_package_units:
+  - apt-daily.service
+  - apt-daily-upgrade.service
