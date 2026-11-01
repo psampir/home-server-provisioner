@@ -87,3 +87,21 @@
         that:
           - "'alerting' not in gatus_rendered_no_ntfy"
           - "'topic: test-topic' not in gatus_rendered_no_ntfy"
+
+    - name: Render the config with string typed numeric settings
+      ansible.builtin.set_fact:
+        gatus_rendered_strings: >-
+          {{ lookup('template', playbook_dir + '/../roles/gatus/templates/config.yaml.j2') }}
+      vars:
+        gatus_ntfy_priority: "5"
+        gatus_ntfy_failure_threshold: "4"
+        gatus_ntfy_success_threshold: "3"
+
+    - name: Assert numeric settings are emitted as integers
+      ansible.builtin.assert:
+        that:
+          - "'priority: 5' in gatus_rendered_strings"
+          - "'failure-threshold: 4' in gatus_rendered_strings"
+          - "'success-threshold: 3' in gatus_rendered_strings"
+          - "\"failure-threshold: '4'\" not in gatus_rendered_strings"
+          - "\"priority: '5'\" not in gatus_rendered_strings"
