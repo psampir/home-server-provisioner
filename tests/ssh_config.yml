@@ -29,6 +29,12 @@
           - "'Host node-lan' in ssh_config.splitlines()"
           - "ssh_config.splitlines()[ssh_config.splitlines().index('Host node-lan') + 1].strip() == 'HostName 192.0.2.20'"
 
+    - name: Assert a non default port is rendered for the hub
+      ansible.builtin.assert:
+        that:
+          - "ssh_config.splitlines()[ssh_config.splitlines().index('Host hub') + 4].strip() == 'Port 2222'"
+          - "ssh_config.count('Port 2222') == 1"
+
     - name: Assert both aliases use the configured user and key
       ansible.builtin.assert:
         that:

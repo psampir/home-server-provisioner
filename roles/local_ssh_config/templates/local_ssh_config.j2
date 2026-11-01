@@ -12,16 +12,23 @@
 {% set lan = hv['lan_ip'] | default(hv['ansible_host'] | default(host)) %}
 {# The wireguard role asserts exactly one host with wireguard_role=hub. #}
 {% set is_hub = hv['wireguard_role'] | default('peer') == 'hub' %}
+{% set port = hv['ansible_port'] | default(22) | int %}
 Host {{ local_ssh_config_host_prefix }}{{ host }}
     HostName {{ hv['ansible_host'] if is_hub else (vpn if vpn else lan) }}
     User {{ hv['admin_user_name'] }}
     IdentityFile {{ local_ssh_config_private_key }}
+{% if port != 22 %}
+    Port {{ port }}
+{% endif %}
 {% if not is_hub and vpn and lan and vpn != lan %}
 
 Host {{ local_ssh_config_host_prefix }}{{ host }}-lan
     HostName {{ lan }}
     User {{ hv['admin_user_name'] }}
     IdentityFile {{ local_ssh_config_private_key }}
+{% if port != 22 %}
+    Port {{ port }}
+{% endif %}
 {% endif %}
 {% if not loop.last %}
 

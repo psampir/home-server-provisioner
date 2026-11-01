@@ -1,3 +1,32 @@
+- name: Validate the SSH port list
+  ansible.builtin.assert:
+    that:
+      - ssh_hardening_ports | length > 0
+    fail_msg: >-
+      ssh_hardening_ports must contain at least one port. An empty list
+      would leave sshd on its default and silently drop the managed ports.
+
+- name: Ensure the sshd config drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the SSH listening ports
+  ansible.builtin.template:
+    src: ports.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-hsp-ports.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart sshd
+
+- name: Validate the effective sshd configuration
+  ansible.builtin.command: sshd -t
+  changed_when: false
+
 - name: Disable root login
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
