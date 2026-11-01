@@ -119,3 +119,39 @@
     - "{{ auto_updates_needrestart_notify_bin }}"
   when: not (auto_updates_needrestart and auto_updates_needrestart_notify)
   notify: Reload systemd for needrestart
+
+# ---------------------------------------------------------------------------
+# Failure notifications - a failed package job should reach the phone, not
+# only the journal. The drop-in works on hosts without the notifications
+# role too: hsp-notify is inert without a configured backend.
+# ---------------------------------------------------------------------------
+- name: Ensure failure-notify drop-in directories exist
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ auto_updates_notify_failed_units }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Notify when an automatic upgrade fails
+  ansible.builtin.template:
+    src: failure-notify.conf.j2
+    dest: "/etc/systemd/system/{{ item }}.d/10-hsp-notify.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ auto_updates_notify_failed_units }}"
+  loop_control:
+    label: "{{ item }}"
+  notify: Reload systemd for failure notify
+
+- name: Remove the drop-in for units no longer listed
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.d/10-hsp-notify.conf"
+    state: absent
+  loop: "{{ auto_updates_package_units }}"
+  when: item not in auto_updates_notify_failed_units
+  notify: Reload systemd for failure notify

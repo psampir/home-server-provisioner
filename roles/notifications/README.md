@@ -10,6 +10,8 @@ user's own scripts. Single supported backend (M3.5): [ntfy](https://ntfy.sh).
 | `/usr/local/bin/hsp-notify` | CLI wrapper around `curl` → ntfy |
 | `/etc/hsp-notify.env` (0600) | Backend URL + token (rendered from vars) |
 | `/etc/systemd/system/hsp-notify-failure@.service` | Template unit called via `OnFailure=` |
+| `/usr/local/bin/hsp-disk-check` | Filesystem usage and inode check |
+| `/etc/hsp/disk-check.conf` | Paths and thresholds for the disk check |
 
 The role is **safe to enable unconditionally**. If `notifications_ntfy_url`
 is empty, `hsp-notify` becomes a no-op and logs each would-be subject to
@@ -24,6 +26,11 @@ have not configured a backend yet - failures just don't reach a phone.
 | `notifications_ntfy_url` | `""` | Topic URL, e.g. `https://ntfy.sh/hsp-CHANGEME-CHANGEME`. Empty → inert. |
 | `notifications_ntfy_token` | `""` | Bearer token, only for self-hosted ntfy with auth. Pull from vault. |
 | `notifications_ntfy_priority_default` | `default` | One of `min`, `low`, `default`, `high`, `urgent`. |
+| `notifications_disk_check_paths` | `["/"]` | Mounts to watch |
+| `notifications_disk_check_warn` | `80` | Warn percentage |
+| `notifications_disk_check_crit` | `90` | Critical percentage |
+| `notifications_disk_check_inode_warn` | `90` | Inode percentage that warns |
+| `notifications_disk_check_remind` | `86400` | Re-alert interval while still above a threshold |
 
 ## Using `hsp-notify` from your own scripts
 
@@ -36,6 +43,26 @@ hsp-notify --priority urgent --tags rotating_light \
 
 The same CLI is used by `scheduled_jobs`, `systemd_units`,
 `smart_monitoring`, and the `needrestart` extension of `auto_updates`.
+
+## Disk usage checks
+
+`hsp-disk-check` is installed with the role but has no timer of its own.
+Schedule it from `scheduled_jobs_common` so the interval stays an
+environment decision:
+
+```yaml
+scheduled_jobs_common:
+  - name: disk-check
+    command: /usr/local/bin/hsp-disk-check
+    schedule: "*-*-* *:00/15:00"
+    description: "Filesystem usage check"
+    notify_on_failure: true
+```
+
+It alerts on transitions (ok to warn to crit), reminds at most once per
+`notifications_disk_check_remind` while a path stays degraded, and sends a
+recovery message when it drops back. A path that cannot be read counts as
+critical, which catches an unmounted data disk.
 
 ## Privacy considerations
 

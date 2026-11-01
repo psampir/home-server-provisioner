@@ -2,3 +2,7 @@
 - name: Reload systemd for needrestart
   ansible.builtin.systemd:
     daemon_reload: true
+
+- name: Reload systemd for failure notify
+  ansible.builtin.systemd:
+    daemon_reload: true

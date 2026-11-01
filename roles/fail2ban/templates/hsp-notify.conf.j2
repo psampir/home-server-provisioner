@@ -1,0 +1,19 @@
+# Managed by Ansible - do not edit manually.
+#
+# Reports a ban through hsp-notify. Unbans stay silent: fail2ban removes
+# expired entries on its own, and a message for each would be noise.
+
+[Definition]
+
+actionstart =
+actionstop =
+actioncheck =
+
+actionban = {{ fail2ban_notify_bin }} --priority <prio> --tags <tags> "fail2ban: <name> banned <ip>" "Jail <name> banned <ip> after <failures> failures on <fq-hostname>. Unban: fail2ban-client set <name> unban <ip>"
+
+actionunban =
+
+[Init]
+
+prio = {{ fail2ban_notify_priority }}
+tags = {{ fail2ban_notify_tags }}

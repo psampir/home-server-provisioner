@@ -72,6 +72,9 @@ curl_args=(
     --silent
     --show-error
     --max-time 10
+    --retry 3
+    --retry-delay 5
+    --retry-all-errors
     -H "Title: ${subject}"
     -H "Priority: ${priority}"
 )

@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# hsp-disk-check - alert when a filesystem crosses a usage threshold.
+#
+# Reads /etc/hsp/disk-check.conf (POSIX shell, KEY=value). Every path is
+# checked for bytes and inodes. A notification is sent when a path changes
+# level (ok -> warn -> crit) or recovers, and at most once per REMIND
+# seconds while it stays above a threshold, so a full disk does not page
+# every run.
+#
+# Exit status is 0 even when a path is degraded: the alert is the output,
+# and a non-zero exit would make the timer report a second failure.
+
+CONFIG="${HSP_DISK_CHECK_CONFIG:-/etc/hsp/disk-check.conf}"
+# shellcheck disable=SC1090
+[[ -r "$CONFIG" ]] && . "$CONFIG"
+
+PATHS="${PATHS:-/}"
+WARN="${WARN:-80}"
+CRIT="${CRIT:-90}"
+INODE_WARN="${INODE_WARN:-90}"
+REMIND="${REMIND:-86400}"
+STATE_FILE="${STATE_FILE:-/var/lib/hsp/disk-check.state}"
+NOTIFY_BIN="${NOTIFY_BIN:-/usr/local/bin/hsp-notify}"
+
+mkdir -p "$(dirname "$STATE_FILE")" 2>/dev/null || true
+touch "$STATE_FILE" 2>/dev/null || true
+
+host="$(hostname -s 2>/dev/null || hostname)"
+
+notify() {
+    local priority="$1" subject="$2" body="$3"
+    if [[ -x "$NOTIFY_BIN" ]]; then
+        "$NOTIFY_BIN" --priority "$priority" --tags "disk,${host}" "$subject" "$body" || \
+            logger -t hsp-disk-check "notification failed: ${subject}"
+    else
+        logger -t hsp-disk-check "would notify: ${subject}: ${body}"
+    fi
+}
+
+percent() {
+    # percent <value> -> integer, tolerant of spaces and a trailing %
+    local raw="${1// /}"
+    echo "${raw%\%}"
+}
+
+previous_level() {
+    awk -v p="$1" '$1 == p { print $2; exit }' "$STATE_FILE"
+}
+
+previous_stamp() {
+    awk -v p="$1" '$1 == p { print $3; exit }' "$STATE_FILE"
+}
+
+record() {
+    local path="$1" level="$2" stamp="$3" tmp
+    tmp="$(mktemp "${STATE_FILE}.XXXXXX")"
+    awk -v p="$path" '$1 != p' "$STATE_FILE" > "$tmp" 2>/dev/null || true
+    printf '%s %s %s\n' "$path" "$level" "$stamp" >> "$tmp"
+    mv "$tmp" "$STATE_FILE"
+}
+
+for path in $PATHS; do
+    level=ok
+    detail=""
+    pct=-1
+    ipct=-1
+
+    if usage="$(df --output=pcent "$path" 2>/dev/null | tail -n 1)" && [[ -n "$usage" ]]; then
+        pct="$(percent "$usage")"
+        ipct="$(percent "$(df -i --output=ipcent "$path" 2>/dev/null | tail -n 1)")"
+        [[ "$ipct" =~ ^[0-9]+$ ]] || ipct=-1
+
+        if [[ "$pct" -ge "$CRIT" ]] || { [[ "$ipct" -ge 0 ]] && [[ "$ipct" -ge "$CRIT" ]]; }; then
+            level=crit
+        elif [[ "$pct" -ge "$WARN" ]] || { [[ "$ipct" -ge 0 ]] && [[ "$ipct" -ge "$INODE_WARN" ]]; }; then
+            level=warn
+        fi
+        detail="usage ${pct}%, inodes ${ipct}%"
+    else
+        level=crit
+        detail="path unavailable, likely not mounted"
+    fi
+
+    prev_level="$(previous_level "$path")"
+    prev_stamp="$(previous_stamp "$path")"
+    [[ "$prev_level" =~ ^(ok|warn|crit)$ ]] || prev_level=ok
+    [[ "$prev_stamp" =~ ^[0-9]+$ ]] || prev_stamp=0
+    now="$(date +%s)"
+
+    if [[ "$level" == "ok" && "$prev_level" != "ok" ]]; then
+        notify low "disk ${host}:${path} recovered" \
+            "${path} is back under the thresholds, ${detail}. Warn ${WARN}%, critical ${CRIT}%."
+    elif [[ "$level" != "ok" && "$level" != "$prev_level" ]]; then
+        priority=default
+        [[ "$level" == "crit" ]] && priority=high
+        label="${pct}%"
+        [[ "$pct" -lt 0 ]] && label="unavailable"
+        notify "$priority" "disk ${host}:${path} ${level} (${label})" \
+            "${detail}. Warn ${WARN}%, critical ${CRIT}%, inodes ${INODE_WARN}%."
+    elif [[ "$level" != "ok" && "$level" == "$prev_level" ]] && (( now - prev_stamp >= REMIND )); then
+        priority=default
+        [[ "$level" == "crit" ]] && priority=high
+        label="${pct}%"
+        [[ "$pct" -lt 0 ]] && label="unavailable"
+        notify "$priority" "disk ${host}:${path} still ${level} (${label})" \
+            "Reminder, ${detail}. Warn ${WARN}%, critical ${CRIT}%, inodes ${INODE_WARN}%."
+    fi
+
+    record "$path" "$level" "$now"
+done
