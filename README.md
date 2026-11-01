@@ -396,6 +396,7 @@ build container must read. See
 | `make test-borg-repo` | Test borg_repo prune, check and timer templates |
 | `make test-ssh-config` | Test VPN-first SSH aliases and the `-lan` fallback |
 | `make test-gatus` | Test Gatus config, service and ntfy alerting templates |
+| `make test-caddy` | Test per-host and flat Caddy source selection |
 | `make test-env-create`, `test-env-status`, `test-env-destroy` | Manage the Incus test VMs |
 | `make test-bootstrap`, `test-provision`, `test-wireguard-render`, `test-nut`, `test-smoke`, `test-reboot` | Test suites |
 | `make validate-stacks ENV=prod` | Validate stack image digests and tags |
