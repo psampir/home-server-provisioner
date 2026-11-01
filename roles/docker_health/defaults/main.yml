@@ -24,3 +24,10 @@ docker_health_gatus_ca: ""
 docker_health_require_healthy: []
 # Containers without a healthcheck that only need to be running.
 docker_health_require_running: []
+
+# Containers that also get their own informational endpoint, named
+# "<prefix>_<container>". They must appear in one of the lists above. The
+# aggregate endpoint keeps the alerts, so a dead script does not page once
+# per container.
+docker_health_endpoint_prefix: docker
+docker_health_per_container: []

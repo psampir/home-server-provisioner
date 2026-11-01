@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
-# hsp-docker-health - report container health to a Gatus external endpoint.
+# hsp-docker-health - report container health to Gatus external endpoints.
 #
-# Reads /etc/hsp/docker-health.env (POSIX shell, KEY=value). Containers in
-# REQUIRE_HEALTHY must be running with a passing Docker healthcheck;
-# REQUIRE_RUNNING covers the ones without one. Containers in neither list
-# are ignored on purpose, so a new stack does not alert until it is added.
+# Reads /etc/hsp/docker-health.env (POSIX shell, KEY=value).
 #
-# One status is pushed per run. Gatus raises its own alert on failure and
-# also detects a script that stopped pushing through the endpoint
-# heartbeat, which covers the case where this script never runs at all.
+# Containers in REQUIRE_HEALTHY must be running with a passing Docker
+# healthcheck; REQUIRE_RUNNING covers the ones without one. Anything else
+# is ignored on purpose, so a new stack does not alert until it is added.
 #
-# Exit status: 0 when the push succeeded (whether the containers are
-# healthy or not), non-zero when the configuration or the push failed, so
-# the scheduled job's OnFailure reports it.
+# One aggregate status goes to ENDPOINT_KEY and is the endpoint that
+# alerts. Every container also named in PER_CONTAINER gets its own
+# endpoint "<ENDPOINT_PREFIX>_<container>", which is informational, so the
+# dashboard lists containers instead of a single boolean without turning a
+# dead script into one alert per container.
+#
+# Exit status: 0 when every push succeeded, non-zero when the configuration
+# or a push failed, so the scheduled job's OnFailure reports a monitor that
+# stopped working.
 
 CONFIG="${HSP_DOCKER_HEALTH_CONFIG:-/etc/hsp/docker-health.env}"
 # shellcheck disable=SC1090
@@ -20,6 +23,8 @@ CONFIG="${HSP_DOCKER_HEALTH_CONFIG:-/etc/hsp/docker-health.env}"
 
 GATUS_URL="${GATUS_URL:-}"
 ENDPOINT_KEY="${ENDPOINT_KEY:-}"
+ENDPOINT_PREFIX="${ENDPOINT_PREFIX:-docker}"
+PER_CONTAINER="${PER_CONTAINER:-}"
 GATUS_TOKEN="${GATUS_TOKEN:-}"
 GATUS_CA="${GATUS_CA:-}"
 REQUIRE_HEALTHY="${REQUIRE_HEALTHY:-}"
@@ -38,37 +43,81 @@ command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 [[ -n "${REQUIRE_HEALTHY}${REQUIRE_RUNNING}" ]] || \
     fail "no containers configured, set REQUIRE_HEALTHY or REQUIRE_RUNNING"
 
+declare -A container_state=()
 problems=()
 
-state_of() {
-    docker inspect \
+eval_healthy() {
+    local name="$1" state status health
+    if ! state="$(docker inspect \
         --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
-        "$1" 2>/dev/null
+        "$name" 2>/dev/null)"; then
+        echo "missing"
+        return
+    fi
+    status="${state%% *}"
+    health="${state##* }"
+    if [[ "$status" != "running" ]]; then
+        echo "$status"
+    elif [[ "$health" == "none" ]]; then
+        echo "no healthcheck"
+    elif [[ "$health" != "healthy" ]]; then
+        echo "$health"
+    fi
+}
+
+eval_running() {
+    local name="$1" status
+    if ! status="$(docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null)"; then
+        echo "missing"
+        return
+    fi
+    [[ "$status" == "running" ]] || echo "$status"
 }
 
 for name in $REQUIRE_HEALTHY; do
-    if ! state="$(state_of "$name")"; then
-        problems+=("$name: missing")
-        continue
-    fi
-    status="$(echo "$state" | awk '{ print $1 }')"
-    health="$(echo "$state" | awk '{ print $2 }')"
-    if [[ "$status" != "running" ]]; then
-        problems+=("$name: ${status}")
-    elif [[ "$health" == "none" ]]; then
-        problems+=("$name: no healthcheck")
-    elif [[ "$health" != "healthy" ]]; then
-        problems+=("$name: ${health}")
+    if err="$(eval_healthy "$name")"; then
+        if [[ -n "$err" ]]; then
+            container_state["$name"]="$err"
+            problems+=("$name: ${err}")
+        else
+            container_state["$name"]="ok"
+        fi
     fi
 done
 
 for name in $REQUIRE_RUNNING; do
-    if ! status="$(docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null)"; then
-        problems+=("$name: missing")
-        continue
+    if err="$(eval_running "$name")"; then
+        if [[ -n "$err" ]]; then
+            container_state["$name"]="$err"
+            problems+=("$name: ${err}")
+        else
+            container_state["$name"]="ok"
+        fi
     fi
-    [[ "$status" == "running" ]] || problems+=("$name: ${status}")
 done
+
+slug() {
+    echo "$1" | tr '_.' '--'
+}
+
+push_status() {
+    local key="$1" success="$2" error="${3:-}"
+    local url="${GATUS_URL%/}/api/v1/endpoints/${key}/external"
+    local args=(
+        --fail
+        --silent
+        --show-error
+        --max-time "$TIMEOUT"
+        --retry 2
+        --retry-delay 2
+        -X POST
+        -H "Authorization: Bearer ${GATUS_TOKEN}"
+        --url-query "success=${success}"
+    )
+    [[ -n "$GATUS_CA" ]] && args+=(--cacert "$GATUS_CA")
+    [[ -n "$error" ]] && args+=(--url-query "error=${error}")
+    curl "${args[@]}" "$url" >/dev/null
+}
 
 if (( ${#problems[@]} > 0 )); then
     success=false
@@ -79,23 +128,23 @@ else
     error=""
 fi
 
-url="${GATUS_URL%/}/api/v1/endpoints/${ENDPOINT_KEY}/external"
-curl_args=(
-    --fail
-    --silent
-    --show-error
-    --max-time "$TIMEOUT"
-    --retry 2
-    --retry-delay 2
-    -X POST
-    -H "Authorization: Bearer ${GATUS_TOKEN}"
-    --url-query "success=${success}"
-)
-[[ -n "$GATUS_CA" ]] && curl_args+=(--cacert "$GATUS_CA")
-[[ -n "$error" ]] && curl_args+=(--url-query "error=${error}")
-
-if ! curl "${curl_args[@]}" "$url" >/dev/null; then
-    fail "could not push the status to ${url}"
+if ! push_status "$ENDPOINT_KEY" "$success" "$error"; then
+    fail "could not push the aggregate status"
 fi
 
-echo "pushed success=${success}${error:+ error='${error}'}"
+failed=0
+for name in $PER_CONTAINER; do
+    state="${container_state[$name]:-}"
+    if [[ "$state" == "ok" ]]; then
+        push_status "${ENDPOINT_PREFIX}_$(slug "$name")" true || failed=1
+    elif [[ -n "$state" ]]; then
+        push_status "${ENDPOINT_PREFIX}_$(slug "$name")" false "$state" || failed=1
+    else
+        echo "hsp-docker-health: $name is in PER_CONTAINER but not monitored" >&2
+        failed=1
+    fi
+done
+
+(( failed == 0 )) || fail "could not push one or more per-container statuses"
+
+echo "pushed aggregate success=${success}${error:+ error='${error}'}; ${PER_CONTAINER:+per-container:} ${PER_CONTAINER:-none}"

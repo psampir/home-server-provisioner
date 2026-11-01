@@ -56,7 +56,14 @@ class Case:
     def container(self, name: str, state: str) -> None:
         (self.state / name).write_text(state + "\n")
 
-    def run(self, healthy: str = "", running: str = "", fail_push: bool = False, ca: str = "") -> tuple[int, str, str]:
+    def run(
+        self,
+        healthy: str = "",
+        running: str = "",
+        fail_push: bool = False,
+        ca: str = "",
+        per: str = "",
+    ) -> tuple[int, str, str]:
         self.conf.write_text(
             'GATUS_URL="http://gatus.test"\n'
             'ENDPOINT_KEY="apps_docker-health"\n'
@@ -64,6 +71,8 @@ class Case:
             f'REQUIRE_HEALTHY="{healthy}"\n'
             f'REQUIRE_RUNNING="{running}"\n'
             f'GATUS_CA="{ca}"\n'
+            f'PER_CONTAINER="{per}"\n'
+            'ENDPOINT_PREFIX="docker"\n'
             'TIMEOUT=10\n'
         )
         if self.log.exists():
@@ -97,6 +106,25 @@ def main() -> int:
         rc, log, err = case.run(healthy="ok1", ca="/etc/hsp/ca.crt")
         if "--cacert /etc/hsp/ca.crt" not in log:
             raise SystemExit(f"CA bundle was not passed to curl: {log!r}")
+
+        rc, log, err = case.run(healthy="ok1", per="ok1")
+        if rc != 0 or log.count("success=true") != 2:
+            raise SystemExit(f"per-container endpoint was not pushed: rc={rc} log={log!r}")
+        if "docker_ok1" not in log:
+            raise SystemExit(f"per-container key missing: {log!r}")
+
+        case.container("immich_server", "running healthy")
+        rc, log, err = case.run(healthy="immich_server", per="immich_server")
+        if "docker_immich-server" not in log:
+            raise SystemExit(f"underscore was not slugified: {log!r}")
+
+        rc, log, err = case.run(healthy="bad1", per="bad1")
+        if "docker_bad1" not in log or "success=false" not in log:
+            raise SystemExit(f"failing per-container status was not pushed: {log!r}")
+
+        rc, log, err = case.run(healthy="ok1", per="unknown")
+        if rc == 0 or "not monitored" not in err:
+            raise SystemExit(f"unknown per-container name was accepted: rc={rc} err={err!r}")
 
         rc, log, err = case.run(healthy="ok1 bad1")
         if rc != 0 or "success=false" not in log or "bad1: unhealthy" not in log:
