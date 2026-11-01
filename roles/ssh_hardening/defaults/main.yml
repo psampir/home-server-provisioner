@@ -6,3 +6,7 @@ ssh_hardening_max_auth_tries: 3
 ssh_hardening_login_grace_time: 30
 ssh_hardening_permit_empty_passwords: "no"
 ssh_hardening_x11_forwarding: "no"
+# When non empty, only these accounts may log in over SSH. Leave empty to
+# keep sshd's default of accepting every local account with a valid key.
+# Remote users that only pull or push backups must be listed too.
+ssh_hardening_allow_users: []

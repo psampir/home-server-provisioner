@@ -3,5 +3,5 @@
 bantime = {{ fail2ban_bantime }}
 findtime = {{ fail2ban_findtime }}
 maxretry = {{ fail2ban_maxretry }}
-ignoreip = {{ fail2ban_ignoreip | join(' ') }}
+ignoreip = {{ (fail2ban_ignoreip + fail2ban_trusted_networks) | join(' ') }}
 backend = systemd
