@@ -61,3 +61,12 @@
     line: "X11Forwarding {{ ssh_hardening_x11_forwarding }}"
     validate: "sshd -t -f %s"
   notify: Restart sshd
+
+- name: Restrict SSH logins to the allowed users
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?AllowUsers\b'
+    line: "AllowUsers {{ ssh_hardening_allow_users | join(' ') }}"
+    state: "{{ 'present' if ssh_hardening_allow_users | length > 0 else 'absent' }}"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd

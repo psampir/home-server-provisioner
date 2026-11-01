@@ -18,14 +18,16 @@ Installs fail2ban and enables an SSH jail backed by the systemd journal.
 | `fail2ban_findtime` | `10m` | Window used to count failed attempts |
 | `fail2ban_maxretry` | `5` | Failed attempts before a ban |
 | `fail2ban_ignoreip` | `127.0.0.1/8`, `::1` | Addresses that are never banned |
+| `fail2ban_trusted_networks` | `[]` | Extra networks appended to `fail2ban_ignoreip` |
 | `fail2ban_ssh_port` | `ssh` | Port name from `/etc/services`, or a number |
 
 ## Notes
 
 - The role uses the systemd backend, which matches the journal-based
   Debian 13 defaults. It does not parse `/var/log/auth.log` directly.
-- Add management or monitoring addresses to `fail2ban_ignoreip` if they
-  perform automated SSH checks.
+- Add management or monitoring addresses to `fail2ban_ignoreip`, or whole
+  networks to `fail2ban_trusted_networks`, if they perform automated SSH
+  checks or if a ban could lock out your own access path.
 - `firewall` runs after `fail2ban` in `site.yml`. Both must be active for a
   ban to be effective; fail2ban installs its own rules, but the host
   firewall must not allow a bypass path.

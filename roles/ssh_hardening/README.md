@@ -15,6 +15,7 @@ Edits `/etc/ssh/sshd_config` in place, validating the result with
 4. Sets `UsePAM`.
 5. Limits `MaxAuthTries` and `LoginGraceTime`.
 6. Disables empty passwords and X11 forwarding.
+7. Optionally restricts logins to a list of accounts with `AllowUsers`.
 
 ## Variables
 
@@ -28,6 +29,7 @@ Edits `/etc/ssh/sshd_config` in place, validating the result with
 | `ssh_hardening_login_grace_time` | `30` | `LoginGraceTime` in seconds |
 | `ssh_hardening_permit_empty_passwords` | `no` | `PermitEmptyPasswords` value |
 | `ssh_hardening_x11_forwarding` | `no` | `X11Forwarding` value |
+| `ssh_hardening_allow_users` | `[]` | Accounts allowed to log in; empty keeps sshd's default |
 
 ## Notes
 
@@ -39,3 +41,8 @@ Edits `/etc/ssh/sshd_config` in place, validating the result with
   cannot take SSH down.
 - The role edits the main `sshd_config`. A `Match` block later in the file
   can still override these values for specific users or networks.
+- `AllowUsers` is the first match wins: a drop-in under
+  `/etc/ssh/sshd_config.d/` that sets it is read before the main file and
+  wins. Check with `sshd -T | grep -i allowusers` after the run.
+- List every remote account that logs in, including service accounts used
+  by backup pulls, so a narrow allow list does not break them.
