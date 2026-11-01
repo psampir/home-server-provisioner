@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# hsp-docker-health - report container health to a Gatus external endpoint.
+#
+# Reads /etc/hsp/docker-health.env (POSIX shell, KEY=value). Containers in
+# REQUIRE_HEALTHY must be running with a passing Docker healthcheck;
+# REQUIRE_RUNNING covers the ones without one. Containers in neither list
+# are ignored on purpose, so a new stack does not alert until it is added.
+#
+# One status is pushed per run. Gatus raises its own alert on failure and
+# also detects a script that stopped pushing through the endpoint
+# heartbeat, which covers the case where this script never runs at all.
+#
+# Exit status: 0 when the push succeeded (whether the containers are
+# healthy or not), non-zero when the configuration or the push failed, so
+# the scheduled job's OnFailure reports it.
+
+CONFIG="${HSP_DOCKER_HEALTH_CONFIG:-/etc/hsp/docker-health.env}"
+# shellcheck disable=SC1090
+[[ -r "$CONFIG" ]] && . "$CONFIG"
+
+GATUS_URL="${GATUS_URL:-}"
+ENDPOINT_KEY="${ENDPOINT_KEY:-}"
+GATUS_TOKEN="${GATUS_TOKEN:-}"
+GATUS_CA="${GATUS_CA:-}"
+REQUIRE_HEALTHY="${REQUIRE_HEALTHY:-}"
+REQUIRE_RUNNING="${REQUIRE_RUNNING:-}"
+TIMEOUT="${TIMEOUT:-10}"
+
+fail() {
+    echo "hsp-docker-health: $*" >&2
+    exit 1
+}
+
+[[ -n "$GATUS_URL" ]] || fail "GATUS_URL is not set"
+[[ -n "$ENDPOINT_KEY" ]] || fail "ENDPOINT_KEY is not set"
+[[ -n "$GATUS_TOKEN" ]] || fail "GATUS_TOKEN is not set"
+command -v docker >/dev/null 2>&1 || fail "docker is not installed"
+[[ -n "${REQUIRE_HEALTHY}${REQUIRE_RUNNING}" ]] || \
+    fail "no containers configured, set REQUIRE_HEALTHY or REQUIRE_RUNNING"
+
+problems=()
+
+state_of() {
+    docker inspect \
+        --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+        "$1" 2>/dev/null
+}
+
+for name in $REQUIRE_HEALTHY; do
+    if ! state="$(state_of "$name")"; then
+        problems+=("$name: missing")
+        continue
+    fi
+    status="$(echo "$state" | awk '{ print $1 }')"
+    health="$(echo "$state" | awk '{ print $2 }')"
+    if [[ "$status" != "running" ]]; then
+        problems+=("$name: ${status}")
+    elif [[ "$health" == "none" ]]; then
+        problems+=("$name: no healthcheck")
+    elif [[ "$health" != "healthy" ]]; then
+        problems+=("$name: ${health}")
+    fi
+done
+
+for name in $REQUIRE_RUNNING; do
+    if ! status="$(docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null)"; then
+        problems+=("$name: missing")
+        continue
+    fi
+    [[ "$status" == "running" ]] || problems+=("$name: ${status}")
+done
+
+if (( ${#problems[@]} > 0 )); then
+    success=false
+    error="$(printf '%s; ' "${problems[@]}")"
+    error="${error%; }"
+else
+    success=true
+    error=""
+fi
+
+url="${GATUS_URL%/}/api/v1/endpoints/${ENDPOINT_KEY}/external"
+curl_args=(
+    --fail
+    --silent
+    --show-error
+    --max-time "$TIMEOUT"
+    --retry 2
+    --retry-delay 2
+    -X POST
+    -H "Authorization: Bearer ${GATUS_TOKEN}"
+    --url-query "success=${success}"
+)
+[[ -n "$GATUS_CA" ]] && curl_args+=(--cacert "$GATUS_CA")
+[[ -n "$error" ]] && curl_args+=(--url-query "error=${error}")
+
+if ! curl "${curl_args[@]}" "$url" >/dev/null; then
+    fail "could not push the status to ${url}"
+fi
+
+echo "pushed success=${success}${error:+ error='${error}'}"

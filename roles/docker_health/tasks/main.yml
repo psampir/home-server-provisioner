@@ -1,0 +1,40 @@
+- name: Stop here when docker_health is disabled
+  ansible.builtin.meta: end_role
+  when: not docker_health_enabled
+
+- name: Validate the docker_health configuration
+  ansible.builtin.assert:
+    that:
+      - docker_health_gatus_url | length > 0
+      - docker_health_endpoint_key | length > 0
+      - docker_health_token | length > 0
+      - ((docker_health_require_healthy | length) + (docker_health_require_running | length)) > 0
+    fail_msg: >-
+      docker_health_enabled is true but the configuration is incomplete.
+      Set docker_health_gatus_url, docker_health_endpoint_key and
+      docker_health_token, and list at least one container.
+
+- name: Ensure the docker_health config directory exists
+  ansible.builtin.file:
+    path: "{{ docker_health_config | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install hsp-docker-health
+  ansible.builtin.copy:
+    src: hsp-docker-health
+    dest: "{{ docker_health_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the docker_health configuration
+  ansible.builtin.template:
+    src: docker-health.env.j2
+    dest: "{{ docker_health_config }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true

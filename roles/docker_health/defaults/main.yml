@@ -1,0 +1,26 @@
+# docker_health - report Docker container health to a Gatus external
+# endpoint, so containers without a published port are still monitored.
+#
+# The role is inert until enabled. The timer is a scheduled job defined
+# outside the role, so the interval and the failure notification stay
+# environment decisions.
+docker_health_enabled: false
+
+docker_health_bin: /usr/local/bin/hsp-docker-health
+docker_health_config: /etc/hsp/docker-health.env
+
+# Gatus side. The endpoint key is "<group>_<name>" lowercased with spaces,
+# slashes, underscores, dots, hashes, pluses and ampersands replaced by a
+# dash. The token is a secret and belongs in the vault.
+docker_health_gatus_url: ""
+docker_health_endpoint_key: ""
+docker_health_token: ""
+docker_health_timeout: 10
+# Optional CA bundle used to verify the Gatus certificate. Point it at the
+# root that signs the endpoint, e.g. the Caddy internal CA root.
+docker_health_gatus_ca: ""
+
+# Containers that must be running with a passing Docker healthcheck.
+docker_health_require_healthy: []
+# Containers without a healthcheck that only need to be running.
+docker_health_require_running: []
