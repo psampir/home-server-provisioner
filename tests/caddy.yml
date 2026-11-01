@@ -1,0 +1,79 @@
+---
+- name: Select the Caddy source directory per host
+  hosts: hub
+  gather_facts: false
+  connection: local
+  become: false
+  tasks:
+    - name: Select from a per-host directory only
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../roles/caddy/tasks/select_source.yml"
+      vars:
+        caddy_source_dir: "{{ playbook_dir }}/fixtures/caddy/host-only"
+        caddy_host_subdir: hub
+
+    - name: Assert the per-host directory is used
+      ansible.builtin.assert:
+        that:
+          - caddy_source_dir_found | bool
+          - "caddy_source_dir_effective == playbook_dir + '/fixtures/caddy/host-only/hub'"
+
+    - name: Select from a flat directory only
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../roles/caddy/tasks/select_source.yml"
+      vars:
+        caddy_source_dir: "{{ playbook_dir }}/fixtures/caddy/flat-only"
+        caddy_host_subdir: hub
+
+    - name: Assert the flat directory is the fallback
+      ansible.builtin.assert:
+        that:
+          - caddy_source_dir_found | bool
+          - "caddy_source_dir_effective == playbook_dir + '/fixtures/caddy/flat-only'"
+
+    - name: Select when both layouts exist
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../roles/caddy/tasks/select_source.yml"
+      vars:
+        caddy_source_dir: "{{ playbook_dir }}/fixtures/caddy/both"
+        caddy_host_subdir: hub
+
+    - name: Assert the per-host directory wins over the flat one
+      ansible.builtin.assert:
+        that:
+          - caddy_source_dir_found | bool
+          - "caddy_source_dir_effective == playbook_dir + '/fixtures/caddy/both/hub'"
+          - "caddy_source_dir_effective != playbook_dir + '/fixtures/caddy/both'"
+
+    - name: Select when no layout exists
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../roles/caddy/tasks/select_source.yml"
+      vars:
+        caddy_source_dir: "{{ playbook_dir }}/fixtures/caddy/absent"
+        caddy_host_subdir: hub
+
+    - name: Assert the role is a no-op without a source
+      ansible.builtin.assert:
+        that:
+          - not (caddy_source_dir_found | bool)
+          - "caddy_source_dir_effective == playbook_dir + '/fixtures/caddy/absent'"
+
+    - name: Select an existing but empty directory
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../roles/caddy/tasks/select_source.yml"
+      vars:
+        caddy_source_dir: "{{ playbook_dir }}/fixtures/caddy/none"
+        caddy_host_subdir: hub
+
+    - name: Assert the flag marks a directory source
+      ansible.builtin.assert:
+        that:
+          - caddy_source_dir_found | bool
+          - "caddy_source_dir_effective == playbook_dir + '/fixtures/caddy/none'"
+
+    - name: Select with a different host subdir
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../roles/caddy/tasks/select_source.yml"
+      vars:
+        caddy_source_dir: "{{ playbook_dir }}/fixtures/caddy/both"
+        caddy_host_subdir: edge
+
+    - name: Assert an unknown host falls back to the flat directory
+      ansible.builtin.assert:
+        that:
+          - caddy_source_dir_found | bool
+          - "caddy_source_dir_effective == playbook_dir + '/fixtures/caddy/both'"

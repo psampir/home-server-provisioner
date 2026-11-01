@@ -1,14 +1,16 @@
 # --- Source on controller ---
-# Directory holding Caddyfile (+ optional conf.d/*.caddy snippets) on the
-# controller, synchronized into /etc/caddy/ on the target. Matches the
-# compose_deploy / admin_dotfiles convention of sourcing from
-# configs/<env>/<thing>/.
+# Base directory holding the Caddy configuration on the controller,
+# synchronized into /etc/caddy/ on the target. Matches the compose_deploy
+# and admin_dotfiles convention of one directory per host.
 #
-# If this directory does not exist on the controller, the role is a no-op:
-# Caddy is NOT installed and no firewall rules are opened. This makes the
-# role safe to leave in playbooks/site.yml for environments that don't want
-# a reverse proxy yet - just don't create the directory.
+#   <base>/<inventory_hostname>/Caddyfile   preferred
+#   <base>/Caddyfile                          fallback for one host
+#
+# If neither exists the role is a no-op: Caddy is NOT installed and no
+# firewall rules are opened. This makes the role safe to leave in
+# playbooks/site.yml for environments without a native reverse proxy.
 caddy_source_dir: "{{ inventory_dir }}/../caddy"
+caddy_host_subdir: "{{ inventory_hostname }}"
 
 # --- Package source ---
 # Debian ships an old Caddy (2.6 in trixie) that predates named PKI

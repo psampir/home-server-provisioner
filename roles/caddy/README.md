@@ -9,9 +9,10 @@ both variants and for the recommended stack-based ingress.
 
 ## What it does
 
-1. Checks for a source directory at `caddy_source_dir`. If it does not
-   exist, the role is a no-op: Caddy is not installed and no firewall ports
-   are opened.
+1. Picks the source directory for this host: `caddy_source_dir` joined with
+   `caddy_host_subdir` when that exists, otherwise `caddy_source_dir` itself
+   as a single-host fallback. If neither exists, the role is a no-op: Caddy
+   is not installed and no firewall ports are opened.
 2. Fails loudly if the directory exists but has no `Caddyfile`.
 3. Installs the `caddy` package.
 4. Syncs `Caddyfile` to `/etc/caddy/Caddyfile` with mode `0640`.
@@ -28,7 +29,8 @@ does not take existing sites down.
 
 | Variable | Default | Description |
 |---|---|---|
-| `caddy_source_dir` | `configs/<env>/caddy` | Controller directory with `Caddyfile` and optional `conf.d/` |
+| `caddy_source_dir` | `configs/<env>/caddy` | Base directory with one `Caddyfile` and optional `conf.d/` per host, or a flat layout |
+| `caddy_host_subdir` | `inventory_hostname` | Subdirectory picked under `caddy_source_dir` |
 | `caddy_apt_repo` | `false` | Install from the official Caddy repository instead of Debian |
 | `caddy_apt_key_url` | Cloudsmith key | Repository signing key |
 | `caddy_apt_keyring` | `/usr/share/keyrings/caddy-stable-archive-keyring.asc` | Downloaded key |
@@ -45,6 +47,10 @@ does not take existing sites down.
 - The role is safe to leave in `playbooks/site.yml` for environments that
   do not use it. Create `configs/<env>/caddy/` only when you want the native
   hub variant.
+- Layout: `configs/<env>/caddy/<hostname>/Caddyfile` wins over
+  `configs/<env>/caddy/Caddyfile`, so several hosts can each have their own
+  sites. The flat file stays supported for single-host environments and is
+  reported as a fallback in the task output.
 - `caddy_open_https` controls HTTPS on 443/tcp. `caddy_open_http3` controls
   443/udp and only takes effect when HTTPS is enabled.
 - The role manages `/etc/caddy/conf.d/*.caddy` and removes orphaned

@@ -1,47 +1,38 @@
-- name: Resolve caddy source dir to a canonical absolute path
-  delegate_to: localhost
-  become: false
-  ansible.builtin.command:
-    cmd: "realpath -m -- {{ caddy_source_dir }}"
-  register: caddy_source_realpath
-  changed_when: false
+- name: Select the Caddy source directory for this host
+  ansible.builtin.include_tasks: select_source.yml
 
-- name: Stat caddy source dir on controller
+- name: Stat the selected Caddyfile on the controller
+  when: caddy_source_dir_found | bool
   delegate_to: localhost
   become: false
   ansible.builtin.stat:
-    path: "{{ caddy_source_realpath.stdout }}"
-  register: caddy_source_stat
-
-- name: "Notice - no Caddyfile source found, skipping role"
-  when: >-
-    not (caddy_source_stat.stat.exists | default(false)
-         and caddy_source_stat.stat.isdir | default(false))
-  ansible.builtin.debug:
-    msg: >-
-      No directory at {{ caddy_source_dir }} on the controller - Caddy role
-      is a no-op. Drop a Caddyfile (and optional conf.d/*.caddy snippets)
-      under that path to enable reverse proxy provisioning.
-
-- name: Stat Caddyfile on controller
-  when: >-
-    caddy_source_stat.stat.exists | default(false)
-    and caddy_source_stat.stat.isdir | default(false)
-  delegate_to: localhost
-  become: false
-  ansible.builtin.stat:
-    path: "{{ caddy_source_realpath.stdout }}/Caddyfile"
+    path: "{{ caddy_source_dir_effective }}/Caddyfile"
   register: caddy_caddyfile_stat
 
-- name: Fail loudly if source dir exists but Caddyfile is missing
+- name: "Notice - no Caddyfile source found, skipping role"
+  when: not (caddy_source_dir_found | bool)
+  ansible.builtin.debug:
+    msg: >-
+      No directory at {{ caddy_source_dir }}/{{ caddy_host_subdir }} or
+      {{ caddy_source_dir }} on the controller - Caddy role is a no-op.
+      Drop a Caddyfile (and optional conf.d/*.caddy snippets) under one of
+      those paths to enable reverse proxy provisioning.
+
+- name: Fail loudly if the selected source dir has no Caddyfile
   when:
-    - caddy_source_stat.stat.exists | default(false)
-    - caddy_source_stat.stat.isdir | default(false)
+    - caddy_source_dir_found | bool
     - not (caddy_caddyfile_stat.stat.exists | default(false))
   ansible.builtin.fail:
     msg: >-
-      {{ caddy_source_realpath.stdout }} exists but contains no Caddyfile.
+      {{ caddy_source_dir_effective }} exists but contains no Caddyfile.
       Either remove the directory (to disable the role) or add a Caddyfile.
+
+- name: Report the Caddy source in use
+  when: caddy_source_dir_found | bool
+  ansible.builtin.debug:
+    msg: >-
+      Using the Caddy configuration from {{ caddy_source_dir_effective }}{{ ''
+      if (caddy_source_host_stat.stat.isdir | default(false)) else ' (flat fallback)' }}
 
 # ---- Everything below runs only when a Caddyfile is present -----------------
 
@@ -116,7 +107,7 @@
 - name: Sync Caddyfile from controller
   when: caddy_caddyfile_stat.stat.exists | default(false)
   ansible.builtin.copy:
-    src: "{{ caddy_source_realpath.stdout }}/Caddyfile"
+    src: "{{ caddy_source_dir_effective }}/Caddyfile"
     dest: /etc/caddy/Caddyfile
     owner: root
     group: caddy
@@ -129,7 +120,7 @@
   delegate_to: localhost
   become: false
   ansible.builtin.find:
-    paths: "{{ caddy_source_realpath.stdout }}/conf.d"
+    paths: "{{ caddy_source_dir_effective }}/conf.d"
     patterns: "*.caddy"
     file_type: file
   register: caddy_snippets_local
