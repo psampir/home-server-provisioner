@@ -16,3 +16,8 @@
   changed_when: false
   failed_when: false
   when: smart_monitoring_notify_on_change
+
+- name: Update the initramfs for USB quirks
+  ansible.builtin.command:
+    cmd: update-initramfs -u
+  changed_when: true

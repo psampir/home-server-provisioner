@@ -37,3 +37,14 @@ smart_monitoring_notify_bin: "{{ notifications_bin_path | default('/usr/local/bi
 
 # systemd unit name for smartd (Debian ships smartmontools.service).
 smart_monitoring_service: smartmontools
+
+# --- USB bridge quirks ---
+# Some USB-SATA bridges bind to uas, which rejects the ATA pass-through
+# smartctl needs, so the disk looks like it has no SMART support. Listing
+# the bridge here forces usb-storage instead, which passes SMART through.
+# Format: "vid:pid:flags", flags "u" means ignore UAS.
+# Example: ["0bc2:231a:u"] for Seagate Expansion Portable enclosures.
+# A device already bound to uas keeps the old driver until it is re-probed
+# or the host reboots; this file only decides the next binding.
+smart_monitoring_usb_quirks: []
+smart_monitoring_usb_quirks_path: /etc/modprobe.d/usb-storage-quirks.conf

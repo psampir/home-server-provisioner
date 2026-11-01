@@ -59,3 +59,27 @@
     state: "{{ 'started' if ansible_virtualization_role != 'guest' else omit }}"
     enabled: true
   when: smart_monitoring_enabled
+
+# ---------------------------------------------------------------------------
+# USB bridge quirks - force usb-storage for bridges that hide SMART behind
+# uas. Applying the file does not touch a device that is already bound; the
+# new driver is used on the next probe or reboot.
+# ---------------------------------------------------------------------------
+- name: Configure USB storage quirks
+  when: smart_monitoring_usb_quirks | length > 0
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - do not edit manually.
+      options usb-storage quirks={{ smart_monitoring_usb_quirks | join(',') }}
+    dest: "{{ smart_monitoring_usb_quirks_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Update the initramfs for USB quirks
+
+- name: Remove the USB storage quirks file when the list is empty
+  when: smart_monitoring_usb_quirks | length == 0
+  ansible.builtin.file:
+    path: "{{ smart_monitoring_usb_quirks_path }}"
+    state: absent
+  notify: Update the initramfs for USB quirks

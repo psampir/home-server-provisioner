@@ -67,3 +67,19 @@ package is left installed.
 Requires the `notifications` role (provides `hsp-notify`). With no ntfy
 backend configured, `hsp-notify` becomes a no-op that logs to the
 journal, so this role is still safe to enable.
+
+## USB bridges that hide SMART
+
+Some USB-SATA enclosures bind to `uas`, which rejects the ATA pass-through
+smartctl needs, so the disk looks like it has no SMART support at all. Set
+`smart_monitoring_usb_quirks` to the bridge IDs, for example
+`["0bc2:231a:u"]` for Seagate Expansion Portable enclosures. The role
+writes `/etc/modprobe.d/usb-storage-quirks.conf` and refreshes the
+initramfs; the `u` flag means ignore UAS, so the kernel uses usb-storage
+instead, which passes SMART through.
+
+A device already bound to `uas` keeps the old driver until it is re-probed
+or the host reboots, so the file alone does not switch a running disk.
+The trade-off is speed: UAS queues commands while usb-storage (BOT) sends
+one at a time. For nightly backups that is acceptable, and without it
+there is no SMART data at all.
