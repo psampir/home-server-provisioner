@@ -31,6 +31,7 @@
   roles:
     - dnsmasq
     - caddy
+    - gatus
 
 - name: Application server provisioning
   hosts: app_servers

@@ -1,0 +1,86 @@
+---
+- name: Render Gatus templates
+  hosts: test-target
+  gather_facts: false
+  become: false
+  vars:
+    gatus_user: gatus
+    gatus_group: gatus
+    gatus_config_dir: /etc/gatus
+    gatus_data_dir: /var/lib/gatus
+    gatus_bin_path: /usr/local/bin/gatus
+    gatus_service_name: gatus
+    gatus_after_units:
+      - wg-quick@wg0.service
+    gatus_wants_units:
+      - wg-quick@wg0.service
+    gatus_ntfy_enabled: true
+    gatus_ntfy_url: https://ntfy.example
+    gatus_ntfy_topic: test-topic
+    gatus_ntfy_priority: 4
+    gatus_ntfy_failure_threshold: 2
+    gatus_ntfy_success_threshold: 2
+    gatus_ntfy_send_on_resolved: true
+    gatus_config:
+      storage:
+        type: sqlite
+        path: /var/lib/gatus/gatus.db
+      web:
+        address: 10.10.0.1
+        port: 8080
+      endpoints:
+        - name: example
+          group: apps
+          url: https://example.test
+          interval: 2m
+          conditions:
+            - "[STATUS] == 200"
+          alerts:
+            - type: ntfy
+  tasks:
+    - name: Render the Gatus configuration
+      ansible.builtin.set_fact:
+        gatus_rendered_config: >-
+          {{ lookup('template', playbook_dir + '/../roles/gatus/templates/config.yaml.j2') }}
+
+    - name: Assert the config includes web, storage, ntfy and endpoints
+      ansible.builtin.assert:
+        that:
+          - "'10.10.0.1' in gatus_rendered_config"
+          - "'type: sqlite' in gatus_rendered_config"
+          - "'topic: test-topic' in gatus_rendered_config"
+          - "'url: https://ntfy.example' in gatus_rendered_config"
+          - "'priority: 4' in gatus_rendered_config"
+          - "'failure-threshold: 2' in gatus_rendered_config"
+          - "'name: example' in gatus_rendered_config"
+          - "'type: ntfy' in gatus_rendered_config"
+
+    - name: Render the Gatus service unit
+      ansible.builtin.set_fact:
+        gatus_rendered_service: >-
+          {{ lookup('template', playbook_dir + '/../roles/gatus/templates/gatus.service.j2') }}
+
+    - name: Assert the service runs as gatus with the VPN dependency
+      ansible.builtin.assert:
+        that:
+          - "'User=gatus' in gatus_rendered_service"
+          - "'Group=gatus' in gatus_rendered_service"
+          - "'GATUS_CONFIG_PATH=/etc/gatus' in gatus_rendered_service"
+          - "'ExecStart=/usr/local/bin/gatus' in gatus_rendered_service"
+          - "'ReadWritePaths=/var/lib/gatus' in gatus_rendered_service"
+          - "'After=network-online.target wg-quick@wg0.service' in gatus_rendered_service"
+          - "'OnFailure=hsp-notify-failure@%n.service' in gatus_rendered_service"
+          - "gatus_rendered_service.splitlines().index('OnFailure=hsp-notify-failure@%n.service') < gatus_rendered_service.splitlines().index('[Service]')"
+
+    - name: Render the config without ntfy alerting
+      ansible.builtin.set_fact:
+        gatus_rendered_no_ntfy: >-
+          {{ lookup('template', playbook_dir + '/../roles/gatus/templates/config.yaml.j2') }}
+      vars:
+        gatus_ntfy_enabled: false
+
+    - name: Assert ntfy is absent when disabled
+      ansible.builtin.assert:
+        that:
+          - "'alerting' not in gatus_rendered_no_ntfy"
+          - "'topic: test-topic' not in gatus_rendered_no_ntfy"

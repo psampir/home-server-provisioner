@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Gatus health dashboard
+After=network-online.target{{ (' ' ~ (gatus_after_units | join(' '))) if gatus_after_units | length > 0 else '' }}
+Wants=network-online.target{{ (' ' ~ (gatus_wants_units | join(' '))) if gatus_wants_units | length > 0 else '' }}
+OnFailure=hsp-notify-failure@%n.service
+
+[Service]
+Type=simple
+User={{ gatus_user }}
+Group={{ gatus_group }}
+Environment=GATUS_CONFIG_PATH={{ gatus_config_dir }}
+ExecStart={{ gatus_bin_path }}
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths={{ gatus_data_dir }}
+
+[Install]
+WantedBy=multi-user.target

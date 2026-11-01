@@ -1,0 +1,51 @@
+---
+# gatus - lightweight health dashboard and uptime monitor.
+#
+# Gatus is a single static Go binary. It is not packaged in Debian, and
+# upstream no longer publishes release binaries, so the default install
+# method extracts the binary from the official container image with
+# skopeo + umoci. Set gatus_binary_src to a local file to skip that.
+gatus_enabled: false
+
+gatus_version: "v5.37.0"
+gatus_image: "ghcr.io/twin/gatus"
+# Optional image digest, e.g. "sha256:...". Pins the image content.
+gatus_image_digest: ""
+gatus_arch: "amd64"
+
+# Local binary escape hatch. When set, the role copies this file and does
+# not install skopeo/umoci or pull the image.
+gatus_binary_src: ""
+
+gatus_install_tools: true
+gatus_tools_packages:
+  - skopeo
+  - umoci
+
+gatus_user: gatus
+gatus_group: gatus
+gatus_bin_path: /usr/local/bin/gatus
+gatus_version_marker: /usr/local/bin/gatus.version
+gatus_config_dir: /etc/gatus
+gatus_data_dir: /var/lib/gatus
+gatus_config_path: "{{ gatus_config_dir }}/config.yaml"
+gatus_service_name: gatus
+gatus_extract_dir: /var/tmp/gatus-extract
+
+# Extra systemd dependencies for binding to a VPN address.
+gatus_after_units: []
+gatus_wants_units: []
+
+# Gatus YAML configuration, rendered verbatim. Keep secrets out of logs
+# with no_log on the render task.
+gatus_config: {}
+
+# ntfy alerting. The role merges this block into gatus_config.alerting.ntfy
+# so the topic can come from the vault without nesting Jinja in a dict.
+gatus_ntfy_enabled: true
+gatus_ntfy_url: "https://ntfy.sh"
+gatus_ntfy_topic: ""
+gatus_ntfy_priority: 4
+gatus_ntfy_failure_threshold: 2
+gatus_ntfy_success_threshold: 2
+gatus_ntfy_send_on_resolved: true
