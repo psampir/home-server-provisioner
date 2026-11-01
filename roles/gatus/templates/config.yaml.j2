@@ -5,10 +5,10 @@
       'ntfy': {
         'url': gatus_ntfy_url,
         'topic': gatus_ntfy_topic,
-        'priority': gatus_ntfy_priority,
+        'priority': gatus_ntfy_priority | int,
         'default-alert': {
-          'failure-threshold': gatus_ntfy_failure_threshold,
-          'success-threshold': gatus_ntfy_success_threshold,
+          'failure-threshold': gatus_ntfy_failure_threshold | int,
+          'success-threshold': gatus_ntfy_success_threshold | int,
           'send-on-resolved': gatus_ntfy_send_on_resolved
         }
       }
