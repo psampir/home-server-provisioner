@@ -10,6 +10,22 @@
 # a reverse proxy yet - just don't create the directory.
 caddy_source_dir: "{{ inventory_dir }}/../caddy"
 
+# --- Package source ---
+# Debian ships an old Caddy (2.6 in trixie) that predates named PKI
+# authorities, so its Caddyfile dialect differs from upstream images.
+# Enable this to install from the official Cloudsmith repository and
+# track the upstream release line instead.
+caddy_apt_repo: false
+caddy_apt_key_url: "https://dl.cloudsmith.io/public/caddy/stable/gpg.key"
+caddy_apt_keyring: /usr/share/keyrings/caddy-stable-archive-keyring.asc
+caddy_apt_sources: /etc/apt/sources.list.d/caddy-stable.list
+caddy_apt_repo_line: >-
+  deb [signed-by={{ caddy_apt_keyring }}]
+  https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main
+# Package state. Opting into the official repository also means following
+# it, because apt would otherwise keep the older Debian build installed.
+caddy_apt_state: "{{ 'latest' if caddy_apt_repo else 'present' }}"
+
 # --- Firewall (UFW) ---
 # Caddy needs 80/tcp for ACME HTTP-01 challenges even if every site
 # eventually serves on 443 only. 443/tcp is HTTPS; 443/udp is HTTP/3 (QUIC).

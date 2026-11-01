@@ -45,11 +45,62 @@
 
 # ---- Everything below runs only when a Caddyfile is present -----------------
 
+- name: Ensure the apt keyring directory exists
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - caddy_apt_repo
+  ansible.builtin.file:
+    path: "{{ caddy_apt_keyring | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the official Caddy apt key
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - caddy_apt_repo
+  ansible.builtin.get_url:
+    url: "{{ caddy_apt_key_url }}"
+    dest: "{{ caddy_apt_keyring }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add the official Caddy apt repository
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - caddy_apt_repo
+  ansible.builtin.copy:
+    content: "{{ caddy_apt_repo_line }}\n"
+    dest: "{{ caddy_apt_sources }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: caddy_apt_sources_changed
+
+- name: Remove the official Caddy apt repository when disabled
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - not caddy_apt_repo
+  ansible.builtin.file:
+    path: "{{ caddy_apt_sources }}"
+    state: absent
+
+- name: Refresh the apt cache after adding the Caddy repository
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - caddy_apt_repo
+    - caddy_apt_sources_changed is changed
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 0
+
 - name: Install Caddy
   when: caddy_caddyfile_stat.stat.exists | default(false)
   ansible.builtin.apt:
     name: caddy
-    state: present
+    state: "{{ caddy_apt_state }}"
     update_cache: true
     cache_valid_time: 3600
 

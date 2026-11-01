@@ -29,6 +29,11 @@ does not take existing sites down.
 | Variable | Default | Description |
 |---|---|---|
 | `caddy_source_dir` | `configs/<env>/caddy` | Controller directory with `Caddyfile` and optional `conf.d/` |
+| `caddy_apt_repo` | `false` | Install from the official Caddy repository instead of Debian |
+| `caddy_apt_key_url` | Cloudsmith key | Repository signing key |
+| `caddy_apt_keyring` | `/usr/share/keyrings/caddy-stable-archive-keyring.asc` | Downloaded key |
+| `caddy_apt_sources` | `/etc/apt/sources.list.d/caddy-stable.list` | Repository definition |
+| `caddy_apt_repo_line` | `deb ... any-version main` | Repository line |
 | `caddy_open_firewall` | `true` | Open Caddy ports in UFW |
 | `caddy_firewall_from` | `[any]` | Source CIDRs for the firewall rules |
 | `caddy_open_http` | `true` | Open 80/tcp for ACME HTTP-01 |
@@ -49,3 +54,12 @@ does not take existing sites down.
   [roles/firewall/README.md](../firewall/README.md#docker-bypasses-ufw).
 - The Caddy service runs as the `caddy` user. Certificate and data paths
   depend on the packaging and are not managed by this role.
+- Debian trixie ships Caddy 2.6, which predates named PKI authorities. A
+  Caddyfile that uses `pki { ca ... }` and `issuer internal { ca ... }`
+  is rejected there. Set `caddy_apt_repo: true` to install the upstream
+  release instead, so the hub speaks the same Caddyfile dialect as a
+  `caddy:<tag>` Compose stack on an app server.
+- The named CA also decides the storage directory. With `ca internal` the
+  material lives in `pki/authorities/internal/`; Debian's 2.6 `tls internal`
+  keeps it in `pki/authorities/local/`. Sharing one CA between hosts means
+  matching the CA name, not copying between those directories.
