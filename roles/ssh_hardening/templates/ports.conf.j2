@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+# One Port line per listening socket. sshd opens all of them; a single
+# line would replace the default 22 instead of adding to it.
+{{ ssh_hardening_ports | map('regex_replace', '^', 'Port ') | join('\n') }}

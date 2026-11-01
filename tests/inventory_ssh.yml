@@ -8,6 +8,7 @@ all:
           ansible_host: 203.0.113.10
           vpn_ip: 10.10.0.1
           wireguard_role: hub
+          ansible_port: 2222
           admin_user_name: test
         node:
           ansible_connection: local
