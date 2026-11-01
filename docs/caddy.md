@@ -64,7 +64,9 @@ networks:
 ```
 
 Pin a specific Caddy tag. The example uses `2.9.1`; update it deliberately
-and run `make validate-stacks` after changing an image.
+and run `make validate-stacks` after changing an image. Keep the tag on the
+same upstream line as the hub's package (`caddy_apt_repo` on the role), so
+one Caddyfile dialect works in both places.
 
 If the ingress should be reachable only over the VPN or LAN, bind the
 published ports to one address instead of all interfaces:
@@ -155,13 +157,13 @@ The stack stores CA data in `/data` inside the container. With the bind
 mount above, the root certificate is also visible on the host at:
 
 ```
-/srv/data/docker-apps-data/caddy-data/caddy_data/pki/authorities/local/root.crt
+/srv/data/docker-apps-data/caddy-data/caddy_data/pki/authorities/internal/root.crt
 ```
 
 Read it through the container to avoid guessing the path:
 
 ```bash
-docker exec caddy cat /data/pki/authorities/local/root.crt
+docker exec caddy cat /data/pki/authorities/internal/root.crt
 ```
 
 Trust this certificate once on every client that should use the internal
@@ -273,8 +275,18 @@ If the directory exists but has no `Caddyfile`, the role fails loudly.
 #### `tls internal`
 
 ```caddy
+{
+    pki {
+        ca internal
+    }
+}
+
 whoami.home {
-    tls internal
+    tls {
+        issuer internal {
+            ca internal
+        }
+    }
     reverse_proxy 10.10.0.2:8080
 }
 ```
@@ -283,11 +295,17 @@ Caddy mints certificates from its local CA. Trust the root once on each
 client:
 
 ```bash
-sudo cat /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+sudo cat /var/lib/caddy/.local/share/caddy/pki/authorities/internal/root.crt
 ```
 
 This is the right mode for names that resolve only through `dnsmasq` and
 exist only inside the tunnel.
+
+Debian trixie ships Caddy 2.6, which has no named PKI authorities: there
+the equivalent is `tls internal` and the material lives in
+`pki/authorities/local/`. Enable `caddy_apt_repo` on the role to install
+the upstream release and keep one dialect, and one CA directory name,
+everywhere.
 
 #### ACME HTTP-01
 
@@ -465,8 +483,8 @@ sudo systemctl status caddy
 
 This is expected with `tls internal`. Trust the root certificate once:
 
-- Stack mode: `docker exec caddy cat /data/pki/authorities/local/root.crt`
-- Native mode: `sudo cat /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`
+- Stack mode: `docker exec caddy cat /data/pki/authorities/internal/root.crt`
+- Native mode: `sudo cat /var/lib/caddy/.local/share/caddy/pki/authorities/internal/root.crt`
 
 Import the file into the system or browser trust store. A certificate
 warning after trusting the root usually means the client is connecting to a
