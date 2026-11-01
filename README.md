@@ -264,7 +264,7 @@ Each role is self-contained. The full list:
 | `wireguard` | Hub-and-spoke VPN. Generates per-host keypairs, renders `[Peer]` sections on the hub, and renders `<client>.conf` + `<client>.png` QR codes on the controller when `make wireguard-render` runs. Asserts inventory sanity (unique VPN IPs, exactly one hub). |
 | `dns_client` | On app servers: rewrites `/etc/resolv.conf` to point at the WireGuard hub so local hostnames resolve through dnsmasq (and disables dhcpcd's `resolv.conf` hook when present). Backup targets do not run this role. |
 | `dnsmasq` | On the hub: full LAN/VPN resolver, auto-generates host records from the inventory, forwards external queries upstream |
-| `caddy` | Native Caddy option on the hub: reverse proxy with automatic TLS, sourced from `configs/<ENV>/caddy/Caddyfile` (+ optional `conf.d/*.caddy` snippets). The role is skipped when that tree is absent. The stack-based variant on an app server is documented in [docs/caddy.md](docs/caddy.md). |
+| `caddy` | Native Caddy option on the hub: reverse proxy with automatic TLS, sourced per host from `configs/<ENV>/caddy/<hostname>/Caddyfile` (+ optional `conf.d/*.caddy` snippets), with a flat `configs/<ENV>/caddy/Caddyfile` as the single-host fallback. The role is skipped when neither exists. The stack-based variant on an app server is documented in [docs/caddy.md](docs/caddy.md). |
 
 ### Applications (`app_servers` only)
 
@@ -341,7 +341,8 @@ configs/<ENV>/
 │   │   └── .config/fish/config.fish
 │   └── home-app/home/              → host-specific overlay
 │       └── .config/git/config
-├── caddy/                          → optional native Caddy role source
+├── caddy/
+│   └── my-vps/Caddyfile            → native Caddy config per host
 ├── scripts/                        → custom_scripts payloads
 └── systemd/                        → systemd_units payloads
 ```
@@ -352,6 +353,9 @@ Resolution rules:
   the whole stack directory).
 - **Dotfiles**: host overlay wins per file (file-level merge - a host can
   add new files without re-shipping the whole baseline).
+- **Caddy (native role)**: `caddy/<host>/` wins over a flat `caddy/`, so
+  each host gets its own Caddyfile while a single-host environment can keep
+  one.
 
 Escape hatch: set `compose_deploy_stacks: [...]` explicitly in host_vars
 to skip auto-discovery entirely (rare, mostly for transient debugging).

@@ -1,11 +1,13 @@
 # =============================================================================
 # Example Caddyfile - managed by the `caddy` role.
 #
-# This file is synchronized verbatim to /etc/caddy/Caddyfile on the host(s)
-# in the `vpn_server` group (Caddy lives natively on the WireGuard hub -
-# same machine that already terminates VPN traffic and serves DNS via
-# dnsmasq, so it's the natural ingress point for all reverse-proxied
-# services).
+# The role picks configs/<ENV>/caddy/<hostname>/Caddyfile for each host, so
+# every node gets its own file. A flat configs/<ENV>/caddy/Caddyfile is
+# still accepted as a fallback for single-host environments.
+#
+# This example targets the WireGuard hub from hosts.yml.example, the machine
+# that already terminates VPN traffic and serves DNS via dnsmasq, which
+# makes it the natural ingress for reverse-proxied services.
 #
 # Optional snippet files in conf.d/*.caddy are synchronized to
 # /etc/caddy/conf.d/ and can be pulled in here via `import` directives.

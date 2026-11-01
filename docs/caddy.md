@@ -10,7 +10,7 @@ environment.
 |---|---|---|
 | Runs on | An app server, next to the workloads | The `vpn_server` hub |
 | Managed by | `compose_deploy` | The `caddy` role |
-| Source on controller | `configs/<ENV>/stacks/<host>/caddy/` | `configs/<ENV>/caddy/` |
+| Source on controller | `configs/<ENV>/stacks/<host>/caddy/` | `configs/<ENV>/caddy/<host>/` |
 | Service | Docker container | Native `systemd` service |
 | Ports | Published by Docker | Opened in UFW by the role |
 | CA and data | A bind mount, usually under `/srv/data` | `/var/lib/caddy/` |
@@ -243,11 +243,17 @@ address.
 
 ```
 configs/<ENV>/caddy/
-├── Caddyfile               # main config (required)
-└── conf.d/                 # optional snippets
-    ├── public.caddy
-    └── internal.caddy
+├── <hostname>/
+│   ├── Caddyfile           # main config for that host (required)
+│   └── conf.d/             # optional snippets
+│       ├── public.caddy
+│       └── internal.caddy
+└── Caddyfile               # flat fallback for one-host environments
 ```
+
+The role picks `<hostname>/` when it exists and falls back to the flat
+directory otherwise, so a single-host environment can keep one Caddyfile.
+The task output says which one it used. Two hosts never share a config.
 
 The role mirrors the tree to `/etc/caddy/`. Pull snippets in with:
 
@@ -263,12 +269,13 @@ does not take existing sites down.
 
 ### Opting out
 
-If `configs/<ENV>/caddy/` does not exist on the controller, the role is a
-no-op: Caddy is not installed and no firewall ports are opened. This keeps
-the role in `playbooks/site.yml` without affecting environments that use a
-stack instead.
+If neither `configs/<ENV>/caddy/<hostname>/` nor `configs/<ENV>/caddy/`
+exists on the controller, the role is a no-op: Caddy is not installed and
+no firewall ports are opened. This keeps the role in `playbooks/site.yml`
+without affecting environments that use a stack instead.
 
-If the directory exists but has no `Caddyfile`, the role fails loudly.
+If the selected directory exists but has no `Caddyfile`, the role fails
+loudly.
 
 ### TLS modes
 
@@ -543,7 +550,7 @@ reachable from the LAN and VPN clients do not route to the LAN.
 
 1. Create `configs/<ENV>/stacks/<host>/caddy/` with the Compose file and
    Caddyfile.
-2. Move the site blocks from `configs/<ENV>/caddy/Caddyfile` into the stack
+2. Move the site blocks from `configs/<ENV>/caddy/<host>/Caddyfile` into the stack
    Caddyfile. Replace `10.10.0.x` backends with container names where the
    backends share the `reverse_proxy` network.
 3. Point DNS at the app server's `vpn_ip`.

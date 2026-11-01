@@ -126,9 +126,9 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 # --- Local tests (no VMs, no Docker) ---
 
-.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus
+.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy
 
-test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -150,6 +150,9 @@ test-ssh-config: ## Test generated SSH aliases (VPN first, LAN alias)
 
 test-gatus: ## Test Gatus config, service and alerting templates
 	env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i tests/inventory.yml tests/gatus.yml
+
+test-caddy: ## Test per-host Caddy source selection
+	env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i tests/inventory_ssh.yml tests/caddy.yml
 
 # --- Test environment ---
 #
