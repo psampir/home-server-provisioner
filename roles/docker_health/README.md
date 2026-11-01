@@ -14,8 +14,15 @@ script reads the Docker socket on the host, so no port or API is exposed.
 Every run inspects the containers in `docker_health_require_healthy`
 (must be running with a passing healthcheck) and
 `docker_health_require_running` (no healthcheck, must be running), then
-pushes one status to Gatus. A container that is missing, stopped,
-starting, unhealthy or no longer has a healthcheck is reported by name.
+pushes one aggregate status to Gatus. A container that is missing,
+stopped, starting, unhealthy or no longer has a healthcheck is reported by
+name.
+
+Containers also listed in `docker_health_per_container` get an extra
+informational endpoint `<prefix>_<container>`, so the dashboard shows one
+row per container instead of a single boolean. Only the aggregate
+endpoint carries alerts and the heartbeat, so a dead script pages once
+rather than once per container.
 
 Gatus raises the alert, and its endpoint heartbeat catches the case where
 the script stops running at all. The scheduled job's `notify_on_failure`
@@ -32,6 +39,8 @@ covers the case where the script runs but cannot reach Gatus.
 | `docker_health_gatus_ca` | `""` | Optional CA bundle to verify the Gatus certificate |
 | `docker_health_require_healthy` | `[]` | Containers that must be healthy |
 | `docker_health_require_running` | `[]` | Containers that only need to run |
+| `docker_health_per_container` | `[]` | Containers that also get their own row; must be in one of the lists above |
+| `docker_health_endpoint_prefix` | `docker` | Prefix of the per-container endpoint key |
 | `docker_health_timeout` | `10` | Push timeout in seconds |
 
 The endpoint key is the group and name lowercased, with spaces, slashes,
@@ -55,6 +64,21 @@ external-endpoints:
 
 A `3m` heartbeat with a one minute job leaves room for one or two missed
 runs without a false alert, while a dead script still pages within minutes.
+
+Each container in `docker_health_per_container` needs its own endpoint in
+the same `docker` group, with no alerts:
+
+```yaml
+  - name: bta-controller
+    group: docker
+    token: "{{ vault_gatus_push_token }}"
+    heartbeat:
+      interval: 3m
+    alerts: []
+```
+
+The key is `<group>_<name>`, so the container name must match what the
+script slugifies: underscores become dashes.
 
 If Gatus sits behind a reverse proxy with an internal CA, set
 `docker_health_gatus_ca` to that CA root and point

@@ -14,6 +14,17 @@
       Set docker_health_gatus_url, docker_health_endpoint_key and
       docker_health_token, and list at least one container.
 
+- name: Validate the per-container endpoint list
+  ansible.builtin.assert:
+    that:
+      - >-
+        docker_health_per_container
+        | difference(docker_health_require_healthy + docker_health_require_running)
+        | length == 0
+    fail_msg: >-
+      Every container in docker_health_per_container must also appear in
+      docker_health_require_healthy or docker_health_require_running.
+
 - name: Ensure the docker_health config directory exists
   ansible.builtin.file:
     path: "{{ docker_health_config | dirname }}"
