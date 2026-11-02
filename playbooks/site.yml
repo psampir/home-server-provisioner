@@ -12,6 +12,7 @@
     - admin_dotfiles
     - ssh_hardening
     - notifications
+    - login_notify
     - auto_updates
     - journal
     - fail2ban

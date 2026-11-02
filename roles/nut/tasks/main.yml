@@ -29,6 +29,22 @@
     update_cache: true
     cache_valid_time: 3600
 
+- name: Use the hsp-notify wrapper for UPS events
+  when:
+    - nut_notify_via_hsp
+    - nut_notify_command | length == 0
+  ansible.builtin.set_fact:
+    nut_notify_command: "{{ nut_notify_ups_bin }}"
+
+- name: Install the hsp-notify UPS wrapper
+  when: nut_notify_via_hsp
+  ansible.builtin.copy:
+    src: hsp-notify-ups
+    dest: "{{ nut_notify_ups_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Ensure the NUT config directory exists
   ansible.builtin.file:
     path: "{{ nut_config_dir }}"

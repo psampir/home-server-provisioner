@@ -128,3 +128,15 @@ nut_monitors:
 checks the rendered configuration, `nut.target`, `upsc`, the `OL`/`OB`
 transition and the `nocomm` grace period without a physical UPS. `dummy-ups`
 has no USB ids, so no udev rule is rendered in that test.
+
+## Notifications
+
+Set `nut_notify_via_hsp: true` to install `/usr/local/bin/hsp-notify-ups`
+and route every upssched event through it. The wrapper maps the event to an
+ntfy priority: battery low and an unrecovered outage are `urgent`, running
+on battery and losing communication are `high`, and power returning or
+communication being restored are `default`. Events still land in the
+journal either way.
+
+`nut_notify_command` overrides the wrapper with any command that accepts
+the message as one argument.

@@ -1,0 +1,7 @@
+# Managed by Ansible - do not edit manually.
+# Read by hsp-login-notify as a POSIX shell fragment.
+IGNORE_USERS="{{ login_notify_ignore_users | join(' ') }}"
+TRUSTED_NETS="{{ login_notify_trusted_nets | join(' ') }}"
+TRUSTED_PRIORITY="{{ login_notify_trusted_priority }}"
+UNTRUSTED_PRIORITY="{{ login_notify_untrusted_priority }}"
+NOTIFY_BIN="{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"

@@ -1,0 +1,67 @@
+- name: Disable login notifications
+  when: not login_notify_enabled
+  block:
+    - name: Remove the PAM session hook
+      ansible.builtin.lineinfile:
+        path: "/etc/pam.d/{{ item }}"
+        regexp: '^session optional pam_exec\.so quiet .*hsp-login-notify$'
+        state: absent
+      loop: "{{ login_notify_pam_services }}"
+      failed_when: false
+
+    - name: Remove the login notify files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ login_notify_bin }}"
+        - "{{ login_notify_config }}"
+
+- name: Stop here when login_notify is disabled
+  ansible.builtin.meta: end_role
+  when: not login_notify_enabled
+
+- name: Check that pam_exec is available
+  ansible.builtin.stat:
+    path: /usr/lib/x86_64-linux-gnu/security/pam_exec.so
+  register: login_notify_pam_exec
+
+- name: Fail when pam_exec is missing
+  when: not login_notify_pam_exec.stat.exists
+  ansible.builtin.fail:
+    msg: >-
+      pam_exec.so is not installed, so the session hook would break SSH
+      logins. Install libpam-modules or disable login_notify.
+
+- name: Ensure the config directory exists
+  ansible.builtin.file:
+    path: "{{ login_notify_config | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install hsp-login-notify
+  ansible.builtin.copy:
+    src: hsp-login-notify
+    dest: "{{ login_notify_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the login notify configuration
+  ansible.builtin.template:
+    src: login-notify.conf.j2
+    dest: "{{ login_notify_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Hook the script into the PAM session stack
+  ansible.builtin.lineinfile:
+    path: "/etc/pam.d/{{ item }}"
+    line: "session optional pam_exec.so quiet {{ login_notify_bin }}"
+    regexp: '^session optional pam_exec\.so quiet .*hsp-login-notify$'
+    insertafter: EOF
+    state: present
+  loop: "{{ login_notify_pam_services }}"

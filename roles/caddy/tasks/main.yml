@@ -186,6 +186,41 @@
     enabled: true
     state: started
 
+- name: Ensure the Caddy drop-in directory exists
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - caddy_notify_failures
+  ansible.builtin.file:
+    path: /etc/systemd/system/caddy.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Notify when the Caddy service fails
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - caddy_notify_failures
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - do not edit manually.
+      [Unit]
+      OnFailure=hsp-notify-failure@%n.service
+    dest: /etc/systemd/system/caddy.service.d/10-hsp-notify.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for caddy
+
+- name: Remove the Caddy failure drop-in when disabled
+  when:
+    - caddy_caddyfile_stat.stat.exists | default(false)
+    - not caddy_notify_failures
+  ansible.builtin.file:
+    path: /etc/systemd/system/caddy.service.d/10-hsp-notify.conf
+    state: absent
+  notify: Reload systemd for caddy
+
 - name: Open HTTP (80/tcp) in firewall
   when:
     - caddy_caddyfile_stat.stat.exists | default(false)

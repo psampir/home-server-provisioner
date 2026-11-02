@@ -1,0 +1,72 @@
+#!/bin/sh
+# hsp-login-notify - report a PAM session opening through hsp-notify.
+#
+# Called by pam_exec from the sshd session stack. PAM_TYPE filters out the
+# close event, PAM_RHOST decides trusted versus untrusted, and accounts in
+# IGNORE_USERS are skipped so automation does not page anyone.
+
+set -u
+
+CONFIG="${HSP_LOGIN_NOTIFY_CONFIG:-/etc/hsp/login-notify.conf}"
+# shellcheck disable=SC1090
+[ -r "$CONFIG" ] && . "$CONFIG"
+
+[ "${PAM_TYPE:-}" = "open_session" ] || exit 0
+
+user="${PAM_USER:-unknown}"
+rhost="${PAM_RHOST:-}"
+service="${PAM_SERVICE:-unknown}"
+tty="${PAM_TTY:-unknown}"
+NOTIFY_BIN="${NOTIFY_BIN:-/usr/local/bin/hsp-notify}"
+
+for ignored in ${IGNORE_USERS:-}; do
+    [ "$user" = "$ignored" ] && exit 0
+done
+
+in_net() {
+    /usr/bin/python3 - "$1" "$2" 2>/dev/null <<'PY'
+import ipaddress
+import sys
+
+try:
+    print(1 if ipaddress.ip_address(sys.argv[1]) in ipaddress.ip_network(sys.argv[2], strict=False) else 0)
+except ValueError:
+    print(0)
+PY
+}
+
+trusted=0
+case "$rhost" in
+    ""|":0"|":0.0"|localhost|127.0.0.1|::1)
+        trusted=1
+        ;;
+    *)
+        for net in ${TRUSTED_NETS:-}; do
+            if [ "$(in_net "$rhost" "$net")" = "1" ]; then
+                trusted=1
+                break
+            fi
+        done
+        ;;
+esac
+
+host="$(hostname -s 2>/dev/null || hostname)"
+
+if [ "$trusted" -eq 1 ]; then
+    priority="${TRUSTED_PRIORITY:-low}"
+    tags="login"
+    source="trusted ${rhost:-local}"
+else
+    priority="${UNTRUSTED_PRIORITY:-high}"
+    tags="login,rotating_light"
+    source="untrusted ${rhost:-unknown}"
+fi
+
+# Fire and forget: hsp-notify retries a failing backend, and a PAM session
+# hook must never delay the login. nohup keeps the child alive after the
+# session process exits.
+nohup "$NOTIFY_BIN" --priority "$priority" --tags "$tags" \
+    "login ${user} on ${host} from ${rhost:-local}" \
+    "SSH session for ${user} from ${source}, service ${service}, tty ${tty}" \
+    >/dev/null 2>&1 &
+exit 0

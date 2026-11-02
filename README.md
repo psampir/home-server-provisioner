@@ -237,6 +237,7 @@ Each role is self-contained. The full list:
 | `admin_user` | Interactive SSH user with configurable shell and packages |
 | `admin_dotfiles` | Overlay-syncs `configs/<ENV>/dotfiles/_common/home/` (baseline) and `configs/<ENV>/dotfiles/<hostname>/home/` (per-host override) into the admin user's home directory; manifest-tracked, only manages files explicitly shipped |
 | `ssh_hardening` | Disables root login and password authentication |
+| `login_notify` | Reports PAM session openings through hsp-notify: ignores automation accounts, logs from trusted networks at low priority and everything else at high priority with `rotating_light` |
 
 ### System baseline
 
@@ -400,6 +401,8 @@ build container must read. See
 | `make test-caddy` | Test per-host and flat Caddy source selection |
 | `make test-disk-check` | Test disk check thresholds, dedup and recovery |
 | `make test-docker-health` | Test container evaluation and the Gatus push |
+| `make test-login-notify` | Test login classification and filtering |
+| `make test-nut-notify` | Test the UPS event to ntfy priority mapping |
 | `make test-env-create`, `test-env-status`, `test-env-destroy` | Manage the Incus test VMs |
 | `make test-bootstrap`, `test-provision`, `test-wireguard-render`, `test-nut`, `test-smoke`, `test-reboot` | Test suites |
 | `make validate-stacks ENV=prod` | Validate stack image digests and tags |

@@ -1,0 +1,25 @@
+# login_notify - report PAM session openings through hsp-notify.
+#
+# Hooked into sshd's session stack with pam_exec, so it sees interactive and
+# non-interactive SSH logins. Failures never block a login: the PAM line is
+# optional and the script always exits 0 unless it was killed.
+login_notify_enabled: false
+
+login_notify_bin: /usr/local/bin/hsp-login-notify
+login_notify_config: /etc/hsp/login-notify.conf
+
+# Accounts that never trigger a notification. Automation logs in constantly,
+# so the service account is ignored by default.
+login_notify_ignore_users:
+  - ansible
+
+# Source networks considered trusted. Logins from them use the low
+# priority and a plain tag; anything else is high with rotating_light.
+# Empty means every login is treated as untrusted.
+login_notify_trusted_nets: []
+login_notify_trusted_priority: low
+login_notify_untrusted_priority: high
+
+# PAM service files under /etc/pam.d that get the session hook.
+login_notify_pam_services:
+  - sshd
