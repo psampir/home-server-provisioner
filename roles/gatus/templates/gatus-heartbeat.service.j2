@@ -1,0 +1,9 @@
+# Managed by Ansible - do not edit manually.
+[Unit]
+Description=Ping the external heartbeat while Gatus is healthy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ gatus_heartbeat_bin }}

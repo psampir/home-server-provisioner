@@ -1,0 +1,22 @@
+#!/bin/sh
+# hsp-gatus-heartbeat - ping an external heartbeat while Gatus is healthy.
+#
+# Reads /etc/hsp/gatus-heartbeat.env. When the local health endpoint does
+# not answer, nothing is sent: the external service then notices the silence
+# and alerts, which is the point of a dead man's switch.
+
+set -u
+
+CONFIG="${HSP_GATUS_HEARTBEAT_ENV:-/etc/hsp/gatus-heartbeat.env}"
+# shellcheck disable=SC1090
+[ -r "$CONFIG" ] && . "$CONFIG"
+
+: "${HEALTH_URL:?HEALTH_URL is not set}"
+: "${HEARTBEAT_URL:?HEARTBEAT_URL is not set}"
+CURL="${CURL_BIN:-/usr/bin/curl}"
+
+if ! "$CURL" -fsS -m 5 "$HEALTH_URL" >/dev/null 2>&1; then
+    exit 1
+fi
+
+exec "$CURL" -fsS -m 10 -X POST "$HEARTBEAT_URL" >/dev/null 2>&1

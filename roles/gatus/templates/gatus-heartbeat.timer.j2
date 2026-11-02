@@ -1,0 +1,11 @@
+# Managed by Ansible - do not edit manually.
+[Unit]
+Description=Gatus heartbeat ping every {{ gatus_heartbeat_interval }} minutes
+
+[Timer]
+OnCalendar=*:0/{{ gatus_heartbeat_interval }}
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

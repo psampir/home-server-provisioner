@@ -175,3 +175,73 @@
     enabled: true
     state: started
     daemon_reload: true
+
+# ---------------------------------------------------------------------------
+# External heartbeat (dead man's switch)
+# ---------------------------------------------------------------------------
+- name: Install the Gatus heartbeat script
+  when: gatus_heartbeat_url | length > 0
+  ansible.builtin.copy:
+    src: hsp-gatus-heartbeat
+    dest: "{{ gatus_heartbeat_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the heartbeat configuration
+  when: gatus_heartbeat_url | length > 0
+  ansible.builtin.template:
+    src: gatus-heartbeat.env.j2
+    dest: "{{ gatus_heartbeat_env }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Install the heartbeat service unit
+  when: gatus_heartbeat_url | length > 0
+  ansible.builtin.template:
+    src: gatus-heartbeat.service.j2
+    dest: "/etc/systemd/system/{{ gatus_heartbeat_unit }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for gatus
+
+- name: Install the heartbeat timer unit
+  when: gatus_heartbeat_url | length > 0
+  ansible.builtin.template:
+    src: gatus-heartbeat.timer.j2
+    dest: "/etc/systemd/system/{{ gatus_heartbeat_unit }}.timer"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for gatus
+
+- name: Enable the heartbeat timer
+  when: gatus_heartbeat_url | length > 0
+  ansible.builtin.systemd:
+    name: "{{ gatus_heartbeat_unit }}.timer"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Disable the heartbeat timer when no URL is configured
+  when: gatus_heartbeat_url | length == 0
+  ansible.builtin.systemd:
+    name: "{{ gatus_heartbeat_unit }}.timer"
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Remove the heartbeat files when no URL is configured
+  when: gatus_heartbeat_url | length == 0
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ gatus_heartbeat_bin }}"
+    - "{{ gatus_heartbeat_env }}"
+    - "/etc/systemd/system/{{ gatus_heartbeat_unit }}.service"
+    - "/etc/systemd/system/{{ gatus_heartbeat_unit }}.timer"
+  notify: Reload systemd for gatus

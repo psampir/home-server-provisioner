@@ -54,3 +54,15 @@ gatus_ntfy_priority: 4
 gatus_ntfy_failure_threshold: 2
 gatus_ntfy_success_threshold: 2
 gatus_ntfy_send_on_resolved: true
+
+# --- External heartbeat ---
+# While Gatus answers on health_url, a timer pings heartbeat_url every
+# gatus_heartbeat_interval minutes. If the pings stop, the external service
+# alerts, which covers a hub that is up but has no working monitor. Empty
+# URL disables the timer and removes its units.
+gatus_heartbeat_url: ""
+gatus_heartbeat_health_url: "http://127.0.0.1:8080/health"
+gatus_heartbeat_interval: 5
+gatus_heartbeat_bin: /usr/local/bin/hsp-gatus-heartbeat
+gatus_heartbeat_env: /etc/hsp/gatus-heartbeat.env
+gatus_heartbeat_unit: hsp-gatus-heartbeat
