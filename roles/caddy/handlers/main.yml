@@ -2,3 +2,7 @@
   ansible.builtin.systemd:
     name: caddy
     state: reloaded
+
+- name: Reload systemd for caddy
+  ansible.builtin.systemd:
+    daemon_reload: true

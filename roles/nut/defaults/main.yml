@@ -98,6 +98,11 @@ nut_upssched_rules:
 # argument. Empty means journal logging only.
 nut_notify_command: ""
 
+# Route UPS events through /usr/local/bin/hsp-notify-ups, which maps the
+# event text to an ntfy priority. Ignored when nut_notify_command is set.
+nut_notify_via_hsp: false
+nut_notify_ups_bin: /usr/local/bin/hsp-notify-ups
+
 # upssched-cmd: grace period after losing communication with the UPS.
 nut_nocomm_grace_seconds: 300
 nut_nocomm_poll_seconds: 10

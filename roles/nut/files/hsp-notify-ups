@@ -1,0 +1,22 @@
+#!/bin/sh
+# hsp-notify-ups - forward a UPS event to hsp-notify with a matching priority.
+#
+# Called by /etc/nut/upssched-cmd with the event message as the only
+# argument. The message is matched, not parsed, so a wording change in the
+# helper only affects the priority and never whether the alert is sent.
+
+set -u
+
+msg="${1:-UPS event}"
+bin="${HSP_NOTIFY_BIN:-/usr/local/bin/hsp-notify}"
+host="$(hostname -s 2>/dev/null || hostname)"
+
+priority=default
+case "$msg" in
+    *"battery low"*) priority=urgent ;;
+    *"not restored"*) priority=urgent ;;
+    *"on battery"*) priority=high ;;
+    *"Lost communication"*) priority=high ;;
+esac
+
+exec "$bin" --priority "$priority" --tags "ups,battery" "UPS ${host}: ${msg}"

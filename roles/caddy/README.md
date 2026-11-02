@@ -31,6 +31,7 @@ does not take existing sites down.
 |---|---|---|
 | `caddy_source_dir` | `configs/<env>/caddy` | Base directory with one `Caddyfile` and optional `conf.d/` per host, or a flat layout |
 | `caddy_host_subdir` | `inventory_hostname` | Subdirectory picked under `caddy_source_dir` |
+| `caddy_notify_failures` | `true` | Add `OnFailure=hsp-notify-failure@` to the service |
 | `caddy_apt_repo` | `false` | Install from the official Caddy repository instead of Debian |
 | `caddy_apt_key_url` | Cloudsmith key | Repository signing key |
 | `caddy_apt_keyring` | `/usr/share/keyrings/caddy-stable-archive-keyring.asc` | Downloaded key |

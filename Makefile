@@ -128,7 +128,7 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 .PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check
 
-test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-docker-health ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-docker-health test-nut-notify test-login-notify ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -159,6 +159,12 @@ test-disk-check: ## Test hsp-disk-check thresholds, dedup and recovery
 
 test-docker-health: ## Test hsp-docker-health container evaluation and push
 	python3 tests/test_docker_health.py
+
+test-nut-notify: ## Test the UPS event to ntfy priority mapping
+	python3 tests/test_nut_notify.py
+
+test-login-notify: ## Test the PAM login classification and filtering
+	python3 tests/test_login_notify.py
 
 # --- Test environment ---
 #
