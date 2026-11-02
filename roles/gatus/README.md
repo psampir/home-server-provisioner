@@ -94,6 +94,9 @@ task uses `no_log`, because the ntfy topic and push tokens are secrets.
 | `gatus_ntfy_success_threshold` | `2` | Successes before resolving |
 | `gatus_after_units` / `gatus_wants_units` | `[]` | Extra systemd dependencies |
 | `gatus_part_of_units` | `[]` | Units whose restart restarts Gatus |
+| `gatus_heartbeat_url` | empty | External heartbeat URL, disabled when empty |
+| `gatus_heartbeat_health_url` | `http://127.0.0.1:8080/health` | Health endpoint checked before pinging |
+| `gatus_heartbeat_interval` | `5` | Minutes between pings |
 
 ## Testing
 
@@ -107,3 +110,16 @@ curl -fsS http://10.10.0.1:8080/health
 
 To test alerting, add a temporary endpoint with a bad URL and
 `failure-threshold: 1`, confirm the ntfy alert, then remove it.
+
+## Dead man's switch
+
+Set `gatus_heartbeat_url` to an external heartbeat check, for example
+Healthchecks.io `https://hc-ping.com/<uuid>`. The role installs
+`hsp-gatus-heartbeat` and a timer that runs every
+`gatus_heartbeat_interval` minutes. The script pings the URL only when
+`gatus_heartbeat_health_url` answers, so the external service alerts both
+when the hub disappears and when the hub is up but Gatus is not working.
+
+An empty `gatus_heartbeat_url` disables the timer and removes its units.
+UptimeRobot's heartbeat monitor is a paid feature; Healthchecks.io offers
+it on the free plan with email alerts.

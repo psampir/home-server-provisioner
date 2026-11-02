@@ -128,7 +128,7 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 .PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check
 
-test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-docker-health test-nut-notify test-login-notify ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-docker-health test-nut-notify test-login-notify test-gatus-heartbeat ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -165,6 +165,9 @@ test-nut-notify: ## Test the UPS event to ntfy priority mapping
 
 test-login-notify: ## Test the PAM login classification and filtering
 	python3 tests/test_login_notify.py
+
+test-gatus-heartbeat: ## Test the Gatus dead man's switch ping
+	python3 tests/test_gatus_heartbeat.py
 
 # --- Test environment ---
 #
