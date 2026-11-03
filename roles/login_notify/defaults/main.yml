@@ -17,6 +17,10 @@ login_notify_ignore_users:
 # priority and a plain tag; anything else is high with rotating_light.
 # Empty means every login is treated as untrusted.
 login_notify_trusted_nets: []
+# Notify for logins from trusted networks too. Off means only untrusted
+# sources are reported, which keeps routine VPN and LAN logins out of the
+# notification stream.
+login_notify_notify_trusted: true
 login_notify_trusted_priority: low
 login_notify_untrusted_priority: high
 

@@ -50,6 +50,10 @@ case "$rhost" in
         ;;
 esac
 
+if [ "$trusted" -eq 1 ] && [ "${NOTIFY_TRUSTED:-1}" != "1" ]; then
+    exit 0
+fi
+
 host="$(hostname -s 2>/dev/null || hostname)"
 
 if [ "$trusted" -eq 1 ]; then
