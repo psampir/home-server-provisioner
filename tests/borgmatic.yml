@@ -27,6 +27,7 @@
     borgmatic_ssh_command: "ssh -i /root/.ssh/id_borg"
     borgmatic_remote_user: borg
     borgmatic_remote_repo_base: /srv/borg
+    borgmatic_relocated_repo_access_is_ok: true
   tasks:
     - name: Render the borgmatic configuration
       ansible.builtin.set_fact:
@@ -42,6 +43,19 @@
           - "'/usr/local/bin/hsp-db-dump' in borgmatic_test_config"
           - "'/srv/data/live' in borgmatic_test_config"
           - "'/usr/local/bin/hsp-borgmatic-notify failure' in borgmatic_test_config"
+          - "'relocated_repo_access_is_ok: true' in borgmatic_test_config"
+
+    - name: Render the config without the relocation switch
+      ansible.builtin.set_fact:
+        borgmatic_test_no_relocate: >-
+          {{ lookup('template', playbook_dir + '/../roles/borgmatic/templates/config.yaml.j2') }}
+      vars:
+        borgmatic_relocated_repo_access_is_ok: false
+
+    - name: Assert the relocation switch is absent by default
+      ansible.builtin.assert:
+        that:
+          - "'relocated_repo_access_is_ok' not in borgmatic_test_no_relocate"
 
     - name: Render the service drop-in
       ansible.builtin.set_fact:

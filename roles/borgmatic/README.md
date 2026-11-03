@@ -281,3 +281,16 @@ Restore flow and passphrase rotation are documented in `docs/backups.md`.
 - The `notifications` role (provides `hsp-notify`). With no ntfy backend,
   notifications degrade to journal no-ops, so this role is still safe.
 - WireGuard connectivity to the target (backups travel over the tunnel).
+
+## Repository relocation
+
+When a repository was created somewhere else and later moved, borg refuses
+access until the relocation is accepted. Set the global switch:
+
+```yaml
+borgmatic_relocated_repo_access_is_ok: true
+```
+
+It applies to every repository of that host, so enable it only for a
+deliberate move of the same repository, never to silence a repository that
+appeared at a reused path by accident.
