@@ -23,6 +23,10 @@ The hub is identified by `wireguard_role: hub`, the same marker the
 because its `vpn_ip` only exists inside the tunnel. The role does not
 depend on a `vpn_server` group name.
 
+When a host sets `ansible_port` to anything other than 22, every block for
+that host also gets a `Port` line, so a host moved off the default port
+needs no manual `-p`.
+
 Hosts without `vpn_ip` get a single alias pointing at `ansible_host`. If
 `lan_ip` is missing, the `<name>-lan` alias falls back to `ansible_host`
 and is omitted when it would duplicate the main address.

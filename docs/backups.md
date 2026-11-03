@@ -203,6 +203,29 @@ check`.
 With no ntfy backend configured these degrade to journal no-ops - wire up
 the `notifications` role to get phone pushes.
 
+A scheduled `borg check` reads the whole repository on a large repo, so
+expect hours of I/O and several GB of RAM. Keep it on its own timer, as the
+`borg_repo` role does, so it never delays a backup, and size the target's
+memory and swap for it.
+
+## Moving a repository
+
+A client remembers the path it last saw a repository at and refuses to open
+it elsewhere. When a repository moves on purpose, for example a disk seeded
+somewhere else, accept the relocation on the source host:
+
+```yaml
+borgmatic_relocated_repo_access_is_ok: true
+```
+
+It applies to every repository of that host, so use it only for a
+deliberate move of the same repository. A repository that appears at a
+reused path by accident is a different situation: stop and investigate it.
+
+Run `borg` on the target as the `borg` user, not as root. A root run can
+rewrite files inside the repository as `root:root`, and then `borg serve`
+fails with `Permission denied` on the next client access.
+
 ## Passphrase rotation (rare)
 
 Changing the passphrase only re-wraps the repo key - it does **not**

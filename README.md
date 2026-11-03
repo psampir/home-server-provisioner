@@ -272,7 +272,7 @@ Each role is self-contained. The full list:
 | Role | Description |
 |---|---|
 | `docker_runtime` | Installs Docker CE + Compose plugin from upstream apt repo |
-| `compose_deploy` | Auto-discovers and deploys Docker Compose stacks from `configs/<ENV>/stacks/_common/<name>/` (every app server) and `configs/<ENV>/stacks/<hostname>/<name>/` (per-host override). Per-stack directory is synced verbatim - drop `compose.yaml` + `.env` + `Caddyfile` + `config/` next to each other. |
+| `compose_deploy` | Auto-discovers and deploys Docker Compose stacks from `configs/<ENV>/stacks/_common/<name>/` (every app server) and `configs/<ENV>/stacks/<hostname>/<name>/` (per-host override). Per-stack directory is synced verbatim - drop `compose.yaml` + `.env` + `Caddyfile` + `config/` next to each other. A stack restarts when a synced or rendered file changed, because compose does not notice a replaced bind-mounted file. |
 | `docker_health` | Pushes Docker container health (healthcheck status for listed containers, running state for the rest) to a Gatus external endpoint, so containers without a published port are monitored without exposing the Docker socket |
 
 > [!WARNING]
@@ -287,7 +287,7 @@ Each role is self-contained. The full list:
 
 | Role | Description |
 |---|---|
-| `storage` | Formats empty block devices and mounts them, with by-id device selection and the `/srv/data` layout |
+| `storage` | Formats empty block devices and mounts them, with by-id device selection, the `/srv/data` layout and optional periodic ext4 checks (`fsck_pass`) |
 | `swap` | Tops up active swap to `swap_size`, using a swap file by default |
 | `network_mounts` | Client-side NFS and CIFS/SMB mounts for remote shares |
 
@@ -391,13 +391,16 @@ build container must read. See
 | `make wireguard-render ENV=prod` | Render client `.conf` and QR code into `build/` |
 | `make vault-init`, `vault-edit`, `vault-view`, `vault-encrypt`, `vault-rekey` | Vault lifecycle |
 | `make vault-decrypt ENV=prod` | Decrypt the vault in place; dangerous, avoid on shared hosts |
-| `make test-local` | Fast local tests: `.j2` rendering, Makefile wiring, vault rekey |
+| `make test-local` | All fast local tests, no Incus or Docker |
 | `make notify-test HOST=<host>` | Send an `hsp-notify` smoke test |
-| `make test-local` | Fast local tests, no Incus or Docker |
+| `make test-makefile` | Test Makefile target wiring |
+| `make test-compose-deploy` | Test compose render and the .env conflict guardrail |
+| `make test-vault-rekey` | Test vault rekey on a temporary environment |
 | `make test-borgmatic` | Test borgmatic host override, lz4, hooks and OnFailure |
 | `make test-borg-repo` | Test borg_repo prune, check and timer templates |
 | `make test-ssh-config` | Test VPN-first SSH aliases and the `-lan` fallback |
 | `make test-gatus` | Test Gatus config, service and ntfy alerting templates |
+| `make test-gatus-heartbeat` | Test the dead man's switch ping |
 | `make test-caddy` | Test per-host and flat Caddy source selection |
 | `make test-disk-check` | Test disk check thresholds, dedup and recovery |
 | `make test-docker-health` | Test container evaluation and the Gatus push |

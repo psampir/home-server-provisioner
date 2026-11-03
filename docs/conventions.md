@@ -36,8 +36,8 @@ are documented exceptions instead.
 
 ## No legacy aliases
 
-This project is pre-release, so every role, variable, and make target has
-exactly one name. A rename is a plain rename: no compatibility shim, no
+Backward-compatible aliases are not kept: every role, variable, and make
+target has exactly one name. A rename is a plain rename: no compatibility shim, no
 `default(old_name)` indirection, no deprecated spelling kept around. The old
 name stops working in the same commit that introduces the new one, and every
 reference in docs, inventory examples, and scripts is updated with it.

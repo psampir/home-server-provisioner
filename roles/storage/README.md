@@ -55,6 +55,21 @@ storage_manifest_path: /var/lib/home-server-provisioner/storage.manifest
 | `group`        | no       | `root`             | Mountpoint dir group.                                |
 | `mode`         | no       | `"0755"`           | Mountpoint dir mode.                                 |
 | `force_format` | no       | `false`            | **Destructive**; allow re-format on fstype mismatch. |
+| `fsck_pass`    | no       | `0`                | fstab pass number. `2` asks the boot to check the filesystem before mounting. |
+| `fsck_max_mount_count` | no | `30`           | With `fsck_pass`, run a real check after this many mounts. |
+| `fsck_interval` | no      | `6m`               | With `fsck_pass`, run a real check after this interval. |
+
+### Periodic filesystem checks
+
+A data disk with `pass 0` is never checked by the boot, and a new ext4
+filesystem defaults to "never check". Both halves are needed: set
+`fsck_pass: 2` on the volume, and the role runs `tune2fs -c
+<fsck_max_mount_count> -i <fsck_interval>` so the superblock actually asks
+for a check. The defaults are 30 mounts or 6 months. `tune2fs` is only
+touched for `ext4`; xfs and btrfs are left alone.
+
+Expect the first boot after enabling it to take longer while `e2fsck`
+runs, and keep in mind that a large disk can need several minutes.
 
 ## Example
 
