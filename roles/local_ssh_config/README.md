@@ -19,9 +19,18 @@ Host <name>-lan      HostName <lan_ip>     # direct LAN, fastest at home
 ```
 
 The hub is identified by `wireguard_role: hub`, the same marker the
-`wireguard` role uses. Its main alias always points at `ansible_host`,
-because its `vpn_ip` only exists inside the tunnel. The role does not
-depend on a `vpn_server` group name.
+`wireguard` role uses. By default its main alias points at `ansible_host`,
+because its `vpn_ip` only exists inside the tunnel. Set
+`local_ssh_config_hub_primary: vpn` to reach the hub over WireGuard
+instead; the role then also writes `<name>-internet` with the public
+address as the fallback when the tunnel is down:
+
+```text
+Host <name>           HostName <vpn_ip>       # hub over WireGuard
+Host <name>-internet  HostName <ansible_host> # public fallback
+```
+
+The role does not depend on a `vpn_server` group name.
 
 When a host sets `ansible_port` to anything other than 22, every block for
 that host also gets a `Port` line, so a host moved off the default port
@@ -55,6 +64,7 @@ both paths.
 | `local_ssh_config_file` | `config.d/home-server-provisioner-<env>` | Generated file |
 | `local_ssh_config_host_prefix` | empty | Prefix added to every alias, including `-lan` |
 | `local_ssh_config_private_key` | `ANSIBLE_PRIVATE_KEY_FILE` or `~/.ssh/id_ed25519` | Key used by the entries |
+| `local_ssh_config_hub_primary` | `ansible_host` | Hub main alias: `ansible_host` or `vpn` |
 
 ## Notes
 

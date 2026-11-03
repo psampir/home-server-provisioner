@@ -15,3 +15,8 @@ local_ssh_config_file: "{{ local_ssh_config_dir }}/home-server-provisioner-{{ lo
 local_ssh_config_host_prefix: ""
 
 local_ssh_config_private_key: "{{ lookup('env', 'ANSIBLE_PRIVATE_KEY_FILE') | default('~/.ssh/id_ed25519', true) }}"
+
+# How the WireGuard hub's main alias is reached. `ansible_host` keeps the
+# historical public address; `vpn` uses the tunnel address and adds a
+# `<name>-internet` alias with the public address as a fallback.
+local_ssh_config_hub_primary: ansible_host

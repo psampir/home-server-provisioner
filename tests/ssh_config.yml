@@ -6,17 +6,19 @@
   vars:
     local_ssh_config_host_prefix: ""
     local_ssh_config_private_key: "~/.ssh/id_test"
+    local_ssh_config_hub_primary: ansible_host
   tasks:
     - name: Render the template
       ansible.builtin.set_fact:
         ssh_config: >-
           {{ lookup('template', playbook_dir + '/../roles/local_ssh_config/templates/local_ssh_config.j2') }}
 
-    - name: Assert the hub is reached at its public address
+    - name: Assert the hub is reached at its public address by default
       ansible.builtin.assert:
         that:
           - "ssh_config.splitlines()[ssh_config.splitlines().index('Host hub') + 1].strip() == 'HostName 203.0.113.10'"
           - "'Host hub-lan' not in ssh_config.splitlines()"
+          - "'Host hub-internet' not in ssh_config.splitlines()"
 
     - name: Assert the app host prefers the VPN address
       ansible.builtin.assert:
@@ -40,3 +42,37 @@
         that:
           - "ssh_config.count('User test') == 3"
           - "ssh_config.count('IdentityFile ~/.ssh/id_test') == 3"
+
+    - name: Switch the hub to its VPN address
+      ansible.builtin.set_fact:
+        local_ssh_config_hub_primary: vpn
+
+    - name: Render the managed SSH config with the hub on VPN
+      ansible.builtin.set_fact:
+        ssh_config_vpn: >-
+          {{ lookup('template', playbook_dir + '/../roles/local_ssh_config/templates/local_ssh_config.j2') }}
+
+    - name: Assert the hub is reached over WireGuard
+      ansible.builtin.assert:
+        that:
+          - "ssh_config_vpn.splitlines()[ssh_config_vpn.splitlines().index('Host hub') + 1].strip() == 'HostName 10.10.0.1'"
+
+    - name: Assert the public fallback alias exists
+      ansible.builtin.assert:
+        that:
+          - "'Host hub-internet' in ssh_config_vpn.splitlines()"
+          - "ssh_config_vpn.splitlines()[ssh_config_vpn.splitlines().index('Host hub-internet') + 1].strip() == 'HostName 203.0.113.10'"
+          - "ssh_config_vpn.splitlines()[ssh_config_vpn.splitlines().index('Host hub-internet') + 4].strip() == 'Port 2222'"
+          - "'Host hub-lan' not in ssh_config_vpn.splitlines()"
+
+    - name: Assert the VPN render keeps the app host aliases
+      ansible.builtin.assert:
+        that:
+          - "ssh_config_vpn.splitlines()[ssh_config_vpn.splitlines().index('Host node') + 1].strip() == 'HostName 10.10.0.2'"
+          - "'Host node-lan' in ssh_config_vpn.splitlines()"
+
+    - name: Assert all aliases use the configured user and key
+      ansible.builtin.assert:
+        that:
+          - "ssh_config_vpn.count('User test') == 4"
+          - "ssh_config_vpn.count('IdentityFile ~/.ssh/id_test') == 4"
