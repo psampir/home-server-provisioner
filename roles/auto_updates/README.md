@@ -71,3 +71,14 @@ jumping tags to `latest`.
 | `auto_updates_report_config` | `/etc/hsp/update-report.conf` | Rendered config |
 | `auto_updates_report_age_days` | `90` | Flag images older than this |
 | `auto_updates_report_max_items` | `15` | Packages listed before "and N more" |
+
+Schedule it from `scheduled_jobs`, monthly:
+
+```yaml
+scheduled_jobs_common:
+  - name: update-report
+    command: /usr/local/bin/hsp-update-report
+    schedule: "*-*-01 08:00:00"
+    description: "Monthly package and image update report"
+    notify_on_failure: true
+```
