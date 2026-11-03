@@ -44,3 +44,12 @@ auto_updates_notify_failed_units:
 auto_updates_package_units:
   - apt-daily.service
   - apt-daily-upgrade.service
+
+# --- Update report ---
+# A monthly summary of pending package upgrades and Docker images that have
+# not been redeployed for a while. The script only reports; it never
+# upgrades or pulls. Schedule it with `scheduled_jobs`.
+auto_updates_report_bin: /usr/local/bin/hsp-update-report
+auto_updates_report_config: /etc/hsp/update-report.conf
+auto_updates_report_age_days: 90
+auto_updates_report_max_items: 15

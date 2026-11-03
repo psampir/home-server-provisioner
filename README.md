@@ -401,6 +401,7 @@ build container must read. See
 | `make test-ssh-config` | Test VPN-first SSH aliases and the `-lan` fallback |
 | `make test-gatus` | Test Gatus config, service and ntfy alerting templates |
 | `make test-gatus-heartbeat` | Test the dead man's switch ping |
+| `make test-update-report` | Test the monthly update report |
 | `make test-caddy` | Test per-host and flat Caddy source selection |
 | `make test-disk-check` | Test disk check thresholds, dedup and recovery |
 | `make test-docker-health` | Test container evaluation and the Gatus push |

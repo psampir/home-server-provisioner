@@ -155,3 +155,31 @@
   loop: "{{ auto_updates_package_units }}"
   when: item not in auto_updates_notify_failed_units
   notify: Reload systemd for failure notify
+
+# ---------------------------------------------------------------------------
+# Update report - a monthly list of pending upgrades and stale images.
+# Script only; the timer is a scheduled job.
+# ---------------------------------------------------------------------------
+- name: Ensure the update report config directory exists
+  ansible.builtin.file:
+    path: "{{ auto_updates_report_config | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install hsp-update-report
+  ansible.builtin.copy:
+    src: hsp-update-report
+    dest: "{{ auto_updates_report_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the update report configuration
+  ansible.builtin.template:
+    src: update-report.conf.j2
+    dest: "{{ auto_updates_report_config }}"
+    owner: root
+    group: root
+    mode: "0644"
