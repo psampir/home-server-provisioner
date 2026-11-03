@@ -237,7 +237,7 @@ Each role is self-contained. The full list:
 | `admin_user` | Interactive SSH user with configurable shell and packages |
 | `admin_dotfiles` | Overlay-syncs `configs/<ENV>/dotfiles/_common/home/` (baseline) and `configs/<ENV>/dotfiles/<hostname>/home/` (per-host override) into the admin user's home directory; manifest-tracked, only manages files explicitly shipped |
 | `ssh_hardening` | Disables root login and password authentication |
-| `login_notify` | Reports PAM session openings through hsp-notify: ignores automation accounts, logs from trusted networks at low priority and everything else at high priority with `rotating_light` |
+| `login_notify` | Reports PAM session openings through hsp-notify: ignores automation accounts, stays silent for trusted networks and sends everything else at high priority with `rotating_light` |
 
 ### System baseline
 
@@ -249,14 +249,14 @@ Each role is self-contained. The full list:
 | `time_sync` | Verifies / configures `systemd-timesyncd` |
 | `laptop_power` | Lid-switch policy and battery charge limit for laptops used as servers |
 | `journal` | Enables persistent journald, optional size/retention limits |
-| `auto_updates` | `unattended-upgrades` for security updates, optional auto-reboot |
+| `auto_updates` | `unattended-upgrades` for security updates, optional auto-reboot and `OnFailure` alerts for failed package jobs |
 
 ### Security
 
 | Role | Description |
 |---|---|
 | `firewall` | UFW with default-deny incoming, allowlist driven by `firewall_allow_rules` (SSH always open as lockout protection) |
-| `fail2ban` | SSH brute-force protection with configurable ban/find times |
+| `fail2ban` | SSH brute-force protection with configurable ban/find times, an optional hsp-notify ban action and trusted networks |
 
 ### Networking and ingress
 
@@ -297,8 +297,8 @@ Each role is self-contained. The full list:
 |---|---|
 | `nut` | Network UPS Tools with USB udev rules, `upsc` verification, and the `nocomm` grace period |
 | `gatus` | Lightweight HTTP/TCP/DNS/TLS and push/heartbeat dashboard with ntfy alerts; installs the static binary from the official image, no Docker or Node |
-| `smart_monitoring` | `smartd` disk health monitoring with `hsp-notify` alerts |
-| `notifications` | Installs `hsp-notify` and the ntfy delivery backend used by other roles |
+| `smart_monitoring` | `smartd` disk health monitoring with `hsp-notify` alerts, plus USB bridge quirks for enclosures that hide SMART behind UAS |
+| `notifications` | Installs `hsp-notify`, the ntfy delivery backend used by other roles, and `hsp-disk-check` for byte and inode thresholds |
 
 ### Backups
 
