@@ -1,10 +1,13 @@
 #!/bin/sh
-# hsp-update-report - monthly summary of pending package and image updates.
+# hsp-update-report - monthly summary of pending package updates.
 #
-# Read-only with respect to packages and containers: it refreshes the apt
-# index, asks apt what it would upgrade, and checks how old the running
-# Docker images are. It never upgrades or pulls anything; the point is to
+# Read-only with respect to packages: it refreshes the apt index and asks
+# apt what it would upgrade. It never upgrades anything; the point is to
 # decide on an update window with the real list in hand.
+#
+# Docker images are deliberately not reported here. Image age is not the
+# same as an available update, so images are reviewed manually in a
+# deliberate window instead of on a timer.
 
 set -u
 
@@ -12,7 +15,6 @@ CONFIG="${HSP_UPDATE_REPORT_CONFIG:-/etc/hsp/update-report.conf}"
 # shellcheck disable=SC1090
 [ -r "$CONFIG" ] && . "$CONFIG"
 
-AGE_DAYS="${AGE_DAYS:-90}"
 NOTIFY_BIN="${NOTIFY_BIN:-/usr/local/bin/hsp-notify}"
 MAX_ITEMS="${MAX_ITEMS:-15}"
 host="$(hostname -s 2>/dev/null || hostname)"
@@ -27,30 +29,7 @@ if [ -n "$apt_list" ]; then
     apt_count="$(printf '%s\n' "$apt_list" | grep -c .)"
 fi
 
-img_list=""
-if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-    now="$(date +%s)"
-    for name in $(docker ps --format '{{.Names}}' | sort); do
-        image="$(docker inspect -f '{{.Config.Image}}' "$name" 2>/dev/null)" || continue
-        created="$(docker image inspect -f '{{.Created}}' "$image" 2>/dev/null | cut -dT -f1)"
-        [ -n "$created" ] || continue
-        created_ts="$(date -d "$created" +%s 2>/dev/null)" || continue
-        age="$(( (now - created_ts) / 86400 ))"
-        if [ "$age" -ge "$AGE_DAYS" ]; then
-            case "$image" in
-                *@sha256:*) image="${image%%@sha256:*}@sha256:$(printf '%s' "${image#*@sha256:}" | cut -c1-12)" ;;
-            esac
-            img_list="${img_list}  - ${name}: ${image} (${age} d)
-"
-        fi
-    done
-fi
-img_count=0
-if [ -n "$img_list" ]; then
-    img_count="$(printf '%s' "$img_list" | grep -c .)"
-fi
-
-subject="updates ${host}: ${apt_count} apt, ${img_count} images older than ${AGE_DAYS}d"
+subject="updates ${host}: ${apt_count} apt"
 
 body=""
 if [ "$apt_count" -gt 0 ]; then
@@ -63,15 +42,6 @@ $(printf '%s\n' "$apt_list" | head -n "$MAX_ITEMS" | sed 's/^/  - /')
     fi
 else
     body="apt: nothing to upgrade
-"
-fi
-if [ "$img_count" -gt 0 ]; then
-    body="${body}
-images not redeployed in ${AGE_DAYS} days (${img_count}):
-${img_list}"
-else
-    body="${body}
-images: none older than ${AGE_DAYS} days
 "
 fi
 

@@ -169,7 +169,7 @@ test-login-notify: ## Test the PAM login classification and filtering
 test-gatus-heartbeat: ## Test the Gatus dead man's switch ping
 	python3 tests/test_gatus_heartbeat.py
 
-test-update-report: ## Test the monthly package and image update report
+test-update-report: ## Test the monthly package update report
 	python3 tests/test_update_report.py
 
 # --- Test environment ---

@@ -58,18 +58,19 @@ Removing a unit from the list deletes its drop-in on the next run.
 
 ## Update report
 
-`hsp-update-report` prints what a monthly report needs: the packages apt
-would upgrade, and the Docker images that have not been redeployed for
-`auto_updates_report_age_days` days. It is read-only: no upgrade, no pull,
-no container touched. Schedule it from `scheduled_jobs` and let it send the
-list through `hsp-notify`; decide on a window with the real list instead of
-jumping tags to `latest`.
+`hsp-update-report` prints the packages apt would upgrade. It is
+read-only: no upgrade, no pull, no container touched. Schedule it from
+`scheduled_jobs` and let it send the list through `hsp-notify`; decide on a
+window with the real list instead of jumping tags to `latest`.
+
+Docker images are deliberately not part of the report. Image age is not
+the same as an available update, so images are reviewed manually in a
+deliberate window, with the upstream release notes in hand.
 
 | Variable | Default | Description |
 |---|---|---|
 | `auto_updates_report_bin` | `/usr/local/bin/hsp-update-report` | Script path |
 | `auto_updates_report_config` | `/etc/hsp/update-report.conf` | Rendered config |
-| `auto_updates_report_age_days` | `90` | Flag images older than this |
 | `auto_updates_report_max_items` | `15` | Packages listed before "and N more" |
 
 Schedule it from `scheduled_jobs`, monthly:
@@ -79,6 +80,6 @@ scheduled_jobs_common:
   - name: update-report
     command: /usr/local/bin/hsp-update-report
     schedule: "*-*-01 08:00:00"
-    description: "Monthly package and image update report"
+    description: "Monthly package update report"
     notify_on_failure: true
 ```
