@@ -55,3 +55,19 @@ on hosts without the `notifications` role: `hsp-notify` is inert when no
 backend is configured.
 
 Removing a unit from the list deletes its drop-in on the next run.
+
+## Update report
+
+`hsp-update-report` prints what a monthly report needs: the packages apt
+would upgrade, and the Docker images that have not been redeployed for
+`auto_updates_report_age_days` days. It is read-only: no upgrade, no pull,
+no container touched. Schedule it from `scheduled_jobs` and let it send the
+list through `hsp-notify`; decide on a window with the real list instead of
+jumping tags to `latest`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `auto_updates_report_bin` | `/usr/local/bin/hsp-update-report` | Script path |
+| `auto_updates_report_config` | `/etc/hsp/update-report.conf` | Rendered config |
+| `auto_updates_report_age_days` | `90` | Flag images older than this |
+| `auto_updates_report_max_items` | `15` | Packages listed before "and N more" |
