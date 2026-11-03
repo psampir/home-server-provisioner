@@ -24,6 +24,10 @@
     storage_v_group: "{{ storage_volume.group | default('root') }}"
     storage_v_mode: "{{ storage_volume.mode | default('0755') }}"
     storage_v_force_format: "{{ storage_volume.force_format | default(false) | bool }}"
+    storage_v_fsck_pass: "{{ storage_volume.fsck_pass | default(0) | int }}"
+    storage_v_fsck_max_mount_count: >-
+      {{ storage_volume.fsck_max_mount_count | default(storage_fsck_max_mount_count) }}
+    storage_v_fsck_interval: "{{ storage_volume.fsck_interval | default(storage_fsck_interval) }}"
 
 - name: "Verify device exists: {{ storage_v_mount }}"
   ansible.builtin.stat:
@@ -147,4 +151,18 @@
     src: "UUID={{ storage_v_existing_uuid }}"
     fstype: "{{ storage_v_fstype }}"
     opts: "{{ storage_v_mount_opts }}"
+    passno: "{{ storage_v_fsck_pass }}"
     state: mounted
+
+# passno in fstab only asks the boot to check; ext4 also needs a real
+# max-mount-count and interval, otherwise the superblock says "never".
+- name: "Configure periodic ext4 checks: {{ storage_v_mount }}"
+  when:
+    - storage_v_fsck_pass > 0
+    - storage_v_fstype == 'ext4'
+  ansible.builtin.command:
+    cmd: >-
+      tune2fs -c {{ storage_v_fsck_max_mount_count }}
+      -i {{ storage_v_fsck_interval }}
+      {{ storage_v_device }}
+  changed_when: false

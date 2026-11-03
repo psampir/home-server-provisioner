@@ -22,7 +22,18 @@
 #                                 # filesystem on it. The role NEVER
 #                                 # overwrites an existing filesystem
 #                                 # without this flag - by design.
+#   fsck_pass: 0                 # fstab pass number. 2 asks the boot to
+#                                 # check the filesystem before mounting.
+#                                 # ext4 only in practice.
+#   fsck_max_mount_count: 30     # with fsck_pass, run a real check after
+#                                 # this many mounts
+#   fsck_interval: 6m            # ... or after this interval
 storage_volumes: []
+
+# Defaults for the periodic ext4 check, applied when a volume sets
+# fsck_pass above zero. tune2fs is only touched for ext4.
+storage_fsck_max_mount_count: 30
+storage_fsck_interval: 6m
 
 # Per-host manifest of mountpoints currently managed by the role.
 # Drives idempotent cleanup: removing a volume from storage_volumes
