@@ -182,3 +182,9 @@ borgmatic_env_path: /etc/borgmatic/borgmatic.env
 borgmatic_notify_wrapper_path: /usr/local/bin/hsp-borgmatic-notify
 borgmatic_service_dropin_dir: /etc/systemd/system/borgmatic.service.d
 borgmatic_timer_dropin_dir: /etc/systemd/system/borgmatic.timer.d
+
+
+# Accept a repository that borg knows under a different, earlier path. Use
+# only for a deliberate move; it silences the relocation safety check for
+# every repository of this host.
+borgmatic_relocated_repo_access_is_ok: false
