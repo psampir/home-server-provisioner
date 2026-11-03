@@ -568,6 +568,7 @@ when running multiple envs side-by-side to avoid collisions with the
 - [WireGuard clients](docs/wireguard-clients.md) - onboarding phones and laptops, key management, split vs full tunnel
 - [Backups](docs/backups.md) - borgmatic/borg topology, restore, passphrase rotation, monitoring
 - [Caddy reverse proxy](docs/caddy.md) - stack-based and native modes, TLS, DNS, firewall, troubleshooting
+- [Monitoring](docs/monitoring.md) - dashboard on the hub, push endpoints, heartbeat and alert routing
 - [Deployment Guide](docs/deployment-guide.md) - multi-site setups, off-site hosts, and VPN connectivity
 - [Conventions](docs/conventions.md) - role, variable, template, and make-target naming rules this repo enforces
 
