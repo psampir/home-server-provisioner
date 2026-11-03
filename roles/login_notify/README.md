@@ -18,6 +18,7 @@ forget: a broken backend never blocks or delays a login.
 | `login_notify_enabled` | `false` | Master switch; also removes the hook and files |
 | `login_notify_ignore_users` | `[ansible]` | Accounts that never notify |
 | `login_notify_trusted_nets` | `[]` | CIDRs that count as trusted |
+| `login_notify_notify_trusted` | `true` | Also report trusted logins; off means only untrusted sources |
 | `login_notify_trusted_priority` | `low` | ntfy priority for trusted logins |
 | `login_notify_untrusted_priority` | `high` | ntfy priority for everything else |
 | `login_notify_pam_services` | `[sshd]` | Files under `/etc/pam.d` to hook |

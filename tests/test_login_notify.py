@@ -23,15 +23,21 @@ printf '%s\\n' "$*" >> "${NOTIFY_LOG}"
 
 CONFIG = """IGNORE_USERS="ansible"
 TRUSTED_NETS="10.10.0.0/24 192.168.0.0/24"
+NOTIFY_TRUSTED="__NOTIFY_TRUSTED__"
 TRUSTED_PRIORITY="low"
 UNTRUSTED_PRIORITY="high"
 NOTIFY_BIN="__NOTIFY__"
 """
 
 
-def run(case: Path, log: Path, **pam: str) -> tuple[int, str]:
+def run(case: Path, log: Path, notify_trusted: str = "1", **pam: str) -> tuple[int, str]:
     if log.exists():
         log.unlink()
+    (case / "login-notify.conf").write_text(
+        CONFIG.replace("__NOTIFY__", str(case / "hsp-notify")).replace(
+            "__NOTIFY_TRUSTED__", notify_trusted
+        )
+    )
     env = dict(os.environ)
     env["HSP_LOGIN_NOTIFY_CONFIG"] = str(case / "login-notify.conf")
     env["NOTIFY_LOG"] = str(log)
@@ -54,8 +60,6 @@ def main() -> int:
         notify.write_text(FAKE_NOTIFY)
         notify.chmod(0o755)
         log = root / "notify.log"
-        (root / "login-notify.conf").write_text(CONFIG.replace("__NOTIFY__", str(notify)))
-
         rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="pawel",
                        PAM_RHOST="10.10.0.21", PAM_SERVICE="sshd", PAM_TTY="pts/0")
         if rc != 0 or "--priority low" not in line or "rotating_light" in line:
@@ -90,6 +94,16 @@ def main() -> int:
                        PAM_RHOST="192.168.0.10", PAM_SERVICE="sshd", PAM_TTY="pts/0")
         if "--priority low" not in line:
             raise SystemExit(f"LAN login: {line!r}")
+
+        rc, line = run(root, log, notify_trusted="0", PAM_TYPE="open_session", PAM_USER="pawel",
+                       PAM_RHOST="10.10.0.21", PAM_SERVICE="sshd", PAM_TTY="pts/0")
+        if line:
+            raise SystemExit(f"trusted login notified while disabled: {line!r}")
+
+        rc, line = run(root, log, notify_trusted="0", PAM_TYPE="open_session", PAM_USER="pawel",
+                       PAM_RHOST="203.0.113.9", PAM_SERVICE="sshd", PAM_TTY="pts/0")
+        if "--priority high" not in line:
+            raise SystemExit(f"untrusted login was not notified: {line!r}")
 
     print("login notify tests passed")
     return 0
