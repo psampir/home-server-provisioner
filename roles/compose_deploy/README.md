@@ -1,7 +1,9 @@
 # compose_deploy
 
 Deploys Docker Compose stacks from the controller to `/opt/stacks/<stack>/`
-and runs `docker compose up -d`.
+and runs `docker compose up -d`. A stack restarts when one of its synced or
+rendered files changed, because compose does not notice a replaced
+bind-mounted file.
 
 ## What it does
 
@@ -14,6 +16,9 @@ and runs `docker compose up -d`.
 - creates any external Docker networks listed in
   `compose_deploy_external_networks` before deploying
 - brings each stack up with `docker compose up -d`
+- restarts the stack when a synced or rendered file changed, so a replaced
+  `Caddyfile`, config file or `.env` is picked up without a manual
+  `--force-recreate`
 - removes stacks whose `state` is `absent`
 
 Host-specific directories win over `_common` per stack name (full directory
