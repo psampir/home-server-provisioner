@@ -24,6 +24,7 @@
     - smart_monitoring
     - borgmatic
     - custom_scripts
+    - db_dump
     - systemd_units
     - scheduled_jobs
 

@@ -1,0 +1,8 @@
+{{ {
+    'docker_bin': db_dump_docker_bin,
+    'lock_file': db_dump_lock_file,
+    'postgres': db_dump_postgres,
+    'mysql': db_dump_mysql,
+    'sqlite': db_dump_sqlite,
+    'freshness': db_dump_freshness,
+} | to_nice_json }}
