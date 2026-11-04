@@ -7,6 +7,7 @@
     - service_user
     - base
     - etckeeper
+    - beszel_agent
     - laptop_power
     - nut
     - admin_user

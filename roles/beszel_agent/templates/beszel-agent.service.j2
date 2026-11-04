@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Beszel Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ beszel_agent_user }}
+Group={{ beszel_agent_user }}
+EnvironmentFile=/etc/beszel-agent.env
+ExecStart={{ beszel_agent_bin }}
+Restart=always
+RestartSec=5
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths={{ beszel_agent_data_dir }}
+SupplementaryGroups={{ 'systemd-journal docker' if beszel_agent_docker else 'systemd-journal' }}
+
+[Install]
+WantedBy=multi-user.target
