@@ -128,42 +128,39 @@ actions only.
 
 borgmatic's native `postgresql_databases:` support cannot `docker exec` into
 a container, so those databases would otherwise be archived as raw files
-copied from a live server. Dump them once up front and let the dump join
-every archive:
+copied from a live server. Use the `db_dump` role; it installs
+`/usr/local/bin/hsp-db-dump` and renders its configuration from host_vars:
 
 ```yaml
-# host_vars/<app-host>.yml
+db_dump_enabled: true
+db_dump_postgres:
+  - name: immich
+    container: immich_postgres
+    user: postgres
+    format: dumpall
+    output: /var/backups/db/immich
+    retention: {daily: 14, weekly: 8, monthly: 12}
+
 borgmatic_source_directories:
   - /opt/stacks
   - /etc
-  - /var/backups/db          # also receives the dump below
+  - /var/backups/db
 
 borgmatic_before_everything_commands:
-  - /usr/local/bin/hsp-pg-dump
-borgmatic_after_everything_commands:
-  - rm -f /var/backups/db/*.sql
+  - /usr/local/bin/hsp-db-dump
 ```
 
-```bash
-#!/bin/sh
-# /usr/local/bin/hsp-pg-dump - consistent dumps of containerised databases.
-set -eu
-stage=/var/backups/db
-mkdir -p "$stage"
-docker exec immich_postgres pg_dumpall -U postgres > "$stage/immich.sql"
-docker exec joplin-db       pg_dumpall -U joplin  > "$stage/joplin.sql"
-```
-
-The three pieces work together:
+See [db_dump](../db_dump/README.md) for PostgreSQL, MySQL/MariaDB, SQLite
+and freshness checks. The pieces work together:
 
 1. `borgmatic_before_everything_commands` runs the dump script **once**,
    before any repository is touched.
-2. The staging directory (`/var/backups/db`) must **also** appear in
-   `borgmatic_source_directories`, so the freshly written dump ends up in
-   **every** archive.
-3. `borgmatic_after_everything_commands` cleans the dump up **once**, after
-   all repositories are done - otherwise the stale copy is re-archived every
-   night and bloats the repo.
+2. The dump directories must **also** appear in
+   `borgmatic_source_directories`, so the fresh dumps end up in **every**
+   archive. Exclude the live database files.
+3. The dumps stay for their retention window. Borg deduplicates unchanged
+   copies; add an `after_everything` cleanup only if you do not want them on
+   disk between runs.
 
 A failing `before_everything` hook **aborts the whole run** - no archive is
 written to any repository. That is deliberate (better to ship no backup than

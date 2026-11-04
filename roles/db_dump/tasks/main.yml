@@ -1,0 +1,37 @@
+- name: Stop here when db_dump is disabled
+  ansible.builtin.meta: end_role
+  when: not db_dump_enabled
+
+- name: Validate the db_dump configuration
+  ansible.builtin.assert:
+    that:
+      - >-
+        (db_dump_postgres | length) + (db_dump_mysql | length)
+        + (db_dump_sqlite | length) + (db_dump_freshness | length) > 0
+    fail_msg: >-
+      db_dump_enabled is true but no databases or freshness checks are
+      configured.
+
+- name: Ensure the db_dump configuration directory exists
+  ansible.builtin.file:
+    path: "{{ db_dump_config | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install hsp-db-dump
+  ansible.builtin.copy:
+    src: hsp-db-dump
+    dest: "{{ db_dump_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the db_dump configuration
+  ansible.builtin.template:
+    src: db-dump.json.j2
+    dest: "{{ db_dump_config }}"
+    owner: root
+    group: root
+    mode: "0600"

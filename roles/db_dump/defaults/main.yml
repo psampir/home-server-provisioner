@@ -1,0 +1,24 @@
+# db_dump - consistent database dumps before a backup.
+#
+# The role is inert until enabled. It installs hsp-db-dump and renders a JSON
+# configuration from the variables below. A borgmatic before_everything hook
+# can then run the script; the output directories must also be in
+# borgmatic_source_directories.
+db_dump_enabled: false
+
+db_dump_bin: /usr/local/bin/hsp-db-dump
+db_dump_config: /etc/hsp/db-dump.json
+db_dump_docker_bin: docker
+db_dump_lock_file: /run/hsp-db-dump.lock
+
+# Containerised PostgreSQL databases. See README.md for every field.
+db_dump_postgres: []
+
+# Containerised MySQL/MariaDB databases.
+db_dump_mysql: []
+
+# SQLite databases, either an exact path or a glob.
+db_dump_sqlite: []
+
+# Dumps produced by an application, checked for freshness only.
+db_dump_freshness: []

@@ -1,0 +1,757 @@
+#!/usr/bin/env python3
+"""hsp-db-dump - consistent database dumps before a backup.
+
+Reads a JSON configuration (default /etc/hsp/db-dump.json) and creates:
+
+  * PostgreSQL dumps through docker exec and pg_dump,
+  * MySQL/MariaDB dumps through docker exec and mysqldump/mariadb-dump,
+  * SQLite online backups with an integrity check,
+  * freshness checks for dumps produced by an application.
+
+Every write is atomic: the dump goes to a temporary file in the target
+directory, is fsynced, and only then renamed into place. Files are 0600 and
+directories 0700. A lock prevents two runs from overlapping.
+
+Any failure makes the run exit non-zero, so a borgmatic before_everything
+hook aborts the archive instead of shipping an inconsistent database.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import glob
+import json
+import os
+import re
+import shlex
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+DEFAULT_CONFIG = "/etc/hsp/db-dump.json"
+DEFAULT_LOCK = "/run/hsp-db-dump.lock"
+DEFAULT_DOCKER = "docker"
+
+NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+BINARY_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+UNSAFE_LABEL_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+class ConfigError(Exception):
+    """The configuration is missing or invalid."""
+
+
+@dataclass(frozen=True)
+class Retention:
+    daily: int = 14
+    weekly: int = 8
+    monthly: int = 12
+
+
+@dataclass
+class PostgresDump:
+    name: str
+    output: Path
+    retention: Retention
+    timeout: int
+    fmt: str = "custom"
+    container: str | None = None
+    user: str | None = None
+    user_env: str | None = None
+    database: str | None = None
+    database_env: str | None = None
+    password_env: str | None = None
+    extra_args: list[str] = field(default_factory=list)
+    command: list[str] | None = None
+
+
+@dataclass
+class MysqlDump:
+    name: str
+    output: Path
+    retention: Retention
+    timeout: int
+    binary: str = "mysqldump"
+    container: str | None = None
+    user: str | None = None
+    user_env: str | None = None
+    database: str | None = None
+    database_env: str | None = None
+    password_env: str = "MYSQL_PASSWORD"
+    all_databases: bool = False
+    extra_args: list[str] = field(default_factory=list)
+    command: list[str] | None = None
+
+
+@dataclass
+class SqliteDump:
+    name: str
+    output: Path
+    keep: int
+    integrity_check: bool = True
+    timeout: int = 60
+    path: Path | None = None
+    pattern: str | None = None
+    label_from: str = "parent"
+
+
+@dataclass
+class FreshnessCheck:
+    name: str
+    pattern: str
+    max_age_hours: float
+
+
+@dataclass
+class Config:
+    docker_bin: str
+    lock_file: Path
+    postgres: list[PostgresDump]
+    mysql: list[MysqlDump]
+    sqlite: list[SqliteDump]
+    freshness: list[FreshnessCheck]
+
+
+def _require_mapping(value: Any, where: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ConfigError(f"{where} must be an object")
+    return value
+
+
+def _opt_string(raw: dict[str, Any], key: str, where: str) -> str | None:
+    value = raw.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise ConfigError(f"{where}.{key} must be a non-empty string")
+    return value
+
+
+def _require_string(raw: dict[str, Any], key: str, where: str) -> str:
+    value = _opt_string(raw, key, where)
+    if value is None:
+        raise ConfigError(f"{where}.{key} is required")
+    return value
+
+
+def _require_path(raw: dict[str, Any], key: str, where: str) -> Path:
+    value = _require_string(raw, key, where)
+    path = Path(value)
+    if not path.is_absolute():
+        raise ConfigError(f"{where}.{key} must be an absolute path")
+    return path
+
+
+def _optional_bool(raw: dict[str, Any], key: str, default: bool) -> bool:
+    value = raw.get(key, default)
+    if not isinstance(value, bool):
+        raise ConfigError(f"{key} must be true or false")
+    return value
+
+
+def _positive_int(raw: dict[str, Any], key: str, default: int, where: str) -> int:
+    value = raw.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ConfigError(f"{where}.{key} must be a positive integer")
+    return value
+
+
+def _parse_timeout(raw: dict[str, Any], where: str) -> int:
+    return _positive_int(raw, "timeout", 3600, where)
+
+
+def _parse_extra_args(raw: dict[str, Any], where: str) -> list[str]:
+    value = raw.get("extra_args", [])
+    if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
+        raise ConfigError(f"{where}.extra_args must be a list of non-empty strings")
+    return value
+
+
+def _parse_command(raw: dict[str, Any], where: str) -> list[str] | None:
+    value = raw.get("command")
+    if value is None:
+        return None
+    if (
+        not isinstance(value, list)
+        or not value
+        or any(not isinstance(item, str) or not item for item in value)
+    ):
+        raise ConfigError(f"{where}.command must be a non-empty list of strings")
+    return value
+
+
+def _parse_retention(raw: dict[str, Any], where: str) -> Retention:
+    value = raw.get("retention")
+    if value is None:
+        return Retention()
+    if not isinstance(value, dict):
+        raise ConfigError(f"{where}.retention must be an object")
+    unknown = set(value) - {"daily", "weekly", "monthly"}
+    if unknown:
+        raise ConfigError(f"{where}.retention has unknown keys: {sorted(unknown)}")
+
+    def number(key: str, default: int, minimum: int) -> int:
+        item = value.get(key, default)
+        if isinstance(item, bool) or not isinstance(item, int) or item < minimum:
+            raise ConfigError(
+                f"{where}.retention.{key} must be an integer >= {minimum}"
+            )
+        return item
+
+    return Retention(
+        daily=number("daily", 14, 1),
+        weekly=number("weekly", 8, 0),
+        monthly=number("monthly", 12, 0),
+    )
+
+
+def _parse_name(raw: dict[str, Any], names: set[str], where: str) -> str:
+    name = _require_string(raw, "name", where)
+    if not NAME_RE.match(name):
+        raise ConfigError(
+            f"{where}.name must match {NAME_RE.pattern!r}: {name!r}"
+        )
+    if name in names:
+        raise ConfigError(f"duplicate name: {name}")
+    names.add(name)
+    return name
+
+
+def _parse_env(raw: dict[str, Any], key: str, where: str) -> str | None:
+    value = _opt_string(raw, key, where)
+    if value is not None and not ENV_RE.match(value):
+        raise ConfigError(f"{where}.{key} is not a valid environment variable name")
+    return value
+
+
+def _parse_postgres(raw: Any, names: set[str], index: int) -> PostgresDump:
+    where = f"postgres[{index}]"
+    entry = _require_mapping(raw, where)
+    name = _parse_name(entry, names, where)
+    output = _require_path(entry, "output", where)
+    retention = _parse_retention(entry, where)
+    timeout = _parse_timeout(entry, where)
+    fmt = entry.get("format", "custom")
+    if fmt not in {"custom", "plain", "dumpall"}:
+        raise ConfigError(f"{where}.format must be custom, plain or dumpall")
+    extra_args = _parse_extra_args(entry, where)
+    command = _parse_command(entry, where)
+
+    if command is not None:
+        return PostgresDump(
+            name=name,
+            output=output,
+            retention=retention,
+            timeout=timeout,
+            fmt=fmt,
+            extra_args=extra_args,
+            command=command,
+        )
+
+    container = _require_string(entry, "container", where)
+    user = _opt_string(entry, "user", where)
+    user_env = _parse_env(entry, "user_env", where)
+    if bool(user) == bool(user_env):
+        raise ConfigError(f"{where} needs exactly one of user or user_env")
+    password_env = _parse_env(entry, "password_env", where)
+    database = _opt_string(entry, "database", where)
+    database_env = _parse_env(entry, "database_env", where)
+    if fmt != "dumpall":
+        if bool(database) == bool(database_env):
+            raise ConfigError(
+                f"{where} needs exactly one of database or database_env"
+            )
+
+    return PostgresDump(
+        name=name,
+        output=output,
+        retention=retention,
+        timeout=timeout,
+        fmt=fmt,
+        container=container,
+        user=user,
+        user_env=user_env,
+        database=database,
+        database_env=database_env,
+        password_env=password_env,
+        extra_args=extra_args,
+    )
+
+
+def _parse_mysql(raw: Any, names: set[str], index: int) -> MysqlDump:
+    where = f"mysql[{index}]"
+    entry = _require_mapping(raw, where)
+    name = _parse_name(entry, names, where)
+    output = _require_path(entry, "output", where)
+    retention = _parse_retention(entry, where)
+    timeout = _parse_timeout(entry, where)
+    extra_args = _parse_extra_args(entry, where)
+    command = _parse_command(entry, where)
+
+    if command is not None:
+        return MysqlDump(
+            name=name,
+            output=output,
+            retention=retention,
+            timeout=timeout,
+            extra_args=extra_args,
+            command=command,
+        )
+
+    container = _require_string(entry, "container", where)
+    user = _opt_string(entry, "user", where)
+    user_env = _parse_env(entry, "user_env", where)
+    if bool(user) == bool(user_env):
+        raise ConfigError(f"{where} needs exactly one of user or user_env")
+    password_env = _parse_env(entry, "password_env", where) or "MYSQL_PASSWORD"
+    binary = entry.get("binary", "mysqldump")
+    if not isinstance(binary, str) or not BINARY_RE.match(binary):
+        raise ConfigError(f"{where}.binary must be a simple command name")
+    all_databases = _optional_bool(entry, "all_databases", False)
+    database = _opt_string(entry, "database", where)
+    database_env = _parse_env(entry, "database_env", where)
+    if not all_databases and bool(database) == bool(database_env):
+        raise ConfigError(
+            f"{where} needs exactly one of database or database_env, "
+            "or all_databases: true"
+        )
+
+    return MysqlDump(
+        name=name,
+        output=output,
+        retention=retention,
+        timeout=timeout,
+        binary=binary,
+        container=container,
+        user=user,
+        user_env=user_env,
+        database=database,
+        database_env=database_env,
+        password_env=password_env,
+        all_databases=all_databases,
+        extra_args=extra_args,
+    )
+
+
+def _parse_sqlite(raw: Any, names: set[str], index: int) -> SqliteDump:
+    where = f"sqlite[{index}]"
+    entry = _require_mapping(raw, where)
+    name = _parse_name(entry, names, where)
+    output = _require_path(entry, "output", where)
+    keep = _positive_int(entry, "keep", 14, where)
+    timeout = _positive_int(entry, "timeout", 60, where)
+    integrity = _optional_bool(entry, "integrity_check", True)
+    path_value = _opt_string(entry, "path", where)
+    pattern = _opt_string(entry, "glob", where)
+    if bool(path_value) == bool(pattern):
+        raise ConfigError(f"{where} needs exactly one of path or glob")
+    path = None
+    label_from = "parent"
+    if path_value is not None:
+        path = Path(path_value)
+        if not path.is_absolute():
+            raise ConfigError(f"{where}.path must be an absolute path")
+        label_from = "none"
+    else:
+        assert pattern is not None
+        if not Path(pattern).is_absolute():
+            raise ConfigError(f"{where}.glob must be an absolute pattern")
+        label_from = entry.get("label_from", "parent")
+        if label_from not in {"parent", "stem", "none"}:
+            raise ConfigError(f"{where}.label_from must be parent, stem or none")
+
+    return SqliteDump(
+        name=name,
+        output=output,
+        keep=keep,
+        integrity_check=integrity,
+        timeout=timeout,
+        path=path,
+        pattern=pattern,
+        label_from=label_from,
+    )
+
+
+def _parse_freshness(raw: Any, names: set[str], index: int) -> FreshnessCheck:
+    where = f"freshness[{index}]"
+    entry = _require_mapping(raw, where)
+    name = _parse_name(entry, names, where)
+    pattern = _require_string(entry, "glob", where)
+    if not Path(pattern).is_absolute():
+        raise ConfigError(f"{where}.glob must be an absolute pattern")
+    max_age = entry.get("max_age_hours")
+    if isinstance(max_age, bool) or not isinstance(max_age, (int, float)) or max_age <= 0:
+        raise ConfigError(f"{where}.max_age_hours must be a positive number")
+    return FreshnessCheck(name=name, pattern=pattern, max_age_hours=float(max_age))
+
+
+def load_config(path: Path) -> Config:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ConfigError(f"cannot read {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ConfigError(f"cannot parse {path}: {exc}") from exc
+
+    if not isinstance(raw, dict):
+        raise ConfigError("configuration must be a JSON object")
+    allowed = {"docker_bin", "lock_file", "postgres", "mysql", "sqlite", "freshness"}
+    unknown = set(raw) - allowed
+    if unknown:
+        raise ConfigError(f"unknown top-level keys: {sorted(unknown)}")
+
+    docker_bin = raw.get("docker_bin", DEFAULT_DOCKER)
+    if not isinstance(docker_bin, str) or not BINARY_RE.match(docker_bin):
+        raise ConfigError("docker_bin must be a simple command name")
+    lock_file = Path(raw.get("lock_file", DEFAULT_LOCK))
+    if not lock_file.is_absolute():
+        raise ConfigError("lock_file must be an absolute path")
+
+    names: set[str] = set()
+
+    def entries(key: str) -> list[Any]:
+        value = raw.get(key, [])
+        if not isinstance(value, list):
+            raise ConfigError(f"{key} must be a list")
+        return value
+
+    postgres = [_parse_postgres(item, names, i) for i, item in enumerate(entries("postgres"))]
+    mysql = [_parse_mysql(item, names, i) for i, item in enumerate(entries("mysql"))]
+    sqlite = [_parse_sqlite(item, names, i) for i, item in enumerate(entries("sqlite"))]
+    freshness = [_parse_freshness(item, names, i) for i, item in enumerate(entries("freshness"))]
+
+    return Config(
+        docker_bin=docker_bin,
+        lock_file=lock_file,
+        postgres=postgres,
+        mysql=mysql,
+        sqlite=sqlite,
+        freshness=freshness,
+    )
+
+
+def _ensure_dir(path: Path) -> None:
+    # Only new directories get 0700. Do not chmod an existing directory: it
+    # may be a shared parent such as /run or /srv/data.
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+
+def _timestamp() -> str:
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def _prune(directory: Path, pattern: str, keep: int) -> None:
+    files = sorted(
+        (path for path in directory.glob(pattern) if path.is_file()),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for old in files[keep:]:
+        old.unlink()
+
+
+def _run_to_file(
+    argv: list[str], target: Path, timeout: int, verbose: bool
+) -> None:
+    _ensure_dir(target.parent)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=str(target.parent))
+    os.close(fd)
+    temp = Path(temp_name)
+    os.chmod(temp, 0o600)
+    try:
+        if verbose:
+            print(f"hsp-db-dump: run {shlex.join(argv)}")
+        with temp.open("wb") as output:
+            result = subprocess.run(
+                argv,
+                stdout=output,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+                check=False,
+            )
+        if result.returncode != 0:
+            detail = result.stderr.decode("utf-8", "replace").strip()
+            if len(detail) > 500:
+                detail = detail[:497] + "..."
+            raise RuntimeError(f"dump command failed with {result.returncode}: {detail}")
+        if temp.stat().st_size == 0:
+            raise RuntimeError("dump command produced an empty file")
+        os.replace(temp, target)
+        os.chmod(target, 0o600)
+    finally:
+        if temp.exists():
+            temp.unlink()
+
+
+def _env_or_value(env_name: str | None, value: str | None) -> str:
+    if value is not None:
+        return shlex.quote(value)
+    assert env_name is not None
+    return f'"${env_name}"'
+
+
+def _postgres_argv(entry: PostgresDump, docker_bin: str) -> list[str]:
+    if entry.command is not None:
+        return entry.command
+    user = _env_or_value(entry.user_env, entry.user)
+    if entry.fmt == "dumpall":
+        parts = ["pg_dumpall", "-U", user]
+    else:
+        database = _env_or_value(entry.database_env, entry.database)
+        fmt = "-Fc" if entry.fmt == "custom" else "-Fp"
+        parts = ["pg_dump", "-U", user, "-d", database, fmt]
+    parts.extend(shlex.quote(arg) for arg in entry.extra_args)
+    if entry.password_env:
+        parts.insert(0, f'PGPASSWORD="${entry.password_env}"')
+    return [docker_bin, "exec", entry.container or "", "sh", "-c", " ".join(parts)]
+
+
+def _mysql_argv(entry: MysqlDump, docker_bin: str) -> list[str]:
+    if entry.command is not None:
+        return entry.command
+    user = _env_or_value(entry.user_env, entry.user)
+    parts = [
+        entry.binary,
+        "-u",
+        user,
+        "--single-transaction",
+        "--quick",
+        "--routines",
+        "--events",
+        "--triggers",
+    ]
+    if entry.all_databases:
+        parts.append("--all-databases")
+    else:
+        parts.append(_env_or_value(entry.database_env, entry.database))
+    parts.extend(shlex.quote(arg) for arg in entry.extra_args)
+    if entry.password_env:
+        parts.insert(0, f'MYSQL_PWD="${entry.password_env}"')
+    return [docker_bin, "exec", entry.container or "", "sh", "-c", " ".join(parts)]
+
+
+def _server_extension(entry: PostgresDump | MysqlDump) -> str:
+    if isinstance(entry, PostgresDump):
+        return "dump" if entry.fmt == "custom" else "sql"
+    return "sql"
+
+
+def _dump_server(
+    entry: PostgresDump | MysqlDump,
+    docker_bin: str,
+    now: datetime,
+    dry_run: bool,
+    verbose: bool,
+) -> None:
+    argv = (
+        _postgres_argv(entry, docker_bin)
+        if isinstance(entry, PostgresDump)
+        else _mysql_argv(entry, docker_bin)
+    )
+    stamp = _timestamp()
+    extension = _server_extension(entry)
+    periods: list[tuple[str, int]] = [("daily", entry.retention.daily)]
+    if now.weekday() == 6 and entry.retention.weekly > 0:
+        periods.append(("weekly", entry.retention.weekly))
+    if now.day == 1 and entry.retention.monthly > 0:
+        periods.append(("monthly", entry.retention.monthly))
+
+    for period, keep in periods:
+        target = entry.output / period / f"{entry.name}_{period}_{stamp}.{extension}"
+        if dry_run:
+            print(f"hsp-db-dump: would dump {entry.name} ({period}) to {target}")
+            continue
+        _run_to_file(argv, target, entry.timeout, verbose)
+        _prune(target.parent, f"{entry.name}_{period}_*.{extension}", keep)
+        print(f"hsp-db-dump: {entry.name} {period}: {target}")
+
+
+def _safe_label(label: str) -> str:
+    cleaned = UNSAFE_LABEL_RE.sub("_", label).strip("_")
+    return cleaned or "db"
+
+
+def _sqlite_sources(entry: SqliteDump) -> list[tuple[str | None, Path]]:
+    if entry.path is not None:
+        if not entry.path.is_file():
+            raise RuntimeError(f"SQLite database not found: {entry.path}")
+        return [(None, entry.path)]
+
+    assert entry.pattern is not None
+    matches = sorted(Path(path) for path in glob.glob(entry.pattern) if Path(path).is_file())
+    if not matches:
+        raise RuntimeError(f"glob matched no SQLite databases: {entry.pattern}")
+    result: list[tuple[str | None, Path]] = []
+    seen: set[str] = set()
+    for source in matches:
+        if entry.label_from == "parent":
+            label: str | None = _safe_label(source.parent.name)
+        elif entry.label_from == "stem":
+            label = _safe_label(source.stem)
+        else:
+            label = None
+        if label is not None:
+            if label in seen:
+                raise RuntimeError(f"duplicate SQLite label: {label}")
+            seen.add(label)
+        result.append((label, source))
+    return result
+
+
+def _backup_sqlite(
+    source: Path, target: Path, integrity_check: bool, timeout: int
+) -> None:
+    _ensure_dir(target.parent)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=str(target.parent))
+    os.close(fd)
+    temp = Path(temp_name)
+    os.chmod(temp, 0o600)
+    try:
+        uri = source.resolve().as_uri() + "?mode=ro"
+        src = sqlite3.connect(uri, uri=True, timeout=timeout)
+        dst = sqlite3.connect(str(temp), timeout=timeout)
+        try:
+            src.backup(dst)
+            if integrity_check:
+                check = dst.execute("PRAGMA integrity_check").fetchone()
+                if not check or check[0] != "ok":
+                    raise RuntimeError(
+                        f"SQLite integrity check failed for {source}: {check}"
+                    )
+        finally:
+            dst.close()
+            src.close()
+        os.replace(temp, target)
+        os.chmod(target, 0o600)
+    finally:
+        if temp.exists():
+            temp.unlink()
+
+
+def _dump_sqlite(
+    entry: SqliteDump, dry_run: bool, verbose: bool
+) -> None:
+    sources = _sqlite_sources(entry)
+    stamp = _timestamp()
+    for label, source in sources:
+        suffix = f"-{label}" if label else ""
+        target = entry.output / f"{entry.name}{suffix}-{stamp}.sqlite3"
+        if dry_run:
+            print(f"hsp-db-dump: would back up {source} to {target}")
+            continue
+        _backup_sqlite(source, target, entry.integrity_check, entry.timeout)
+        _prune(entry.output, f"{entry.name}{suffix}-*.sqlite3", entry.keep)
+        print(f"hsp-db-dump: sqlite {entry.name}{suffix}: {target}")
+
+
+def _check_freshness(entry: FreshnessCheck) -> None:
+    matches = [Path(path) for path in glob.glob(entry.pattern) if Path(path).is_file()]
+    if not matches:
+        raise RuntimeError(f"no files match {entry.pattern}")
+    latest = max(matches, key=lambda path: path.stat().st_mtime)
+    age_hours = (time.time() - latest.stat().st_mtime) / 3600
+    if age_hours > entry.max_age_hours:
+        raise RuntimeError(
+            f"latest {latest.name} is {age_hours:.1f} h old "
+            f"(max {entry.max_age_hours} h)"
+        )
+    print(
+        f"hsp-db-dump: freshness {entry.name}: {latest.name} "
+        f"({age_hours:.1f} h)"
+    )
+
+
+def _acquire_lock(path: Path):
+    _ensure_dir(path.parent)
+    handle = path.open("w", encoding="utf-8")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        raise RuntimeError(f"another run holds {path}") from None
+    handle.write(str(os.getpid()))
+    handle.flush()
+    return handle
+
+
+def main(argv: list[str] | None = None) -> int:
+    os.umask(0o077)
+    parser = argparse.ArgumentParser(
+        description="Create consistent database dumps before a backup."
+    )
+    parser.add_argument(
+        "--config",
+        default=os.environ.get("HSP_DB_DUMP_CONFIG", DEFAULT_CONFIG),
+        help=f"JSON configuration (default: {DEFAULT_CONFIG})",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="print actions only")
+    parser.add_argument("--verbose", action="store_true", help="print commands")
+    args = parser.parse_args(argv)
+
+    try:
+        config = load_config(Path(args.config))
+    except ConfigError as exc:
+        print(f"hsp-db-dump: {exc}", file=sys.stderr)
+        return 2
+
+    lock = None
+    try:
+        if not args.dry_run:
+            lock = _acquire_lock(config.lock_file)
+        errors: list[str] = []
+        count = 0
+        now = datetime.now()
+
+        for entry in config.postgres:
+            try:
+                _dump_server(entry, config.docker_bin, now, args.dry_run, args.verbose)
+                count += 1
+            except Exception as exc:  # noqa: BLE001 - report every entry
+                errors.append(f"postgres {entry.name}: {exc}")
+
+        for entry in config.mysql:
+            try:
+                _dump_server(entry, config.docker_bin, now, args.dry_run, args.verbose)
+                count += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"mysql {entry.name}: {exc}")
+
+        for entry in config.sqlite:
+            try:
+                _dump_sqlite(entry, args.dry_run, args.verbose)
+                count += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"sqlite {entry.name}: {exc}")
+
+        for entry in config.freshness:
+            try:
+                _check_freshness(entry)
+                count += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"freshness {entry.name}: {exc}")
+
+        if errors:
+            for error in errors:
+                print(f"hsp-db-dump: {error}", file=sys.stderr)
+            print(f"hsp-db-dump: {len(errors)} failed", file=sys.stderr)
+            return 1
+        print(f"hsp-db-dump: {count} ok")
+        return 0
+    except Exception as exc:  # noqa: BLE001 - lock and unexpected errors
+        print(f"hsp-db-dump: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if lock is not None:
+            lock.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

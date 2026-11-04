@@ -34,3 +34,7 @@ build/
 # can be exercised end-to-end against a real /dev/disk/by-id/ path.
 .test-disks/
 
+
+# Python bytecode
+__pycache__/
+*.py[co]

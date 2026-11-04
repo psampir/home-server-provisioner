@@ -305,6 +305,7 @@ Each role is self-contained. The full list:
 | Role | Description |
 |---|---|
 | `borgmatic` | Backup source: borgmatic config, SSH key, and nightly push to `backup_targets` |
+| `db_dump` | Consistent PostgreSQL, MySQL/MariaDB and SQLite dumps for backups, with retention and freshness checks |
 | `borg_repo` | Backup target: append-only borg repository, authorized keys, and retention |
 
 ### Scheduled work and custom files
@@ -402,6 +403,7 @@ build container must read. See
 | `make test-gatus` | Test Gatus config, service and ntfy alerting templates |
 | `make test-gatus-heartbeat` | Test the dead man's switch ping |
 | `make test-update-report` | Test the monthly package update report |
+| `make test-db-dump` | Test the generic database dump helper |
 | `make test-caddy` | Test per-host and flat Caddy source selection |
 | `make test-disk-check` | Test disk check thresholds, dedup and recovery |
 | `make test-docker-health` | Test container evaluation and the Gatus push |
