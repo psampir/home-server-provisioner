@@ -2,7 +2,7 @@
 """Behaviour checks for roles/docker_prune/files/hsp-docker-prune.
 
 Runs the script against a fake `docker` that records its arguments, so the
-test covers the filters and the safety rails without touching a daemon.
+test covers the cleanup set and the safety rails without touching a daemon.
 """
 
 from __future__ import annotations
@@ -42,10 +42,10 @@ def calls(log: Path) -> list[str]:
 
 def assert_safe(call_list: list[str]) -> None:
     for call in call_list:
-        assert " -a" not in call, call
         assert "volume" not in call, call
         assert "system prune" not in call, call
         assert "container prune" not in call, call
+        assert "network prune" not in call, call
 
 
 def main() -> int:
@@ -63,28 +63,20 @@ def main() -> int:
         result = run(log)
         assert result.returncode == 0, result.stderr
         assert calls(log) == [
-            "image prune -f --filter until=48h",
+            "image prune -a -f",
             "builder prune -f --all",
         ], calls(log)
         assert_safe(calls(log))
 
         log.unlink()
-        result = run(log, {"HSP_DOCKER_PRUNE_UNTIL": "24h"})
-        assert result.returncode == 0, result.stderr
-        assert calls(log) == [
-            "image prune -f --filter until=24h",
-            "builder prune -f --all",
-        ], calls(log)
-
-        log.unlink()
         result = run(log, {"HSP_DOCKER_PRUNE_BUILD_CACHE": "0"})
         assert result.returncode == 0, result.stderr
-        assert calls(log) == ["image prune -f --filter until=48h"], calls(log)
+        assert calls(log) == ["image prune -a -f"], calls(log)
 
         log.unlink()
         result = run(log, {"FAKE_DOCKER_EXIT": "1"})
         assert result.returncode != 0
-        assert calls(log) == ["image prune -f --filter until=48h"], calls(log)
+        assert calls(log) == ["image prune -a -f"], calls(log)
 
     print("test-docker-prune: ok")
     return 0

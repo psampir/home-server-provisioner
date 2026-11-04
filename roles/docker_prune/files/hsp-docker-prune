@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
-# hsp-docker-prune - reclaim dangling Docker images and old build cache.
+# hsp-docker-prune - reclaim unused Docker images and the build cache.
 #
-# Only dangling images are removed (never `docker image prune -a`): images of
-# stopped stacks and digest-pinned rollback images stay while a container
-# references them. Volumes, containers and networks are never touched.
+# Run after a stack deploy: images whose containers were replaced or removed
+# have no reference left, while images used by any existing container (also
+# a stopped one) stay. A rollback then pulls the old tag or digest again.
+# Volumes, containers and networks are never touched.
 #
 # Environment:
-#   HSP_DOCKER_PRUNE_UNTIL         age filter, default 48h (two days)
-#   HSP_DOCKER_PRUNE_BUILD_CACHE   1 to prune BuildKit cache, 0 to skip
+#   HSP_DOCKER_PRUNE_BUILD_CACHE   1 to prune the BuildKit cache, 0 to skip
 
 set -euo pipefail
 
-UNTIL="${HSP_DOCKER_PRUNE_UNTIL:-48h}"
 BUILD_CACHE="${HSP_DOCKER_PRUNE_BUILD_CACHE:-1}"
 
-echo "hsp-docker-prune: pruning dangling images older than ${UNTIL}"
-docker image prune -f --filter "until=${UNTIL}"
+echo "hsp-docker-prune: pruning images not used by any container"
+docker image prune -a -f
 
 if [[ "${BUILD_CACHE}" == "1" ]]; then
-    # BuildKit's age filter misses internal/frontend records, so prune the
-    # cache in full. It is regenerable; images are never touched.
+    # The whole cache is regenerable; images are never touched.
     echo "hsp-docker-prune: pruning the build cache"
     docker builder prune -f --all
 fi

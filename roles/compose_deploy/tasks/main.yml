@@ -88,3 +88,25 @@
   loop_control:
     loop_var: stack
     label: "{{ stack.name }} ({{ stack.state | default('present') }})"
+
+# --- Post-deploy cleanup ------------------------------------------------------
+# Run once after every stack, never between stacks: an image may be shared by
+# a stack that is still waiting to be deployed.
+
+- name: Prune unused Docker images and build cache
+  when:
+    - compose_deploy_prune | bool
+    - not compose_deploy_skip_docker
+    - compose_deploy_effective_stacks | length > 0
+  ansible.builtin.command:
+    cmd: "{{ compose_deploy_prune_command }}"
+  register: compose_deploy_prune_result
+  changed_when: false
+
+- name: Show the Docker prune result
+  when:
+    - compose_deploy_prune | bool
+    - not compose_deploy_skip_docker
+    - compose_deploy_effective_stacks | length > 0
+  ansible.builtin.debug:
+    var: compose_deploy_prune_result.stdout_lines

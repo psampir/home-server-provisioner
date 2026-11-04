@@ -41,6 +41,8 @@ override, no file-level merge).
 | `compose_deploy_directory_mode` | `preserve` | Mode for created subdirectories (`preserve` or octal) |
 | `compose_deploy_template_mode` | `0640` | Mode for files rendered from `*.j2` templates |
 | `compose_deploy_skip_docker` | `false` | Skip Docker install/network/up steps; for local file and render tests |
+| `compose_deploy_prune` | `false` | Run `hsp-docker-prune` after all stacks are deployed (requires `docker_prune`) |
+| `compose_deploy_prune_command` | `/usr/local/bin/hsp-docker-prune` | Prune command |
 
 ## File modes and build contexts
 

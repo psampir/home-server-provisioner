@@ -86,3 +86,10 @@ compose_deploy_template_mode: "0640"
 # while still syncing and rendering stack files. Intended for local role
 # tests; do not use for a real deployment.
 compose_deploy_skip_docker: false
+
+# Run hsp-docker-prune after all stacks are deployed. That is the moment
+# images of replaced containers lose their last reference, so the cleanup
+# reclaims them without a timer. Requires the docker_prune role; off by
+# default because a rollback then has to pull the image again.
+compose_deploy_prune: false
+compose_deploy_prune_command: /usr/local/bin/hsp-docker-prune
