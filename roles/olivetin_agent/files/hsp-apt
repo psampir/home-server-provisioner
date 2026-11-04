@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# hsp-apt - non-interactive package update/upgrade for the OliveTin console.
+#
+# Usage: hsp-apt check | upgrade
+#
+# check    refreshes the package lists and prints the simulated upgrade
+# upgrade  refreshes, runs a safe upgrade (no removals), autocleans the cache
+#          and reports what still needs a restart
+set -euo pipefail
+
+mode="${1:-}"
+case "$mode" in
+    check|upgrade) ;;
+    *)
+        echo "usage: hsp-apt check|upgrade" >&2
+        exit 2
+        ;;
+esac
+
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=l
+
+apt_opts=(
+    -o Dpkg::Options::=--force-confdef
+    -o Dpkg::Options::=--force-confold
+    -o DPkg::Lock::Timeout=120
+)
+
+echo "== apt-get update =="
+apt-get update
+
+if [[ "$mode" == "check" ]]; then
+    echo
+    echo "== apt-get -s upgrade =="
+    apt-get -s "${apt_opts[@]}" upgrade --with-new-pkgs
+else
+    echo
+    echo "== apt-get upgrade =="
+    apt-get -y "${apt_opts[@]}" upgrade --with-new-pkgs
+
+    echo
+    echo "== apt-get autoclean =="
+    apt-get -y autoclean
+fi
+
+echo
+echo "== needrestart =="
+needrestart -b || true
+
+if [[ -f /run/reboot-required ]]; then
+    echo
+    echo "REBOOT REQUIRED"
+    cat /run/reboot-required.pkgs 2>/dev/null || true
+fi

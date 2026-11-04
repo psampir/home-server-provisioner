@@ -1,0 +1,111 @@
+- name: Install host operation wrappers
+  when: olivetin_agent_enabled | bool
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/usr/local/sbin/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - hsp-apt
+    - hsp-needrestart
+    - hsp-reboot
+    - hsp-backup-check
+    - hsp-journal-vacuum
+    - hsp-smart
+
+- name: Ensure the OliveTin agent group exists
+  when: olivetin_agent_enabled | bool
+  ansible.builtin.group:
+    name: "{{ olivetin_agent_user }}"
+    system: true
+
+- name: Ensure the OliveTin agent user exists
+  when: olivetin_agent_enabled | bool
+  ansible.builtin.user:
+    name: "{{ olivetin_agent_user }}"
+    group: "{{ olivetin_agent_user }}"
+    shell: /bin/bash
+    create_home: true
+    system: true
+    password: "!"
+
+- name: Ensure the OliveTin agent SSH directory exists
+  when: olivetin_agent_enabled | bool
+  ansible.builtin.file:
+    path: "/home/{{ olivetin_agent_user }}/.ssh"
+    state: directory
+    owner: "{{ olivetin_agent_user }}"
+    group: "{{ olivetin_agent_user }}"
+    mode: "0700"
+
+- name: Install the OliveTin agent SSH keys
+  when:
+    - olivetin_agent_enabled | bool
+    - olivetin_agent_ssh_public_keys | length > 0
+  ansible.posix.authorized_key:
+    user: "{{ olivetin_agent_user }}"
+    key: "{{ item }}"
+    exclusive: true
+    key_options: "restrict"
+  loop: "{{ olivetin_agent_ssh_public_keys }}"
+
+- name: Allow the OliveTin agent to run the host operation wrappers
+  when: olivetin_agent_enabled | bool
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/90-olivetin
+    content: |
+      # Managed by Ansible - do not edit manually.
+      {{ olivetin_agent_user }} ALL=(root) NOPASSWD: \
+        /usr/local/sbin/hsp-apt check, \
+        /usr/local/sbin/hsp-apt upgrade, \
+        /usr/local/sbin/hsp-needrestart, \
+        /usr/local/sbin/hsp-reboot schedule, \
+        /usr/local/sbin/hsp-reboot cancel, \
+        /usr/local/sbin/hsp-backup-check, \
+        /usr/local/sbin/hsp-journal-vacuum, \
+        /usr/local/sbin/hsp-smart short, \
+        /usr/local/sbin/hsp-smart status
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+- name: Ensure the OliveTin client key directory exists
+  when: olivetin_agent_client_key_path | length > 0
+  ansible.builtin.file:
+    path: "{{ olivetin_agent_client_key_path | dirname }}"
+    state: directory
+    owner: "{{ olivetin_agent_client_key_owner }}"
+    group: "{{ olivetin_agent_client_key_group }}"
+    mode: "0700"
+
+- name: Install the OliveTin client key
+  when: olivetin_agent_client_key_path | length > 0
+  ansible.builtin.copy:
+    content: "{{ olivetin_agent_client_private_key }}"
+    dest: "{{ olivetin_agent_client_key_path }}"
+    owner: "{{ olivetin_agent_client_key_owner }}"
+    group: "{{ olivetin_agent_client_key_group }}"
+    mode: "0600"
+  no_log: true
+
+- name: Remove the sudoers rule when the agent is disabled
+  when: not (olivetin_agent_enabled | bool)
+  ansible.builtin.file:
+    path: /etc/sudoers.d/90-olivetin
+    state: absent
+
+- name: Remove the authorized keys when the agent is disabled
+  when: not (olivetin_agent_enabled | bool)
+  ansible.builtin.file:
+    path: "/home/{{ olivetin_agent_user }}/.ssh/authorized_keys"
+    state: absent
+
+- name: Remove the client key when the agent is disabled
+  when:
+    - not (olivetin_agent_enabled | bool)
+    - olivetin_agent_client_key_path | length > 0
+  ansible.builtin.file:
+    path: "{{ olivetin_agent_client_key_path }}"
+    state: absent

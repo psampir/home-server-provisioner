@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# hsp-smart - run a short SMART self-test or print the current health.
+#
+# Usage: hsp-smart short | status
+set -euo pipefail
+
+mode="${1:-status}"
+case "$mode" in
+    short|status) ;;
+    *)
+        echo "usage: hsp-smart short|status" >&2
+        exit 2
+        ;;
+esac
+
+if ! command -v smartctl >/dev/null 2>&1; then
+    echo "smartctl is not installed" >&2
+    exit 1
+fi
+
+mapfile -t devices < <(
+    smartctl --scan \
+        | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//' \
+        | sed '/^$/d'
+)
+
+if [[ "${#devices[@]}" -eq 0 ]]; then
+    echo "no SMART devices found" >&2
+    exit 1
+fi
+
+for dev in "${devices[@]}"; do
+    echo "== ${dev} =="
+    # The scan line can contain "-d nvme"; word splitting is intentional.
+    # shellcheck disable=SC2086
+    if [[ "$mode" == "short" ]]; then
+        smartctl -t short ${dev}
+    else
+        smartctl -H -A ${dev}
+    fi
+done

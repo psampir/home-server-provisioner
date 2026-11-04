@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# hsp-journal-vacuum - trim the systemd journal to the last 30 days.
+set -euo pipefail
+
+journalctl --vacuum-time=30d
