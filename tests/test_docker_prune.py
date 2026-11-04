@@ -64,7 +64,7 @@ def main() -> int:
         assert result.returncode == 0, result.stderr
         assert calls(log) == [
             "image prune -f --filter until=48h",
-            "builder prune -f --filter until=48h",
+            "builder prune -f --all",
         ], calls(log)
         assert_safe(calls(log))
 
@@ -73,7 +73,7 @@ def main() -> int:
         assert result.returncode == 0, result.stderr
         assert calls(log) == [
             "image prune -f --filter until=24h",
-            "builder prune -f --filter until=24h",
+            "builder prune -f --all",
         ], calls(log)
 
         log.unlink()

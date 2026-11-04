@@ -7,10 +7,11 @@ ships the script and keeps the same pattern as `hsp-disk-check`.
 ## What it does
 
 - `docker image prune -f --filter until=<retention>`: dangling images only.
-- `docker builder prune -f --filter until=<retention>`: BuildKit cache older
-  than the retention window (optional).
+- `docker builder prune -f --all`: the whole BuildKit cache (optional). The
+  age filter does not cover internal/frontend records, and the cache is
+  regenerable, so it is pruned in full.
 
-Defaults: retention `48h` (two days), build cache enabled.
+Defaults: image retention `48h` (two days), build cache enabled.
 
 ## What it never does
 
@@ -30,8 +31,8 @@ Defaults: retention `48h` (two days), build cache enabled.
 
 | Variable | Default | Description |
 |---|---|---|
-| `HSP_DOCKER_PRUNE_UNTIL` | `48h` | Age filter passed to both prune commands |
-| `HSP_DOCKER_PRUNE_BUILD_CACHE` | `1` | Set to `0` to skip the build-cache prune |
+| `HSP_DOCKER_PRUNE_UNTIL` | `48h` | Age filter for the image prune |
+| `HSP_DOCKER_PRUNE_BUILD_CACHE` | `1` | Set to `0` to skip the build-cache prune, for example on a host that builds images regularly |
 
 ## Scheduling
 
