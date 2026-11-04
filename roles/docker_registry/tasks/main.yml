@@ -1,0 +1,11 @@
+- name: Log in to container registries
+  community.docker.docker_login:
+    registry_url: "{{ item.registry }}"
+    username: "{{ item.username }}"
+    password: "{{ item.password }}"
+    reauthorize: true
+  loop: "{{ docker_registry_logins }}"
+  loop_control:
+    label: "{{ item.registry }}"
+  no_log: true
+  when: docker_registry_logins | length > 0

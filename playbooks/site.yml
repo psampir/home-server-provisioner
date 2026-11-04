@@ -40,6 +40,7 @@
   roles:
     - dns_client
     - docker_runtime
+    - docker_registry
     - compose_deploy
     - docker_health
 
