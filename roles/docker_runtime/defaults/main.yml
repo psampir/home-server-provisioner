@@ -22,6 +22,13 @@ docker_runtime_packages:
 docker_runtime_service_enabled: true
 docker_runtime_service_state: started
 
+# Mountpoints docker.service must wait for before starting. Set this for
+# bind mounts on removable or network storage: if the filesystem is not
+# mounted yet, containers would otherwise bind the empty directory on the
+# root filesystem. The drop-in uses systemd RequiresMountsFor, so Docker
+# also refuses to start if the mount fails.
+docker_runtime_requires_mounts: []
+
 # --- Daemon configuration (/etc/docker/daemon.json) ---
 # Set to false to leave /etc/docker/daemon.json entirely unmanaged
 # (e.g. if you hand-tune it outside Ansible).

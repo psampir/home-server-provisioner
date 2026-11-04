@@ -31,6 +31,7 @@ README](../../README.md#applications-app_servers-only)).
 | `docker_runtime_apt_suite` | host's `distribution_release` | Docker repo suite |
 | `docker_runtime_service_enabled` | `true` | Enable at boot |
 | `docker_runtime_service_state` | `started` | Runtime state |
+| `docker_runtime_requires_mounts` | `[]` | Mountpoints Docker waits for (`RequiresMountsFor`) |
 | `docker_runtime_manage_daemon_json` | `true` | Set `false` to leave `daemon.json` unmanaged |
 | `docker_runtime_log_driver` | `json-file` | Container log driver |
 | `docker_runtime_log_opts` | `max-size: 10m`, `max-file: 3` | Per-container log cap |
@@ -58,6 +59,26 @@ before the change keep their old log settings until recreated
 (`docker compose up -d --force-recreate`); the role prints a reminder
 when `daemon.json` changes. Stacks deployed afterwards inherit the
 defaults automatically.
+
+### Waiting for data mounts
+
+If stacks bind-mount a filesystem that is mounted late at boot (USB or
+network storage), Docker can start before that mount is ready. The
+container then binds the empty directory on the root filesystem, so it
+runs with missing data even though the real disk is mounted later.
+
+Set the mountpoints Docker must wait for:
+
+```yaml
+docker_runtime_requires_mounts:
+  - /srv/data
+```
+
+The role writes `/etc/systemd/system/docker.service.d/10-hsp-mounts.conf`
+with `RequiresMountsFor=`, so systemd orders `docker.service` after the
+mount. Because `RequiresMountsFor` implies `Requires=`, Docker also
+refuses to start when the mount fails; that is deliberate: starting with
+an empty bind mount is worse than not starting at all.
 
 ## Docker and the host firewall
 
