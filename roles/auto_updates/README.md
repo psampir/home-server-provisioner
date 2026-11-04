@@ -26,6 +26,7 @@ Configures unattended security upgrades and optional restart detection.
 | `auto_updates_reboot_time` | `03:00` | Reboot time when enabled |
 | `auto_updates_reboot_notify_bin` | `/usr/local/bin/hsp-reboot-notify` | Script that warns about a scheduled reboot |
 | `auto_updates_remove_unused_dependencies` | `true` | Remove unused dependencies after upgrades |
+| `auto_updates_remove_unused_kernel_packages` | `true` | Remove old kernel packages after upgrades |
 | `auto_updates_autofix_interrupted_dpkg` | `true` | Repair interrupted dpkg runs |
 | `auto_updates_needrestart` | `true` | Install and configure needrestart |
 | `auto_updates_needrestart_mode` | `l` | `l` list, `a` auto-restart, `i` interactive |
@@ -50,6 +51,10 @@ Configures unattended security upgrades and optional restart detection.
   the new kernel is active.
 - The role does not run `unattended-upgrade` immediately. The timer and APT
   periodic jobs run on their own schedule.
+- Kernel cleanup is on by default (`auto_updates_remove_unused_kernel_packages`).
+  apt never removes the running kernel, but it may remove the previous one, so
+  there is no fallback kernel left to boot if the new one fails. Pin a fallback
+  before it is collected with `apt-mark manual linux-image-<version>`.
 
 ## Automatic reboot
 

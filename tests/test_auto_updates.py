@@ -33,11 +33,13 @@ def main() -> int:
         auto_updates_origins=origins,
         auto_updates_autofix_interrupted_dpkg=True,
         auto_updates_remove_unused_dependencies=True,
+        auto_updates_remove_unused_kernel_packages=True,
         auto_updates_enable_reboot=False,
         auto_updates_reboot_time="03:00",
     )
     assert "Unattended-Upgrade::Origins-Pattern" in rendered
     assert "codename=${distro_codename}-security" in rendered
+    assert 'Unattended-Upgrade::Remove-Unused-Kernel-Packages "true"' in rendered
 
     print("test-auto-updates: ok")
     return 0

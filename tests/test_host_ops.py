@@ -94,6 +94,30 @@ def main() -> int:
         assert not any("full-upgrade" in call or "autoremove" in call for call in got), got
 
         log.unlink(missing_ok=True)
+        result = run("hsp-apt", ["autoremove-check"], bin_dir, log)
+        assert result.returncode == 0, result.stderr
+        got = calls(log)
+        assert any(call.startswith("apt-get -s ") and call.endswith(" autoremove") for call in got), got
+        assert not any(call == "apt-get update" or call.startswith("apt-get update ") for call in got), got
+        assert not any(call.startswith("apt-get -y ") and "autoremove" in call for call in got), got
+        assert "needrestart -b" in got, got
+        assert "dpkg --audit" in got, got
+        assert "apt-get check" in got, got
+        assert "systemctl --failed --no-pager" in got, got
+
+        log.unlink(missing_ok=True)
+        result = run("hsp-apt", ["autoremove"], bin_dir, log)
+        assert result.returncode == 0, result.stderr
+        got = calls(log)
+        assert any(call.startswith("apt-get -s ") and call.endswith(" autoremove") for call in got), got
+        assert any(call.startswith("apt-get -y ") and call.endswith(" autoremove") for call in got), got
+        assert "apt-get -y autoclean" in got, got
+        assert not any(call == "apt-get update" or call.startswith("apt-get update ") for call in got), got
+        assert not any("upgrade" in call for call in got), got
+        assert "needrestart -b" in got, got
+        assert "dpkg --audit" in got, got
+
+        log.unlink(missing_ok=True)
         result = run("hsp-apt", ["wrong"], bin_dir, log)
         assert result.returncode == 2
         assert calls(log) == []
