@@ -1,20 +1,27 @@
 # olivetin_agent
 
-Host-side agent for the OliveTin console. It installs the operation
-wrappers and a dedicated `olivetin` SSH user whose sudo rights are limited
-to those wrappers. It is disabled by default and never grants a general
-shell, unrestricted `apt-get`, Docker access or a password login.
+Host-side agent for the OliveTin console. It creates a dedicated `olivetin`
+SSH user and renders an exact sudo allowlist. The operation scripts
+themselves belong to the environment and are installed with `custom_scripts`;
+this role does not ship or install any of them. It is disabled by default and
+never grants a general shell, unrestricted `apt-get`, Docker access or a
+password login.
 
-## What it installs
+## Reference operation scripts
 
-| Wrapper | Allowed arguments | Purpose |
+The public reference implementations live in
+`configs/example/scripts/_common/`. They are examples, not installed by this
+role: copy them into your environment's `scripts/_common/` (or write your
+own) and let `custom_scripts` install them to `/usr/local/bin`.
+
+| Script | Allowed arguments | Purpose |
 |---|---|---|
-| `/usr/local/sbin/hsp-apt` | `check`, `upgrade`, `autoremove-check`, `autoremove` | Refresh package lists, simulate or run a safe upgrade, preview or remove unused packages |
-| `/usr/local/sbin/hsp-needrestart` | none | Show services and kernels that need a restart |
-| `/usr/local/sbin/hsp-reboot` | `schedule`, `cancel` | Schedule a reboot in 5 minutes with a transient systemd timer, or cancel it |
-| `/usr/local/sbin/hsp-backup-check` | none | `borgmatic check` or the local restic check |
-| `/usr/local/sbin/hsp-journal-vacuum` | none | `journalctl --vacuum-time=30d` |
-| `/usr/local/sbin/hsp-etckeeper` | none | Show the last `/etc` changes tracked by etckeeper |
+| `/usr/local/bin/hsp-apt` | `check`, `upgrade`, `autoremove-check`, `autoremove` | Refresh package lists, simulate or run a safe upgrade, preview or remove unused packages |
+| `/usr/local/bin/hsp-needrestart` | none | Show services and kernels that need a restart |
+| `/usr/local/bin/hsp-reboot` | `schedule`, `cancel` | Schedule a reboot in 5 minutes with a transient systemd timer, or cancel it |
+| `/usr/local/bin/hsp-backup-check` | none | `borgmatic check` or the local restic check |
+| `/usr/local/bin/hsp-journal-vacuum` | none | `journalctl --vacuum-time=30d` |
+| `/usr/local/bin/hsp-etckeeper` | none | Show the last `/etc` changes tracked by etckeeper |
 
 `hsp-apt upgrade` uses `apt-get upgrade --with-new-pkgs`, not
 `full-upgrade`, and never runs `autoremove`, so an upgrade cannot remove a
@@ -35,25 +42,21 @@ leaves logins open until the reboot actually starts.
 
 | Variable | Default | Description |
 |---|---|---|
-| `olivetin_agent_enabled` | `false` | Install the user, key and wrappers |
+| `olivetin_agent_enabled` | `false` | Create the user, key and sudo policy |
 | `olivetin_agent_user` | `olivetin` | Dedicated agent user |
 | `olivetin_agent_ssh_public_keys` | `[]` | Keys allowed to log in as the agent |
-| `olivetin_agent_wrappers` | all wrappers | Wrappers installed and allowed; other known wrappers are removed |
-| `olivetin_agent_wrapper_commands` | map | Allowed arguments per wrapper; the sudoers file is generated from it |
-| `olivetin_agent_extra_sudo_commands` | `[]` | Extra absolute-path commands allowed through sudo |
+| `olivetin_agent_allowed_commands` | `[]` | Exact absolute-path commands allowed through sudo |
 | `olivetin_agent_client_key_path` | `""` | Optional client key path on the OliveTin host |
 | `olivetin_agent_client_private_key` | `""` | Optional client key material (no_log) |
 | `olivetin_agent_client_key_owner` | `1000` | Owner of the client key |
 | `olivetin_agent_client_key_group` | `1000` | Group of the client key |
 
 The `authorized_keys` entries use `restrict`, so the key cannot forward
-ports, agents or X11. `/etc/sudoers.d/90-olivetin` is rendered from
-`olivetin_agent_wrappers` (with its entries in
-`olivetin_agent_wrapper_commands`) plus
-`olivetin_agent_extra_sudo_commands`. Wrappers not listed in
-`olivetin_agent_wrappers` are removed from `/usr/local/sbin` on the next run.
+ports, agents or X11. `/etc/sudoers.d/90-olivetin` is rendered verbatim from
+`olivetin_agent_allowed_commands`; the role validates absolute paths and
+rejects `*`, `?` and newlines, and `visudo` validates the result.
 
-## Custom privileged actions
+## Adding a privileged action
 
 Sudo remains exact-match: an OliveTin action may only run a command string
 that is listed verbatim in the sudoers file. It is **not** generated from
@@ -76,13 +79,12 @@ the OliveTin `config.yaml`, so a new action also needs an inventory entry.
 3. Allow exactly that command string:
 
    ```yaml
-   olivetin_agent_extra_sudo_commands:
+   olivetin_agent_allowed_commands:
      - /usr/local/bin/moj-skrypt restart
    ```
 
 Passing different arguments than the listed ones is denied by sudo, so add
-a separate entry for each permitted argument set. Wildcards are rejected by
-the role's assertions.
+a separate entry for each permitted argument set.
 
 ## Example
 
@@ -90,6 +92,17 @@ the role's assertions.
 olivetin_agent_enabled: true
 olivetin_agent_ssh_public_keys:
   - "{{ vault_olivetin_ssh_public_key }}"
+olivetin_agent_allowed_commands:
+  - /usr/local/bin/hsp-apt check
+  - /usr/local/bin/hsp-apt upgrade
+  - /usr/local/bin/hsp-apt autoremove-check
+  - /usr/local/bin/hsp-apt autoremove
+  - /usr/local/bin/hsp-needrestart
+  - /usr/local/bin/hsp-reboot schedule
+  - /usr/local/bin/hsp-reboot cancel
+  - /usr/local/bin/hsp-backup-check
+  - /usr/local/bin/hsp-journal-vacuum
+  - /usr/local/bin/hsp-etckeeper
 ```
 
 On the host that runs the OliveTin container, also set

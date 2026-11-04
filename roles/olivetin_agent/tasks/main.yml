@@ -1,44 +1,14 @@
-- name: Validate the OliveTin wrapper selection
+- name: Validate the allowed commands
   when: olivetin_agent_enabled | bool
   ansible.builtin.assert:
     that:
-      - olivetin_agent_wrappers | difference(olivetin_agent_wrapper_commands.keys() | list) | length == 0
+      - olivetin_agent_allowed_commands | type_debug == 'list'
+      - olivetin_agent_allowed_commands | select('match', '^/') | list | length == olivetin_agent_allowed_commands | length
+      - olivetin_agent_allowed_commands | select('search', '[\n\r*?]') | list | length == 0
     fail_msg: >-
-      olivetin_agent_wrappers contains wrappers this role has no argument
-      list for:
-      {{ olivetin_agent_wrappers | difference(olivetin_agent_wrapper_commands.keys() | list) | join(', ') }}.
-      Known wrappers: {{ olivetin_agent_wrapper_commands.keys() | list | join(', ') }}.
-
-- name: Validate the extra sudo commands
-  when: olivetin_agent_enabled | bool
-  ansible.builtin.assert:
-    that:
-      - item is string
-      - item.startswith('/')
-      - item is not search('[\n\r*?]')
-    fail_msg: >-
-      olivetin_agent_extra_sudo_commands entry
-      {{ item | default('') | to_json }} must be an absolute path without
-      wildcards, '?' or newlines.
+      olivetin_agent_allowed_commands entries must be absolute paths with
+      fixed arguments, without wildcards, '?' or newlines.
     quiet: true
-  loop: "{{ olivetin_agent_extra_sudo_commands }}"
-
-- name: Install host operation wrappers
-  when: olivetin_agent_enabled | bool
-  ansible.builtin.copy:
-    src: "{{ item }}"
-    dest: "/usr/local/sbin/{{ item }}"
-    owner: root
-    group: root
-    mode: "0755"
-  loop: "{{ olivetin_agent_wrappers }}"
-
-- name: Remove host operation wrappers that are no longer allowed
-  when: olivetin_agent_enabled | bool
-  ansible.builtin.file:
-    path: "/usr/local/sbin/{{ item }}"
-    state: absent
-  loop: "{{ olivetin_agent_wrapper_commands.keys() | list | difference(olivetin_agent_wrappers) }}"
 
 - name: Ensure the OliveTin agent group exists
   when: olivetin_agent_enabled | bool
