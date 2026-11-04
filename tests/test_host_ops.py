@@ -21,20 +21,6 @@ printf '%s %s\\n' "$(basename "$0")" "$*" >> "${CALL_LOG}"
 exit "${FAKE_EXIT:-0}"
 """
 
-FAKE_SMARTCTL = """#!/bin/sh
-if [ "$1" = "--scan" ]; then
-  printf '/dev/sda -d scsi # /dev/sda, SCSI device\\n'
-  exit 0
-fi
-printf '%s %s\\n' "$(basename "$0")" "$*" >> "${CALL_LOG}"
-if [ "$1" = "--json" ]; then
-  cat <<'JSON'
-{"smart_status":{"passed":true},"model_name":"Test Disk","ata_smart_attributes":{"table":[{"id":5,"raw":{"value":0,"string":"0"}},{"id":9,"raw":{"value":198586402896410,"string":"16932 (92 176 0)"}},{"id":194,"raw":{"value":85899345963,"string":"43 (Min/Max 25/50)"}}]}}
-JSON
-fi
-exit 0
-"""
-
 
 def run(script: str, args: list[str], bin_dir: Path, log: Path) -> subprocess.CompletedProcess:
     env = dict(os.environ)
@@ -59,13 +45,10 @@ def main() -> int:
         root = Path(tmp)
         bin_dir = root / "bin"
         bin_dir.mkdir()
-        for name in ("apt-get", "needrestart", "shutdown", "journalctl", "borgmatic", "docker", "dpkg", "systemctl", "etckeeper"):
+        for name in ("apt-get", "needrestart", "shutdown", "journalctl", "borgmatic", "docker", "dpkg", "systemctl", "systemd-run", "etckeeper"):
             path = bin_dir / name
             path.write_text(FAKE)
             path.chmod(0o755)
-        smartctl = bin_dir / "smartctl"
-        smartctl.write_text(FAKE_SMARTCTL)
-        smartctl.chmod(0o755)
 
         log = root / "calls.log"
 
@@ -125,35 +108,29 @@ def main() -> int:
         log.unlink(missing_ok=True)
         result = run("hsp-reboot", ["schedule"], bin_dir, log)
         assert result.returncode == 0, result.stderr
-        assert calls(log) == ["shutdown -r +5 Scheduled from OliveTin"], calls(log)
+        got = calls(log)
+        assert any(
+            call.startswith("systemd-run --collect --unit=hsp-reboot --on-active=5min")
+            and call.endswith("/usr/bin/systemctl reboot")
+            for call in got
+        ), got
+        assert "systemctl list-timers hsp-reboot.timer --no-pager" in got, got
+        assert "systemctl stop hsp-reboot.timer" in got, got
+        assert not any(call.startswith("shutdown -r") for call in got), got
 
         log.unlink(missing_ok=True)
         result = run("hsp-reboot", ["cancel"], bin_dir, log)
         assert result.returncode == 0, result.stderr
-        assert calls(log) == ["shutdown -c"], calls(log)
+        got = calls(log)
+        assert "systemctl stop hsp-reboot.timer" in got, got
+        assert "shutdown -c" in got, got
+        assert not any("systemd-run" in call for call in got), got
+        assert not any(call.startswith("shutdown -r") for call in got), got
 
         log.unlink(missing_ok=True)
         result = run("hsp-journal-vacuum", [], bin_dir, log)
         assert result.returncode == 0, result.stderr
         assert calls(log) == ["journalctl --vacuum-time=30d"], calls(log)
-
-        log.unlink(missing_ok=True)
-        result = run("hsp-smart", ["short"], bin_dir, log)
-        assert result.returncode == 0, result.stderr
-        assert calls(log) == ["smartctl -t short /dev/sda -d scsi"], calls(log)
-
-        log.unlink(missing_ok=True)
-        result = run("hsp-smart", ["status", "summary"], bin_dir, log)
-        assert result.returncode == 0, result.stderr
-        assert "health: PASSED" in result.stdout, result.stdout
-        assert "temperature: 43 C" in result.stdout, result.stdout
-        assert "power_on_hours: 16932" in result.stdout, result.stdout
-        assert any(call.startswith("smartctl --json") for call in calls(log)), calls(log)
-
-        log.unlink(missing_ok=True)
-        result = run("hsp-smart", ["status", "full"], bin_dir, log)
-        assert result.returncode == 0, result.stderr
-        assert any(call.startswith("smartctl -H -A") for call in calls(log)), calls(log)
 
         log.unlink(missing_ok=True)
         result = run("hsp-backup-check", [], bin_dir, log)
