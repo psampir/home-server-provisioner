@@ -14,7 +14,8 @@ shell, unrestricted `apt-get`, Docker access or a password login.
 | `/usr/local/sbin/hsp-reboot` | `schedule`, `cancel` | Schedule `shutdown -r +5` or cancel it |
 | `/usr/local/sbin/hsp-backup-check` | none | `borgmatic check` or the local restic check |
 | `/usr/local/sbin/hsp-journal-vacuum` | none | `journalctl --vacuum-time=30d` |
-| `/usr/local/sbin/hsp-smart` | `short`, `status` | Start or read a short SMART test |
+| `/usr/local/sbin/hsp-etckeeper` | none | Show the last `/etc` changes tracked by etckeeper |
+| `/usr/local/sbin/hsp-smart` | `short`, `status summary`, `status full` | Start a short SMART test or print a compact/short or full health view |
 
 `hsp-apt upgrade` uses `apt-get upgrade --with-new-pkgs`, not
 `full-upgrade`, and never runs `autoremove`. It is non-interactive and pins

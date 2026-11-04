@@ -27,6 +27,11 @@ if [ "$1" = "--scan" ]; then
   exit 0
 fi
 printf '%s %s\\n' "$(basename "$0")" "$*" >> "${CALL_LOG}"
+if [ "$1" = "--json" ]; then
+  cat <<'JSON'
+{"smart_status":{"passed":true},"model_name":"Test Disk","ata_smart_attributes":{"table":[{"id":5,"raw":{"value":0,"string":"0"}},{"id":9,"raw":{"value":198586402896410,"string":"16932 (92 176 0)"}},{"id":194,"raw":{"value":85899345963,"string":"43 (Min/Max 25/50)"}}]}}
+JSON
+fi
 exit 0
 """
 
@@ -54,7 +59,7 @@ def main() -> int:
         root = Path(tmp)
         bin_dir = root / "bin"
         bin_dir.mkdir()
-        for name in ("apt-get", "needrestart", "shutdown", "journalctl", "borgmatic", "docker"):
+        for name in ("apt-get", "needrestart", "shutdown", "journalctl", "borgmatic", "docker", "dpkg", "systemctl", "etckeeper"):
             path = bin_dir / name
             path.write_text(FAKE)
             path.chmod(0o755)
@@ -70,6 +75,10 @@ def main() -> int:
         assert "apt-get update" in got, got
         assert any(call.startswith("apt-get -s ") and "upgrade --with-new-pkgs" in call for call in got), got
         assert "needrestart -b" in got, got
+        assert "dpkg --audit" in got, got
+        assert "apt-get check" in got, got
+        assert "systemctl --failed --no-pager" in got, got
+        assert any(call.startswith("etckeeper vcs log -1") for call in got), got
         assert not any("full-upgrade" in call or "autoremove" in call for call in got), got
 
         log.unlink(missing_ok=True)
@@ -78,6 +87,10 @@ def main() -> int:
         got = calls(log)
         assert any(call.startswith("apt-get -y ") and "upgrade --with-new-pkgs" in call for call in got), got
         assert "apt-get -y autoclean" in got, got
+        assert "dpkg --audit" in got, got
+        assert "apt-get check" in got, got
+        assert "systemctl --failed --no-pager" in got, got
+        assert any(call.startswith("etckeeper vcs log -1") for call in got), got
         assert not any("full-upgrade" in call or "autoremove" in call for call in got), got
 
         log.unlink(missing_ok=True)
@@ -106,9 +119,29 @@ def main() -> int:
         assert calls(log) == ["smartctl -t short /dev/sda -d scsi"], calls(log)
 
         log.unlink(missing_ok=True)
+        result = run("hsp-smart", ["status", "summary"], bin_dir, log)
+        assert result.returncode == 0, result.stderr
+        assert "health: PASSED" in result.stdout, result.stdout
+        assert "temperature: 43 C" in result.stdout, result.stdout
+        assert "power_on_hours: 16932" in result.stdout, result.stdout
+        assert any(call.startswith("smartctl --json") for call in calls(log)), calls(log)
+
+        log.unlink(missing_ok=True)
+        result = run("hsp-smart", ["status", "full"], bin_dir, log)
+        assert result.returncode == 0, result.stderr
+        assert any(call.startswith("smartctl -H -A") for call in calls(log)), calls(log)
+
+        log.unlink(missing_ok=True)
         result = run("hsp-backup-check", [], bin_dir, log)
         assert result.returncode == 0, result.stderr
         assert calls(log) == ["borgmatic check"], calls(log)
+
+        log.unlink(missing_ok=True)
+        result = run("hsp-etckeeper", [], bin_dir, log)
+        assert result.returncode == 0, result.stderr
+        got = calls(log)
+        assert "etckeeper vcs log -5 --oneline" in got, got
+        assert any(call.startswith("etckeeper vcs show --stat --oneline HEAD") for call in got), got
 
     print("test-host-ops: ok")
     return 0

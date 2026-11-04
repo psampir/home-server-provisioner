@@ -52,3 +52,25 @@ if [[ -f /run/reboot-required ]]; then
     echo "REBOOT REQUIRED"
     cat /run/reboot-required.pkgs 2>/dev/null || true
 fi
+
+health_check() {
+    echo
+    echo "== dpkg audit =="
+    dpkg --audit || true
+
+    echo
+    echo "== apt-get check =="
+    apt-get check || true
+
+    echo
+    echo "== failed units =="
+    systemctl --failed --no-pager || true
+
+    if command -v etckeeper >/dev/null 2>&1; then
+        echo
+        echo "== etckeeper last commit =="
+        etckeeper vcs log -1 --format='%h %s' 2>/dev/null || true
+    fi
+}
+
+health_check

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# hsp-etckeeper - show the most recent /etc changes tracked by etckeeper.
+set -euo pipefail
+
+if ! command -v etckeeper >/dev/null 2>&1; then
+    echo "etckeeper is not installed" >&2
+    exit 1
+fi
+
+echo "== last etckeeper commits =="
+etckeeper vcs log -5 --oneline
+
+echo
+echo "== last commit =="
+etckeeper vcs show --stat --oneline HEAD | head -40
