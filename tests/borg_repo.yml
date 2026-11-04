@@ -18,18 +18,22 @@
     borg_repo_check_randomized_delay: "30m"
     borg_repo_check_verify_data: false
     borg_repo_check_repository_only: false
+    borg_repo_verify_schedule: "*-01,04,07,10-02 04:00:00"
+    borg_repo_verify_randomized_delay: "30m"
   tasks:
     - name: Render the check script
       ansible.builtin.set_fact:
         borg_check_script: >-
           {{ lookup('template', playbook_dir + '/../roles/borg_repo/templates/hsp-borg-check.j2') }}
 
-    - name: Assert a full check without data verification
+    - name: Assert a full check without static data verification
       ansible.builtin.assert:
         that:
           - "'borg check' in borg_check_script"
           - "'/srv/borg/source/main' in borg_check_script"
-          - "'--verify-data' not in borg_check_script"
+          - "'verify_args=()' in borg_check_script"
+          - "'BORG_CHECK_VERIFY_DATA' in borg_check_script"
+          - "'verify_args=(--verify-data)' not in borg_check_script"
           - "'--repository-only' not in borg_check_script"
 
     - name: Render the check script with verify-data enabled
@@ -42,7 +46,7 @@
     - name: Assert verify-data is rendered
       ansible.builtin.assert:
         that:
-          - "'--verify-data' in borg_check_script_verify"
+          - "'verify_args=(--verify-data)' in borg_check_script_verify"
 
     - name: Render the check script in repository-only mode
       ansible.builtin.set_fact:
@@ -51,11 +55,12 @@
       vars:
         borg_repo_check_repository_only: true
 
-    - name: Assert repository-only is rendered without verify-data
+    - name: Assert repository-only is rendered without static verify-data
       ansible.builtin.assert:
         that:
           - "'--repository-only' in borg_check_script_repo_only"
-          - "'--verify-data' not in borg_check_script_repo_only"
+          - "'verify_args=(--verify-data)' not in borg_check_script_repo_only"
+          - "'BORG_CHECK_VERIFY_DATA' in borg_check_script_repo_only"
 
     - name: Render the check service unit
       ansible.builtin.set_fact:
@@ -82,6 +87,34 @@
           - "'OnCalendar=*-*-01 06:00:00' in borg_check_timer"
           - "'RandomizedDelaySec=30m' in borg_check_timer"
           - "'Persistent=true' in borg_check_timer"
+
+    - name: Render the verify service unit
+      ansible.builtin.set_fact:
+        borg_verify_service: >-
+          {{ lookup('template', playbook_dir + '/../roles/borg_repo/templates/hsp-borg-verify.service.j2') }}
+
+    - name: Assert the verify service runs as borg with data verification
+      ansible.builtin.assert:
+        that:
+          - "'User=borg' in borg_verify_service"
+          - "'EnvironmentFile=/etc/hsp-borg/borg.env' in borg_verify_service"
+          - "'Environment=BORG_CHECK_VERIFY_DATA=1' in borg_verify_service"
+          - "'ExecStart=/usr/local/bin/hsp-borg-check' in borg_verify_service"
+          - "'Nice=19' in borg_verify_service"
+          - "'IOSchedulingClass=idle' in borg_verify_service"
+          - "'OnFailure=hsp-notify-failure@%n.service' in borg_verify_service"
+
+    - name: Render the verify timer unit
+      ansible.builtin.set_fact:
+        borg_verify_timer: >-
+          {{ lookup('template', playbook_dir + '/../roles/borg_repo/templates/hsp-borg-verify.timer.j2') }}
+
+    - name: Assert the verify timer is quarterly and persistent
+      ansible.builtin.assert:
+        that:
+          - "'OnCalendar=*-01,04,07,10-02 04:00:00' in borg_verify_timer"
+          - "'RandomizedDelaySec=30m' in borg_verify_timer"
+          - "'Persistent=true' in borg_verify_timer"
 
     - name: Render the maintenance script
       ansible.builtin.set_fact:

@@ -117,7 +117,17 @@
     fail_msg: >-
       borg_repo_check_verify_data and borg_repo_check_repository_only are
       mutually exclusive. Use a full check without --verify-data for the
-      scheduled run, and --verify-data only for manual restore drills.
+      scheduled run, and --verify-data only for the quarterly deep check.
+  when: borg_repo_enabled
+
+- name: Validate the quarterly verify options are not contradictory
+  ansible.builtin.assert:
+    that:
+      - not (borg_repo_verify_enabled and borg_repo_check_repository_only)
+    fail_msg: >-
+      borg_repo_verify_enabled and borg_repo_check_repository_only are
+      mutually exclusive. A deep check needs the full archive, not only the
+      repository metadata.
   when: borg_repo_enabled
 
 - name: Install borgbackup
@@ -275,6 +285,30 @@
   notify: Reload systemd for borg_repo
   when: borg_repo_enabled
 
+- name: Install borg verify service unit
+  ansible.builtin.template:
+    src: hsp-borg-verify.service.j2
+    dest: /etc/systemd/system/hsp-borg-verify.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for borg_repo
+  when:
+    - borg_repo_enabled
+    - borg_repo_verify_enabled
+
+- name: Install borg verify timer unit
+  ansible.builtin.template:
+    src: hsp-borg-verify.timer.j2
+    dest: /etc/systemd/system/hsp-borg-verify.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for borg_repo
+  when:
+    - borg_repo_enabled
+    - borg_repo_verify_enabled
+
 - name: Flush handlers so the maintenance units are loaded before enabling
   ansible.builtin.meta: flush_handlers
 
@@ -291,3 +325,12 @@
     state: started
     enabled: true
   when: borg_repo_enabled
+
+- name: Enable and start the borg verify timer
+  ansible.builtin.systemd:
+    name: hsp-borg-verify.timer
+    state: started
+    enabled: true
+  when:
+    - borg_repo_enabled
+    - borg_repo_verify_enabled
