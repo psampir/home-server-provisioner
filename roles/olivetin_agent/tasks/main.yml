@@ -12,6 +12,7 @@
     - hsp-reboot
     - hsp-backup-check
     - hsp-journal-vacuum
+    - hsp-etckeeper
     - hsp-smart
 
 - name: Ensure the OliveTin agent group exists
@@ -64,8 +65,10 @@
         /usr/local/sbin/hsp-reboot cancel, \
         /usr/local/sbin/hsp-backup-check, \
         /usr/local/sbin/hsp-journal-vacuum, \
+        /usr/local/sbin/hsp-etckeeper, \
         /usr/local/sbin/hsp-smart short, \
-        /usr/local/sbin/hsp-smart status
+        /usr/local/sbin/hsp-smart status summary, \
+        /usr/local/sbin/hsp-smart status full
     owner: root
     group: root
     mode: "0440"
