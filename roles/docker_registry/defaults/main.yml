@@ -1,0 +1,9 @@
+# Private container registry logins. Each item is:
+#
+#   registry: ghcr.io
+#   username: psampir
+#   password: "{{ vault_ghcr_token }}"
+#
+# The login is stored for the user running the Docker CLI (the remote Ansible
+# user), so run this role before compose_deploy and as the same user.
+docker_registry_logins: []
