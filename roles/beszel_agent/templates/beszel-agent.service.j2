@@ -3,6 +3,9 @@
 Description=Beszel Agent
 After=network-online.target
 Wants=network-online.target
+{% if beszel_agent_requires_mounts %}
+RequiresMountsFor={{ beszel_agent_requires_mounts | join(' ') }}
+{% endif %}
 
 [Service]
 Type=simple

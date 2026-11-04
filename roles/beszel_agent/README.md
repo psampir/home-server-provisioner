@@ -31,6 +31,7 @@ token are supplied.
 | `beszel_agent_data_dir` | `/var/lib/beszel-agent` | Fingerprint/data directory |
 | `beszel_agent_smart_devices` | empty | SMART device list; empty disables SMART polling |
 | `beszel_agent_extra_filesystems` | empty | Comma-separated mountpoints/devices for extra disk charts |
+| `beszel_agent_requires_mounts` | `[]` | Mountpoints the service waits for (`RequiresMountsFor`) |
 | `beszel_agent_gpu_collector` | empty | Comma-separated GPU collectors, e.g. `intel_gpu_top` |
 | `beszel_agent_perf_event_paranoid` | `2` | `kernel.perf_event_paranoid` set when `intel_gpu_top` is used |
 | `beszel_agent_smart_exclude` | empty | Comma-separated devices skipped by SMART |
@@ -48,6 +49,21 @@ if the trade-off is acceptable; the alternative is a socket proxy.
 `EXTRA_FILESYSTEMS` accepts mountpoints or devices, so a data disk mounted
 outside `/` gets its own usage chart. The variable is only rendered when it
 is non-empty: an empty value is parsed as an invalid filesystem.
+
+The agent discovers filesystems once, at start-up, so an entry that points
+at a mountpoint must already be mounted. If the service starts first (for
+example on a USB disk that appears late during boot), it resolves the
+directory on the root filesystem and registers that as a separate disk named
+after the directory (e.g. `data` instead of `sdb1`), and it never retries
+after the disk is mounted. Set `beszel_agent_requires_mounts` to the same
+mountpoints to add `RequiresMountsFor=` to the unit and make systemd start
+the agent only after they are mounted:
+
+```yaml
+beszel_agent_extra_filesystems: "/srv/data"
+beszel_agent_requires_mounts:
+  - /srv/data
+```
 
 ## GPU
 
