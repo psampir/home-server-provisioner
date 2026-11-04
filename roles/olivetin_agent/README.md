@@ -9,7 +9,7 @@ shell, unrestricted `apt-get`, Docker access or a password login.
 
 | Wrapper | Allowed arguments | Purpose |
 |---|---|---|
-| `/usr/local/sbin/hsp-apt` | `check`, `upgrade` | Refresh package lists, simulate or run a safe upgrade |
+| `/usr/local/sbin/hsp-apt` | `check`, `upgrade`, `autoremove-check`, `autoremove` | Refresh package lists, simulate or run a safe upgrade, preview or remove unused packages |
 | `/usr/local/sbin/hsp-needrestart` | none | Show services and kernels that need a restart |
 | `/usr/local/sbin/hsp-reboot` | `schedule`, `cancel` | Schedule `shutdown -r +5` or cancel it |
 | `/usr/local/sbin/hsp-backup-check` | none | `borgmatic check` or the local restic check |
@@ -18,8 +18,12 @@ shell, unrestricted `apt-get`, Docker access or a password login.
 | `/usr/local/sbin/hsp-smart` | `short`, `status summary`, `status full` | Start a short SMART test or print a compact/short or full health view |
 
 `hsp-apt upgrade` uses `apt-get upgrade --with-new-pkgs`, not
-`full-upgrade`, and never runs `autoremove`. It is non-interactive and pins
-`needrestart` to list-only.
+`full-upgrade`, and never runs `autoremove`, so an upgrade cannot remove a
+package. Unused packages are handled by the separate
+`hsp-apt autoremove-check` and `hsp-apt autoremove` actions:
+`autoremove-check` only prints the simulated `apt-get autoremove`, and
+`autoremove` runs it after showing the same simulation. Neither refreshes the
+package lists. It is non-interactive and pins `needrestart` to list-only.
 
 ## Variables
 

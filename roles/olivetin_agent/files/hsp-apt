@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # hsp-apt - non-interactive package update/upgrade for the OliveTin console.
 #
-# Usage: hsp-apt check | upgrade
+# Usage: hsp-apt check | upgrade | autoremove-check | autoremove
 #
-# check    refreshes the package lists and prints the simulated upgrade
-# upgrade  refreshes, runs a safe upgrade (no removals), autocleans the cache
-#          and reports what still needs a restart
+# check             refreshes the package lists and prints the simulated upgrade
+# upgrade           refreshes, runs a safe upgrade (no removals), autocleans the
+#                   cache and reports what still needs a restart
+# autoremove-check  prints the simulated autoremove (no package list refresh)
+# autoremove        removes unused packages, then autocleans the cache
 set -euo pipefail
 
 mode="${1:-}"
 case "$mode" in
-    check|upgrade) ;;
+    check|upgrade|autoremove-check|autoremove) ;;
     *)
-        echo "usage: hsp-apt check|upgrade" >&2
+        echo "usage: hsp-apt check|upgrade|autoremove-check|autoremove" >&2
         exit 2
         ;;
 esac
@@ -26,21 +28,37 @@ apt_opts=(
     -o DPkg::Lock::Timeout=120
 )
 
-echo "== apt-get update =="
-apt-get update
+if [[ "$mode" == "autoremove-check" ]]; then
+    echo "== apt-get -s autoremove =="
+    apt-get -s "${apt_opts[@]}" autoremove
+elif [[ "$mode" == "autoremove" ]]; then
+    echo "== apt-get -s autoremove =="
+    apt-get -s "${apt_opts[@]}" autoremove
 
-if [[ "$mode" == "check" ]]; then
     echo
-    echo "== apt-get -s upgrade =="
-    apt-get -s "${apt_opts[@]}" upgrade --with-new-pkgs
-else
-    echo
-    echo "== apt-get upgrade =="
-    apt-get -y "${apt_opts[@]}" upgrade --with-new-pkgs
+    echo "== apt-get autoremove =="
+    apt-get -y "${apt_opts[@]}" autoremove
 
     echo
     echo "== apt-get autoclean =="
     apt-get -y autoclean
+else
+    echo "== apt-get update =="
+    apt-get update
+
+    if [[ "$mode" == "check" ]]; then
+        echo
+        echo "== apt-get -s upgrade =="
+        apt-get -s "${apt_opts[@]}" upgrade --with-new-pkgs
+    else
+        echo
+        echo "== apt-get upgrade =="
+        apt-get -y "${apt_opts[@]}" upgrade --with-new-pkgs
+
+        echo
+        echo "== apt-get autoclean =="
+        apt-get -y autoclean
+    fi
 fi
 
 echo

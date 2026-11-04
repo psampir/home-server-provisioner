@@ -8,6 +8,10 @@ auto_updates_origins:
 auto_updates_enable_reboot: false
 auto_updates_reboot_time: "03:00"
 auto_updates_remove_unused_dependencies: true
+# Also remove old kernel packages during unattended-upgrades. The running
+# kernel is protected; the previous one may be removed, so pin a fallback
+# with `apt-mark manual` if you need one.
+auto_updates_remove_unused_kernel_packages: true
 auto_updates_autofix_interrupted_dpkg: true
 
 # --- needrestart ---

@@ -60,6 +60,8 @@
       {{ olivetin_agent_user }} ALL=(root) NOPASSWD: \
         /usr/local/sbin/hsp-apt check, \
         /usr/local/sbin/hsp-apt upgrade, \
+        /usr/local/sbin/hsp-apt autoremove-check, \
+        /usr/local/sbin/hsp-apt autoremove, \
         /usr/local/sbin/hsp-needrestart, \
         /usr/local/sbin/hsp-reboot schedule, \
         /usr/local/sbin/hsp-reboot cancel, \
