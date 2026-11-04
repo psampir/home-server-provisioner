@@ -302,6 +302,7 @@ Each role is self-contained. The full list:
 | `nut` | Network UPS Tools with USB udev rules, `upsc` verification, and the `nocomm` grace period |
 | `gatus` | Lightweight HTTP/TCP/DNS/TLS and push/heartbeat dashboard with ntfy alerts; installs the static binary from the official image, no Docker or Node |
 | `smart_monitoring` | `smartd` disk health monitoring with `hsp-notify` alerts, plus USB bridge quirks for enclosures that hide SMART behind UAS |
+| `boot_check` | Post-boot smoke check for data mounts and Docker bind mounts, with `hsp-notify` alerts |
 | `notifications` | Installs `hsp-notify`, the ntfy delivery backend used by other roles, and `hsp-disk-check` for byte and inode thresholds |
 
 ### Backups

@@ -1,0 +1,28 @@
+# Boot smoke check: verify that data mounts are active before Docker starts
+# and that running containers did not bind the underlying root-fs directory.
+#
+# Disabled by default. Enable it on hosts with extra filesystems (and Docker
+# where applicable); the environment supplies the mount list.
+boot_check_enabled: false
+
+boot_check_bin: /usr/local/bin/hsp-boot-check
+boot_check_config: /etc/hsp/boot-check.conf
+boot_check_service: hsp-boot-check.service
+boot_check_timer: hsp-boot-check.timer
+
+# Each entry: {path: /srv/data, source: /dev/disk/by-id/...}
+# source is compared after resolving symlinks, so a by-id or by-uuid path is
+# fine. Keep it in sync with storage_volumes.
+boot_check_mounts: []
+
+# Check Docker: RequiresMountsFor/ordering, start time, and every running
+# container's bind mounts against the mount's major:minor.
+boot_check_docker: false
+
+# Wait this long for a late mount before reporting. Stale container binds
+# are reported immediately, without waiting.
+boot_check_retry_seconds: 120
+
+boot_check_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
+boot_check_notify_priority: urgent
+boot_check_notify_tags: "boot,floppy_disk"

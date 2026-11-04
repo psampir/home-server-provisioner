@@ -126,9 +126,9 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 # --- Local tests (no VMs, no Docker) ---
 
-.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-olivetin-agent
+.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-boot-check test-olivetin-agent
 
-test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-docker-health test-docker-prune test-nut-notify test-login-notify test-gatus-heartbeat test-update-report test-auto-updates test-reboot-notify test-host-ops test-olivetin-agent test-db-dump ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-boot-check test-docker-health test-docker-prune test-nut-notify test-login-notify test-gatus-heartbeat test-update-report test-auto-updates test-reboot-notify test-host-ops test-olivetin-agent test-db-dump ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -183,6 +183,9 @@ test-reboot-notify: ## Test hsp-reboot-notify scheduled-shutdown handling
 
 test-host-ops: ## Test the OliveTin host operation wrappers
 	python3 tests/test_host_ops.py
+
+test-boot-check: ## Test the post-boot mount and Docker bind checks
+	python3 tests/test_boot_check.py
 
 test-olivetin-agent: ## Test the generated OliveTin sudoers file
 	python3 tests/test_olivetin_agent.py

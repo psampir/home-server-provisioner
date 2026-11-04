@@ -1,0 +1,101 @@
+- name: Stop the boot check timer when disabled
+  when: not (boot_check_enabled | bool)
+  ansible.builtin.systemd:
+    name: "{{ boot_check_timer }}"
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Remove the boot check files when disabled
+  when: not (boot_check_enabled | bool)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ boot_check_bin }}"
+    - "{{ boot_check_config }}"
+    - "/etc/systemd/system/{{ boot_check_service }}"
+    - "/etc/systemd/system/{{ boot_check_timer }}"
+
+- name: Reload systemd after boot check removal
+  when: not (boot_check_enabled | bool)
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Stop here when the boot check is disabled
+  when: not (boot_check_enabled | bool)
+  ansible.builtin.meta: end_role
+
+- name: Validate the boot check configuration
+  ansible.builtin.assert:
+    that:
+      - (boot_check_mounts | length) > 0 or (boot_check_docker | bool)
+      - (boot_check_retry_seconds | int) >= 0
+    fail_msg: >-
+      boot_check_enabled is true but nothing is checked. Set
+      boot_check_mounts and/or boot_check_docker.
+
+- name: Validate the mount entries
+  ansible.builtin.assert:
+    that:
+      - item.path is string
+      - item.source is string
+      - item.path is match('^/')
+      - item.source is match('^/')
+      - item.path is not search(' ')
+      - item.source is not search(' ')
+    fail_msg: >-
+      boot_check_mounts entries must have absolute 'path' and 'source'
+      values without spaces.
+  loop: "{{ boot_check_mounts }}"
+  loop_control:
+    label: "{{ item.path | default('') }}"
+
+- name: Ensure the boot check configuration directory exists
+  ansible.builtin.file:
+    path: "{{ boot_check_config | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install hsp-boot-check
+  ansible.builtin.copy:
+    src: hsp-boot-check
+    dest: "{{ boot_check_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the boot check configuration
+  ansible.builtin.template:
+    src: boot-check.conf.j2
+    dest: "{{ boot_check_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Render the boot check service
+  ansible.builtin.template:
+    src: hsp-boot-check.service.j2
+    dest: "/etc/systemd/system/{{ boot_check_service }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload and restart the boot check timer
+
+- name: Render the boot check timer
+  ansible.builtin.template:
+    src: hsp-boot-check.timer.j2
+    dest: "/etc/systemd/system/{{ boot_check_timer }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload and restart the boot check timer
+
+- name: Enable and start the boot check timer
+  ansible.builtin.systemd:
+    name: "{{ boot_check_timer }}"
+    enabled: true
+    state: started
+    daemon_reload: true
