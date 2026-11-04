@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Host boot smoke check
+After=multi-user.target
+{% if boot_check_docker %}
+After=docker.service
+Wants=docker.service
+{% endif %}
+
+[Service]
+Type=oneshot
+ExecStart={{ boot_check_bin }}
+
+[Install]
+WantedBy=multi-user.target

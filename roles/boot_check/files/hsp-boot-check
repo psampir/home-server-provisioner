@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# hsp-boot-check - verify that data mounts are active and that Docker
+# containers did not bind the underlying root-fs directories.
+#
+# Reads /etc/hsp/boot-check.conf (KEY value lines):
+#   retry <seconds>
+#   docker 0|1
+#   notify <path>
+#   priority <ntfy priority>
+#   tags <tag,tag>
+#   mount <path> <expected source>
+#
+# Exit status: 0 when every check passes, 1 when any check fails.
+
+set -euo pipefail
+
+CONFIG="${BOOT_CHECK_CONFIG:-/etc/hsp/boot-check.conf}"
+PROC_ROOT="${BOOT_CHECK_PROC_ROOT:-/proc}"
+NOTIFY="${BOOT_CHECK_NOTIFY:-/usr/local/bin/hsp-notify}"
+
+retry=120
+docker_enabled=0
+priority=urgent
+tags=boot,floppy_disk
+mounts=()
+sources=()
+failures=()
+
+if [[ ! -r "$CONFIG" ]]; then
+    echo "boot check: cannot read $CONFIG" >&2
+    exit 2
+fi
+
+while read -r kind a b; do
+    case "$kind" in
+        ''|'#'*) continue ;;
+        retry) retry="$a" ;;
+        docker) docker_enabled="$a" ;;
+        notify) NOTIFY="$a" ;;
+        priority) priority="$a" ;;
+        tags) tags="$a" ;;
+        mount)
+            if [[ -z "${a:-}" || -z "${b:-}" ]]; then
+                echo "boot check: invalid mount line" >&2
+                exit 2
+            fi
+            mounts+=("$a")
+            sources+=("$b")
+            ;;
+        *)
+            echo "boot check: unknown config key $kind" >&2
+            exit 2
+            ;;
+    esac
+done < "$CONFIG"
+
+fail() {
+    failures+=("$*")
+}
+
+mount_source() {
+    findmnt -rn -M "$1" -o SOURCE 2>/dev/null | head -n 1
+}
+
+mount_majmin() {
+    findmnt -rn -M "$1" -o MAJ:MIN 2>/dev/null | head -n 1
+}
+
+root_majmin() {
+    findmnt -rn -M / -o MAJ:MIN 2>/dev/null | head -n 1
+}
+
+wait_for_mounts() {
+    local deadline=$((SECONDS + retry))
+    local missing p
+    while :; do
+        missing=0
+        for p in "${mounts[@]}"; do
+            findmnt -rn -M "$p" >/dev/null 2>&1 || missing=1
+        done
+        (( missing == 0 )) && return 0
+        (( SECONDS >= deadline )) && return 1
+        sleep 2
+    done
+}
+
+check_containers() {
+    local id name pid mounts_out source dest expected actual p
+    while IFS= read -r id; do
+        [[ -n "$id" ]] || continue
+        name=$(docker inspect -f '{{.Name}}' "$id" 2>/dev/null | sed 's#^/##' || true)
+        pid=$(docker inspect -f '{{.State.Pid}}' "$id" 2>/dev/null || true)
+        [[ "$pid" =~ ^[0-9]+$ ]] && (( pid > 0 )) || continue
+        mounts_out=$(docker inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}}|{{.Destination}}{{println}}{{end}}{{end}}' "$id" 2>/dev/null || true)
+        while IFS='|' read -r source dest; do
+            [[ -n "$source" && -n "$dest" ]] || continue
+            for p in "${mounts[@]}"; do
+                if [[ "$source" == "$p" || "$source" == "$p/"* ]]; then
+                    expected=$(mount_majmin "$p")
+                    actual=$(awk -v d="$dest" '$5 == d {print $3; exit}' "$PROC_ROOT/$pid/mountinfo" 2>/dev/null || true)
+                    if [[ -z "$actual" ]]; then
+                        fail "container ${name:-$id}: mount $dest from $source not found in $PROC_ROOT/$pid/mountinfo"
+                    elif [[ "$actual" != "$expected" ]]; then
+                        fail "container ${name:-$id}: $dest from $source is on $actual, expected $expected (stale bind)"
+                    fi
+                fi
+            done
+        done <<< "$mounts_out"
+    done < <(docker ps -q 2>/dev/null || true)
+}
+
+if (( ${#mounts[@]} > 0 )); then
+    if ! wait_for_mounts; then
+        fail "timed out after ${retry}s waiting for mounts: ${mounts[*]}"
+    fi
+fi
+
+root_dev=$(root_majmin)
+for i in "${!mounts[@]}"; do
+    p=${mounts[$i]}
+    want=${sources[$i]}
+    if ! findmnt -rn -M "$p" >/dev/null 2>&1; then
+        fail "mount $p is not mounted"
+        continue
+    fi
+
+    got=$(mount_source "$p")
+    got_real=$(readlink -f "$got" 2>/dev/null || echo "$got")
+    want_real=$(readlink -f "$want" 2>/dev/null || echo "$want")
+    [[ "$got_real" == "$want_real" ]] || \
+        fail "mount $p source is $got, expected $want"
+
+    majmin=$(mount_majmin "$p")
+    if [[ -z "$majmin" || "$majmin" == "$root_dev" ]]; then
+        fail "mount $p resolves to the root filesystem ($majmin)"
+    fi
+done
+
+if (( docker_enabled )); then
+    if ! systemctl is-active --quiet docker; then
+        fail "docker is not active"
+    else
+        for i in "${!mounts[@]}"; do
+            p=${mounts[$i]}
+            unit=$(systemd-escape -p --suffix=mount "$p")
+            required=$(systemctl show docker.service -p RequiresMountsFor --value 2>/dev/null || true)
+            after=$(systemctl show docker.service -p After --value 2>/dev/null || true)
+            if [[ " $required " != *" $p "* ]]; then
+                fail "docker.service does not require $p (RequiresMountsFor=${required:-empty})"
+            fi
+            if [[ " $after " != *" $unit "* ]]; then
+                fail "docker.service is not ordered after $unit"
+            fi
+
+            dstart=$(systemctl show docker.service -p ActiveEnterTimestamp --value 2>/dev/null || true)
+            mstart=$(systemctl show "$unit" -p ActiveEnterTimestamp --value 2>/dev/null || true)
+            if [[ -n "$dstart" && -n "$mstart" ]]; then
+                dsec=$(date -d "$dstart" +%s 2>/dev/null || echo 0)
+                msec=$(date -d "$mstart" +%s 2>/dev/null || echo 0)
+                if (( dsec < msec )); then
+                    # The drop-in may have been installed after this boot.
+                    # The dependency above is the guarantee for the next
+                    # boot; container binds are checked separately.
+                    echo "boot check: note: docker started before $p in this boot" >&2
+                fi
+            fi
+        done
+
+        check_containers
+    fi
+fi
+
+if (( ${#failures[@]} > 0 )); then
+    host=$(hostname -s)
+    printf 'boot check failed on %s\n' "$host" >&2
+    printf ' - %s\n' "${failures[@]}" >&2
+    body=$(printf '%s\n' "${failures[@]}")
+    if [[ -x "$NOTIFY" ]]; then
+        "$NOTIFY" --priority "$priority" --tags "$tags" \
+            "boot check failed on $host" "$body" || true
+    else
+        logger -t hsp-boot-check "$body"
+    fi
+    exit 1
+fi
+
+echo "boot check OK on $(hostname -s)"

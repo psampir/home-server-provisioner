@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Run the host boot smoke check
+After={{ boot_check_service }}
+
+[Timer]
+OnBootSec=2min
+OnCalendar=*-*-* 05:00:00
+Persistent=true
+Unit={{ boot_check_service }}
+
+[Install]
+WantedBy=timers.target

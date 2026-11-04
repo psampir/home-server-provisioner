@@ -22,6 +22,7 @@
     - wireguard
     - swap
     - storage
+    - boot_check
     - network_mounts
     - smart_monitoring
     - borgmatic

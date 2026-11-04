@@ -1,0 +1,5 @@
+- name: Reload and restart the boot check timer
+  ansible.builtin.systemd:
+    name: "{{ boot_check_timer }}"
+    state: restarted
+    daemon_reload: true
