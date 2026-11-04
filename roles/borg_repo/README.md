@@ -43,9 +43,11 @@ For each source host that targets this server (matched via the published
 5. Installs a separate monthly integrity pass -
    `hsp-borg-check.timer` → `borg check` per repo. It reads archive
    manifests, so it is kept off the nightly prune/compact window.
-   `--verify-data` stays disabled by default because decrypting and hashing
-   every chunk of a multi-terabyte repository takes hours; enable it only
-   for a manual restore drill.
+6. Optionally installs a quarterly deep pass -
+   `hsp-borg-verify.timer` → the same script with
+   `BORG_CHECK_VERIFY_DATA=1`, so it decrypts and hashes every chunk.
+   It is off by default because a multi-terabyte repository takes hours;
+   enable it on targets that can afford the I/O.
 
 ## Why the target prunes
 
@@ -91,8 +93,11 @@ source-side view.
 | `borg_repo_keep_daily/weekly/monthly` | `7 / 4 / 6` | Retention fallback when a source omits `retention:`. |
 | `borg_repo_maintenance_schedule` | `*-*-* 05:00:00` | Prune+compact `OnCalendar`. |
 | `borg_repo_check_schedule` | `*-*-01 06:00:00` | Integrity check `OnCalendar`. |
-| `borg_repo_check_verify_data` | `false` | Add `--verify-data` to the check (hours of I/O, manual drills only). |
+| `borg_repo_check_verify_data` | `false` | Add `--verify-data` to the monthly check (hours of I/O; prefer the verify timer). |
 | `borg_repo_check_repository_only` | `false` | Add `--repository-only`, skipping archive checks. |
+| `borg_repo_verify_enabled` | `false` | Install the quarterly deep-check timer. |
+| `borg_repo_verify_schedule` | `*-01,04,07,10-02 04:00:00` | Deep-check `OnCalendar`. |
+| `borg_repo_verify_randomized_delay` | `30m` | Random delay for the deep check. |
 | `borg_repo_base` | `/srv/borg` | Parent dir; one subdir per source host. Set in inventory if relocated. |
 | `borg_repo_user` / `borg_repo_group` | `borg` | Repo-serving identity. |
 

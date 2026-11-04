@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Borg repository deep integrity check
+After=network-online.target
+OnFailure=hsp-notify-failure@%n.service
+
+[Service]
+Type=oneshot
+User={{ borg_repo_user }}
+Group={{ borg_repo_group }}
+EnvironmentFile={{ borg_repo_env_path }}
+Environment=BORG_CHECK_VERIFY_DATA=1
+ExecStart={{ borg_repo_check_bin }}
+Nice=19
+IOSchedulingClass=idle
