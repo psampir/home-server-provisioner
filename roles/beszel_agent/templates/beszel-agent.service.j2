@@ -16,7 +16,12 @@ ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=yes
 ReadWritePaths={{ beszel_agent_data_dir }}
-SupplementaryGroups={{ 'systemd-journal docker' if beszel_agent_docker else 'systemd-journal' }}
+{% set groups = ['systemd-journal'] + (['docker'] if beszel_agent_docker else []) + beszel_agent_extra_groups %}
+SupplementaryGroups={{ groups | unique | join(' ') }}
+{% if beszel_agent_capabilities %}
+AmbientCapabilities={{ beszel_agent_capabilities | join(' ') }}
+CapabilityBoundingSet={{ beszel_agent_capabilities | join(' ') }}
+{% endif %}
 
 [Install]
 WantedBy=multi-user.target

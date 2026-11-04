@@ -30,12 +30,36 @@ token are supplied.
 | `beszel_agent_docker` | `false` | Monitor Docker containers on this host |
 | `beszel_agent_data_dir` | `/var/lib/beszel-agent` | Fingerprint/data directory |
 | `beszel_agent_smart_devices` | empty | SMART device list; empty disables SMART polling |
+| `beszel_agent_extra_filesystems` | empty | Comma-separated mountpoints/devices for extra disk charts |
+| `beszel_agent_gpu_collector` | empty | Comma-separated GPU collectors, e.g. `intel_gpu_top` |
+| `beszel_agent_smart_exclude` | empty | Comma-separated devices skipped by SMART |
+| `beszel_agent_extra_groups` | `[]` | Supplementary groups for the service |
+| `beszel_agent_capabilities` | `[]` | Ambient capabilities for the service |
 
 ## Docker monitoring
 
 The binary agent reads `/var/run/docker.sock` through the `docker` group.
 That is root-equivalent for reads. Enable it only on Docker hosts and only
 if the trade-off is acceptable; the alternative is a socket proxy.
+
+## Extra filesystems
+
+`EXTRA_FILESYSTEMS` accepts mountpoints or devices, so a data disk mounted
+outside `/` gets its own usage chart. The variable is only rendered when it
+is non-empty: an empty value is parsed as an invalid filesystem.
+
+## GPU
+
+`GPU_COLLECTOR=intel_gpu_top` needs `intel-gpu-tools`, the `video` and
+`render` groups, and `CAP_PERFMON` on kernels with
+`perf_event_paranoid >= 2`. `intel_sysfs` instead needs a hwmon
+`energy1_input`, which older iGPUs such as Gemini Lake and Haswell lack.
+
+## SMART
+
+A non-empty `SMART_DEVICES` enables polling; an empty value disables it.
+smartctl needs the `disk` group and `CAP_SYS_RAWIO`; `CAP_SYS_ADMIN` is not
+required for SATA. Entries may be `path:type`, e.g. `/dev/sdb:sat`.
 
 ## Updating
 

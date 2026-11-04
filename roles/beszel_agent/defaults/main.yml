@@ -18,9 +18,19 @@ beszel_agent_key: ""
 beszel_agent_token: ""
 beszel_agent_listen: 45876
 beszel_agent_package_updates_interval: "1h"
-# Empty disables SMART polling. Enabling it requires smartctl and systemd
-# capabilities (CAP_SYS_RAWIO/CAP_SYS_ADMIN); USB bridges often expose none.
+# Comma-separated mountpoints or devices shown as extra disk usage charts.
+beszel_agent_extra_filesystems: ""
+# Explicit GPU collector list, e.g. "intel_gpu_top". Empty auto-detects.
+beszel_agent_gpu_collector: ""
+# Comma-separated "path[:type]" list. Empty disables SMART; a non-empty value
+# also enables SMART for devices found by the smartctl scan.
 beszel_agent_smart_devices: ""
+# Comma-separated device paths excluded from SMART polling.
+beszel_agent_smart_exclude: ""
+# Extra supplementary groups for the service (e.g. disk, render, video).
+beszel_agent_extra_groups: []
+# Ambient capabilities for the service (e.g. CAP_SYS_RAWIO, CAP_PERFMON).
+beszel_agent_capabilities: []
 
 # Monitor Docker containers on this host. This grants the agent access to
 # the Docker socket through the docker group, which is root-equivalent for
