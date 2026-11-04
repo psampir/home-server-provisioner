@@ -43,8 +43,13 @@ if [[ "${#svcs[@]}" -gt 0 ]]; then
     body+=$'\n'"Restart with: systemctl restart <unit>  (or reboot)."
 fi
 
+priority=default
+if [[ "$kernel_pending" -eq 1 ]]; then
+    priority=high
+fi
+
 if [[ -x "$NOTIFY" ]]; then
-    "$NOTIFY" --priority high --tags warning,arrows_counterclockwise \
+    "$NOTIFY" --priority "$priority" --tags warning,arrows_counterclockwise \
         "$subject" "$body"
 else
     logger -t hsp-needrestart-notify "${subject} - ${body}"
