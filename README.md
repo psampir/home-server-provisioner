@@ -244,6 +244,7 @@ Each role is self-contained. The full list:
 | Role | Description |
 |---|---|
 | `base` | Updates apt cache, upgrades packages, installs base packages, and seeds a resolver when the host has none |
+| `etckeeper` | Keeps `/etc` in a local git repository and commits around apt operations |
 | `hostname` | Sets the host's `/etc/hostname` from the inventory name |
 | `timezone_locale` | Sets timezone and generates locales |
 | `time_sync` | Verifies / configures `systemd-timesyncd` |

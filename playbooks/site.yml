@@ -6,6 +6,7 @@
     - time_sync
     - service_user
     - base
+    - etckeeper
     - laptop_power
     - nut
     - admin_user

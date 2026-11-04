@@ -1,0 +1,8 @@
+# etckeeper keeps /etc in a local git repository. The apt hook commits
+# before and after package operations, so config migrations are visible and
+# can be reverted file by file.
+#
+# The repository is local and root-only. It contains /etc secrets (WireGuard
+# keys, host keys, notification tokens), so never push it to a shared remote.
+etckeeper_commit_name: etckeeper
+etckeeper_commit_email: "etckeeper@{{ inventory_hostname }}"

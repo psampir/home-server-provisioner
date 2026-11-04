@@ -1,0 +1,71 @@
+- name: Install etckeeper
+  ansible.builtin.apt:
+    name: etckeeper
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure etckeeper to use git
+  ansible.builtin.lineinfile:
+    path: /etc/etckeeper/etckeeper.conf
+    regexp: '^VCS='
+    line: 'VCS="git"'
+    state: present
+
+- name: Stop the etckeeper autocommit units during initialization
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - etckeeper.timer
+    - etckeeper.service
+  failed_when: false
+
+- name: Remove a stale git index lock
+  ansible.builtin.file:
+    path: /etc/.git/index.lock
+    state: absent
+
+- name: Initialize the /etc git repository
+  ansible.builtin.command:
+    cmd: etckeeper init
+    creates: /etc/.git
+
+- name: Set the etckeeper git identity name
+  ansible.builtin.command:
+    cmd: "etckeeper vcs config user.name {{ etckeeper_commit_name }}"
+  changed_when: false
+
+- name: Set the etckeeper git identity email
+  ansible.builtin.command:
+    cmd: "etckeeper vcs config user.email {{ etckeeper_commit_email }}"
+  changed_when: false
+
+- name: Check whether /etc has a commit
+  ansible.builtin.command:
+    cmd: etckeeper vcs rev-parse --verify HEAD
+  register: etckeeper_head
+  changed_when: false
+  failed_when: false
+
+- name: Commit the initial /etc state
+  when: etckeeper_head.rc != 0
+  ansible.builtin.command:
+    cmd: etckeeper commit "Initial commit by Ansible"
+  register: etckeeper_commit
+  changed_when: true
+  retries: 3
+  delay: 5
+  until: etckeeper_commit.rc == 0
+
+- name: Start the etckeeper autocommit timer
+  ansible.builtin.systemd:
+    name: etckeeper.timer
+    state: started
+  failed_when: false
+
+- name: Clear a previous etckeeper service failure
+  ansible.builtin.command:
+    cmd: systemctl reset-failed etckeeper.service
+  changed_when: false
+  failed_when: false
