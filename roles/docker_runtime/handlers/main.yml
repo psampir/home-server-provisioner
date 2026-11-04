@@ -6,6 +6,10 @@
 # restarting the daemon, so running containers stay up. Note: existing
 # containers keep the log settings they were created with; new log
 # options only affect containers created/recreated after the reload.
+- name: Reload systemd for docker
+  ansible.builtin.systemd:
+    daemon_reload: true
+
 - name: Reload docker
   ansible.builtin.systemd:
     name: docker

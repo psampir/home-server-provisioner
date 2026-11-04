@@ -72,6 +72,35 @@
     - Reload docker
     - Notice docker container recreate
 
+- name: Ensure the docker.service drop-in directory exists
+  when: docker_runtime_requires_mounts | length > 0
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Wait for data mounts before starting Docker
+  when: docker_runtime_requires_mounts | length > 0
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - do not edit manually.
+      [Unit]
+      RequiresMountsFor={{ docker_runtime_requires_mounts | join(' ') }}
+    dest: /etc/systemd/system/docker.service.d/10-hsp-mounts.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for docker
+
+- name: Remove the Docker mount drop-in when no mounts are configured
+  when: docker_runtime_requires_mounts | length == 0
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d/10-hsp-mounts.conf
+    state: absent
+  notify: Reload systemd for docker
+
 - name: Ensure docker service is enabled and running
   ansible.builtin.systemd:
     name: docker
