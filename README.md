@@ -272,6 +272,7 @@ Each role is self-contained. The full list:
 | Role | Description |
 |---|---|
 | `docker_runtime` | Installs Docker CE + Compose plugin from upstream apt repo |
+| `docker_prune` | Installs `hsp-docker-prune` for scheduled dangling-image and build-cache cleanup |
 | `docker_registry` | Logs the Docker CLI in to private registries before `compose_deploy` pulls images |
 | `compose_deploy` | Auto-discovers and deploys Docker Compose stacks from `configs/<ENV>/stacks/_common/<name>/` (every app server) and `configs/<ENV>/stacks/<hostname>/<name>/` (per-host override). Per-stack directory is synced verbatim - drop `compose.yaml` + `.env` + `Caddyfile` + `config/` next to each other. A stack restarts when a synced or rendered file changed, because compose does not notice a replaced bind-mounted file. |
 | `docker_health` | Pushes Docker container health (healthcheck status for listed containers, running state for the rest) to a Gatus external endpoint, so containers without a published port are monitored without exposing the Docker socket |

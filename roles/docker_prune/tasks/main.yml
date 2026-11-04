@@ -1,0 +1,7 @@
+- name: Install hsp-docker-prune
+  ansible.builtin.copy:
+    src: hsp-docker-prune
+    dest: "{{ docker_prune_bin }}"
+    owner: root
+    group: root
+    mode: "0755"

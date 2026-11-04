@@ -1,0 +1,2 @@
+# Path of the installed prune helper. Schedule it with scheduled_jobs.
+docker_prune_bin: /usr/local/bin/hsp-docker-prune
