@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-SCRIPTS = REPO / "roles" / "olivetin_agent" / "files"
+SCRIPTS = REPO / "configs" / "example" / "scripts" / "_common"
 
 FAKE = """#!/bin/sh
 printf '%s %s\\n' "$(basename "$0")" "$*" >> "${CALL_LOG}"

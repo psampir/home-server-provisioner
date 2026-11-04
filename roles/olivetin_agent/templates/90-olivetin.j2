@@ -1,13 +1,4 @@
 # Managed by Ansible - do not edit manually.
-{% set commands = [] -%}
-{% for wrapper in olivetin_agent_wrappers -%}
-{% for args in (olivetin_agent_wrapper_commands[wrapper] or ['']) -%}
-{% set _ = commands.append('/usr/local/sbin/' ~ wrapper ~ (' ' ~ args if args else '')) -%}
-{% endfor -%}
-{% endfor -%}
-{% for extra in olivetin_agent_extra_sudo_commands -%}
-{% set _ = commands.append(extra) -%}
-{% endfor -%}
-{% if commands -%}
-{{ olivetin_agent_user }} ALL=(root) NOPASSWD: {{ commands | join(', ') }}
+{% if olivetin_agent_allowed_commands -%}
+{{ olivetin_agent_user }} ALL=(root) NOPASSWD: {{ olivetin_agent_allowed_commands | join(', ') }}
 {% endif -%}

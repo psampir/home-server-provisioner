@@ -1,45 +1,20 @@
 # Host operations exposed through the OliveTin console.
 #
 # Disabled by default: an environment must opt in with a dedicated SSH key
-# and the list of commands below. The role installs the wrappers, creates
-# the agent user and allows only those wrappers through sudo. It never
-# grants a general shell or unrestricted apt/docker access.
+# and an explicit command allowlist. The role creates the agent user and
+# renders an exact sudo policy; the operation scripts are supplied by the
+# environment through custom_scripts. It never grants a general shell or
+# unrestricted apt/docker access.
 olivetin_agent_enabled: false
 olivetin_agent_user: olivetin
 olivetin_agent_ssh_public_keys: []
 
-# Standard wrappers and the arguments each one may receive through sudo.
-# The sudoers file is generated from this map, so adding an argument here is
-# what makes it reachable; an empty list allows the bare command only.
-olivetin_agent_wrapper_commands:
-  hsp-apt:
-    - check
-    - upgrade
-    - autoremove-check
-    - autoremove
-  hsp-needrestart: []
-  hsp-reboot:
-    - schedule
-    - cancel
-  hsp-backup-check: []
-  hsp-journal-vacuum: []
-  hsp-etckeeper: []
-
-# Wrappers installed and allowed on this host. Must be a subset of the keys
-# of olivetin_agent_wrapper_commands; the rest are removed from
-# /usr/local/sbin when the role is enabled.
-olivetin_agent_wrappers:
-  - hsp-apt
-  - hsp-needrestart
-  - hsp-reboot
-  - hsp-backup-check
-  - hsp-journal-vacuum
-  - hsp-etckeeper
-
-# Exact extra commands allowed through sudo for custom OliveTin actions.
-# Each entry must be an absolute path; no wildcards. Install the script
-# itself with custom_scripts from configs/<env>/scripts/.
-olivetin_agent_extra_sudo_commands: []
+# Exact commands the OliveTin SSH user may run through sudo. Each entry must
+# be an absolute path with fixed arguments; wildcards are rejected. The
+# scripts themselves are owned by the environment: ship them with
+# custom_scripts from configs/<env>/scripts/ and list their installed paths
+# here. Reference implementations live in configs/example/scripts/_common/.
+olivetin_agent_allowed_commands: []
 
 # Optional client key for the host that runs OliveTin itself. Point this at
 # a root-owned 0600 path on the OliveTin host; the stack mounts it read-only.
