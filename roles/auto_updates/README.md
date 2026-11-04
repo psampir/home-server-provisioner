@@ -45,6 +45,9 @@ Configures unattended security upgrades and optional restart detection.
 - The notify timer depends on the `notifications` role to provide
   `hsp-notify`. Without it the timer unit still exists, but the alert cannot
   be delivered.
+- The daily needrestart notification uses priority `default` when only
+  services need a restart and `high` when a kernel reboot is pending, so
+  routine service restarts stay a digest while a kernel reboot pages.
 - Automatic reboot is off by default. When enabled, the role schedules it
   as soon as `/run/reboot-required` exists instead of waiting for the next
   unattended-upgrades run. A kernel update normally needs a reboot before
