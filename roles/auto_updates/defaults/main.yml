@@ -1,7 +1,9 @@
 # Origins to upgrade. Defaults to security updates only.
-# ${distro_codename} is expanded by unattended-upgrades at runtime.
+# ${distro_codename} is expanded by unattended-upgrades at runtime. Debian
+# security suites are named <codename>-security (trixie-security); without
+# the suffix the pattern matches nothing.
 auto_updates_origins:
-  - "origin=Debian,codename=${distro_codename},label=Debian-Security"
+  - "origin=Debian,codename=${distro_codename}-security,label=Debian-Security"
 
 auto_updates_enable_reboot: false
 auto_updates_reboot_time: "03:00"

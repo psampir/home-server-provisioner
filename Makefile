@@ -128,7 +128,7 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 .PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check
 
-test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-docker-health test-docker-prune test-nut-notify test-login-notify test-gatus-heartbeat test-update-report test-db-dump ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-docker-health test-docker-prune test-nut-notify test-login-notify test-gatus-heartbeat test-update-report test-auto-updates test-db-dump ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -174,6 +174,9 @@ test-gatus-heartbeat: ## Test the Gatus dead man's switch ping
 
 test-update-report: ## Test the monthly package update report
 	python3 tests/test_update_report.py
+
+test-auto-updates: ## Test the unattended-upgrades security origin
+	python3 tests/test_auto_updates.py
 
 test-db-dump: ## Test the generic database dump helper
 	python3 tests/test_db_dump.py
