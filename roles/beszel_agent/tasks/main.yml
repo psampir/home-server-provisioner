@@ -39,6 +39,26 @@
     mode: "0755"
     remote_src: true
 
+- name: Install smartmontools for SMART polling
+  when:
+    - beszel_agent_enabled | bool
+    - beszel_agent_smart_devices | length > 0
+  ansible.builtin.apt:
+    name: smartmontools
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install intel-gpu-tools for Intel GPU polling
+  when:
+    - beszel_agent_enabled | bool
+    - "'intel_gpu_top' in beszel_agent_gpu_collector"
+  ansible.builtin.apt:
+    name: intel-gpu-tools
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Ensure the Beszel agent group exists
   when: beszel_agent_enabled | bool
   ansible.builtin.group:
