@@ -1,0 +1,93 @@
+- name: Validate the Beszel agent configuration
+  when: beszel_agent_enabled | bool
+  ansible.builtin.assert:
+    that:
+      - beszel_agent_hub_url | length > 0
+      - beszel_agent_key | length > 0
+      - beszel_agent_token | length > 0
+    fail_msg: "beszel_agent_hub_url, beszel_agent_key and beszel_agent_token are required"
+
+- name: Download the Beszel agent archive
+  when: beszel_agent_enabled | bool
+  ansible.builtin.get_url:
+    url: "{{ beszel_agent_binary_url }}"
+    dest: "/tmp/beszel-agent-{{ beszel_agent_version }}.tar.gz"
+    checksum: "sha256:{{ beszel_agent_binary_sha256 }}"
+    mode: "0644"
+
+- name: Create the Beszel agent extraction directory
+  when: beszel_agent_enabled | bool
+  ansible.builtin.file:
+    path: "/tmp/beszel-agent-{{ beszel_agent_version }}"
+    state: directory
+    mode: "0755"
+
+- name: Extract the Beszel agent
+  when: beszel_agent_enabled | bool
+  ansible.builtin.unarchive:
+    src: "/tmp/beszel-agent-{{ beszel_agent_version }}.tar.gz"
+    dest: "/tmp/beszel-agent-{{ beszel_agent_version }}"
+    remote_src: true
+
+- name: Install the Beszel agent binary
+  when: beszel_agent_enabled | bool
+  ansible.builtin.copy:
+    src: "/tmp/beszel-agent-{{ beszel_agent_version }}/beszel-agent"
+    dest: "{{ beszel_agent_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+    remote_src: true
+
+- name: Ensure the Beszel agent group exists
+  when: beszel_agent_enabled | bool
+  ansible.builtin.group:
+    name: "{{ beszel_agent_user }}"
+    system: true
+
+- name: Ensure the Beszel agent user exists
+  when: beszel_agent_enabled | bool
+  ansible.builtin.user:
+    name: "{{ beszel_agent_user }}"
+    group: "{{ beszel_agent_user }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    system: true
+
+- name: Ensure the Beszel agent data directory exists
+  when: beszel_agent_enabled | bool
+  ansible.builtin.file:
+    path: "{{ beszel_agent_data_dir }}"
+    state: directory
+    owner: "{{ beszel_agent_user }}"
+    group: "{{ beszel_agent_user }}"
+    mode: "0750"
+
+- name: Render the Beszel agent environment
+  when: beszel_agent_enabled | bool
+  ansible.builtin.template:
+    src: beszel-agent.env.j2
+    dest: /etc/beszel-agent.env
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart beszel-agent
+
+- name: Render the Beszel agent service unit
+  when: beszel_agent_enabled | bool
+  ansible.builtin.template:
+    src: beszel-agent.service.j2
+    dest: /etc/systemd/system/beszel-agent.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart beszel-agent
+
+- name: Enable and start the Beszel agent
+  when: beszel_agent_enabled | bool
+  ansible.builtin.systemd:
+    name: beszel-agent
+    enabled: true
+    state: started
+    daemon_reload: true

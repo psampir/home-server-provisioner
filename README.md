@@ -245,6 +245,7 @@ Each role is self-contained. The full list:
 |---|---|
 | `base` | Updates apt cache, upgrades packages, installs base packages, and seeds a resolver when the host has none |
 | `etckeeper` | Keeps `/etc` in a local git repository and commits around apt operations |
+| `beszel_agent` | Installs the Beszel agent binary and systemd service for host metrics |
 | `hostname` | Sets the host's `/etc/hostname` from the inventory name |
 | `timezone_locale` | Sets timezone and generates locales |
 | `time_sync` | Verifies / configures `systemd-timesyncd` |

@@ -1,0 +1,28 @@
+# Beszel agent, installed as a small Go binary and a systemd service.
+#
+# The agent connects outbound to the hub over WebSocket, so no inbound port
+# has to be opened. Disabled by default: an environment must opt in with a
+# hub URL and the universal token/key generated in the hub.
+beszel_agent_enabled: false
+beszel_agent_version: "0.21.1"
+beszel_agent_binary_url: >-
+  https://github.com/henrygd/beszel/releases/download/v{{ beszel_agent_version }}/beszel-agent_linux_amd64.tar.gz
+beszel_agent_binary_sha256: "3b6ee592632ec03b9a43312e99a40203a7b3d83fe40dd0c25acda1eb915ea7c0"
+beszel_agent_bin: /usr/local/bin/beszel-agent
+
+beszel_agent_user: beszel
+beszel_agent_data_dir: /var/lib/beszel-agent
+beszel_agent_system_name: "{{ inventory_hostname }}"
+beszel_agent_hub_url: ""
+beszel_agent_key: ""
+beszel_agent_token: ""
+beszel_agent_listen: 45876
+beszel_agent_package_updates_interval: "1h"
+# Empty disables SMART polling. Enabling it requires smartctl and systemd
+# capabilities (CAP_SYS_RAWIO/CAP_SYS_ADMIN); USB bridges often expose none.
+beszel_agent_smart_devices: ""
+
+# Monitor Docker containers on this host. This grants the agent access to
+# the Docker socket through the docker group, which is root-equivalent for
+# reads. Keep it off on hosts without Docker or where that is not wanted.
+beszel_agent_docker: false
