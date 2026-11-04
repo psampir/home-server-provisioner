@@ -1,0 +1,16 @@
+# Host operations exposed through the OliveTin console.
+#
+# Disabled by default: an environment must opt in with a dedicated SSH key
+# and the list of commands below. The role installs the wrappers, creates
+# the agent user and allows only those wrappers through sudo. It never
+# grants a general shell or unrestricted apt/docker access.
+olivetin_agent_enabled: false
+olivetin_agent_user: olivetin
+olivetin_agent_ssh_public_keys: []
+
+# Optional client key for the host that runs OliveTin itself. Point this at
+# a root-owned 0600 path on the OliveTin host; the stack mounts it read-only.
+olivetin_agent_client_key_path: ""
+olivetin_agent_client_private_key: ""
+olivetin_agent_client_key_owner: "1000"
+olivetin_agent_client_key_group: "1000"

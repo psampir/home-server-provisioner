@@ -27,6 +27,7 @@
     - db_dump
     - systemd_units
     - scheduled_jobs
+    - olivetin_agent
 
 - name: VPN hub and resolver provisioning
   hosts: vpn_server

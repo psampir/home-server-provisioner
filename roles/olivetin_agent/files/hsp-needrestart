@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# hsp-needrestart - print what needs a restart and whether a reboot is due.
+set -euo pipefail
+
+needrestart -b
+
+if [[ -f /run/reboot-required ]]; then
+    echo
+    echo "REBOOT REQUIRED"
+    cat /run/reboot-required.pkgs 2>/dev/null || true
+fi

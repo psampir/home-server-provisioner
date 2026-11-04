@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# hsp-backup-check - run the local backup integrity check.
+#
+# Backup targets use borgmatic; the Docker host checks the restic repository
+# in the maintenance container. Other hosts fail with a clear message.
+set -euo pipefail
+
+if command -v borgmatic >/dev/null 2>&1; then
+    echo "== borgmatic check =="
+    borgmatic check
+    exit 0
+fi
+
+if command -v docker >/dev/null 2>&1 \
+    && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'bta-restic-maintenance'; then
+    echo "== restic check (1% of data) =="
+    docker exec bta-restic-maintenance restic -r /data/bta check --read-data-subset=1%
+    exit 0
+fi
+
+echo "no backup system found on this host" >&2
+exit 1

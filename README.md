@@ -314,6 +314,7 @@ Each role is self-contained. The full list:
 
 | Role | Description |
 |---|---|
+| `olivetin_agent` | Installs the restricted host-operation wrappers and SSH user used by OliveTin |
 | `scheduled_jobs` | systemd timers and services for periodic commands |
 | `custom_scripts` | Ships scripts from `configs/<ENV>/scripts/` to `/usr/local/bin/` |
 | `systemd_units` | Ships custom systemd unit files from `configs/<ENV>/systemd/` |

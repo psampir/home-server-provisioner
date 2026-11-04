@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# hsp-reboot - schedule or cancel a short-notice reboot from OliveTin.
+#
+# Usage: hsp-reboot schedule | cancel
+set -euo pipefail
+
+case "${1:-}" in
+    schedule)
+        shutdown -r +5 "Scheduled from OliveTin"
+        ;;
+    cancel)
+        shutdown -c
+        ;;
+    *)
+        echo "usage: hsp-reboot schedule|cancel" >&2
+        exit 2
+        ;;
+esac
