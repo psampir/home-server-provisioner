@@ -18,6 +18,8 @@ echo "hsp-docker-prune: pruning dangling images older than ${UNTIL}"
 docker image prune -f --filter "until=${UNTIL}"
 
 if [[ "${BUILD_CACHE}" == "1" ]]; then
-    echo "hsp-docker-prune: pruning build cache older than ${UNTIL}"
-    docker builder prune -f --filter "until=${UNTIL}"
+    # BuildKit's age filter misses internal/frontend records, so prune the
+    # cache in full. It is regenerable; images are never touched.
+    echo "hsp-docker-prune: pruning the build cache"
+    docker builder prune -f --all
 fi
