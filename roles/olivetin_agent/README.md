@@ -32,14 +32,51 @@ package lists. It is non-interactive and pins `needrestart` to list-only.
 | `olivetin_agent_enabled` | `false` | Install the user, key and wrappers |
 | `olivetin_agent_user` | `olivetin` | Dedicated agent user |
 | `olivetin_agent_ssh_public_keys` | `[]` | Keys allowed to log in as the agent |
+| `olivetin_agent_wrappers` | all wrappers | Wrappers installed and allowed; other known wrappers are removed |
+| `olivetin_agent_wrapper_commands` | map | Allowed arguments per wrapper; the sudoers file is generated from it |
+| `olivetin_agent_extra_sudo_commands` | `[]` | Extra absolute-path commands allowed through sudo |
 | `olivetin_agent_client_key_path` | `""` | Optional client key path on the OliveTin host |
 | `olivetin_agent_client_private_key` | `""` | Optional client key material (no_log) |
 | `olivetin_agent_client_key_owner` | `1000` | Owner of the client key |
 | `olivetin_agent_client_key_group` | `1000` | Group of the client key |
 
 The `authorized_keys` entries use `restrict`, so the key cannot forward
-ports, agents or X11. Sudo is limited to the exact wrapper commands in
-`/etc/sudoers.d/90-olivetin`.
+ports, agents or X11. `/etc/sudoers.d/90-olivetin` is rendered from
+`olivetin_agent_wrappers` (with its entries in
+`olivetin_agent_wrapper_commands`) plus
+`olivetin_agent_extra_sudo_commands`. Wrappers not listed in
+`olivetin_agent_wrappers` are removed from `/usr/local/sbin` on the next run.
+
+## Custom privileged actions
+
+Sudo remains exact-match: an OliveTin action may only run a command string
+that is listed verbatim in the sudoers file. It is **not** generated from
+the OliveTin `config.yaml`, so a new action also needs an inventory entry.
+
+1. Put the script in `configs/<env>/scripts/<host>/` (or `_common/` for every
+   host) and let `custom_scripts` install it, so it lands in
+   `/usr/local/bin/moj-skrypt` owned by root, mode `0755`:
+
+   ```
+   configs/<env>/scripts/_common/moj-skrypt
+   ```
+
+2. Use it in the OliveTin action with `sudo -n`:
+
+   ```
+   ssh ... sudo -n /usr/local/bin/moj-skrypt restart
+   ```
+
+3. Allow exactly that command string:
+
+   ```yaml
+   olivetin_agent_extra_sudo_commands:
+     - /usr/local/bin/moj-skrypt restart
+   ```
+
+Passing different arguments than the listed ones is denied by sudo, so add
+a separate entry for each permitted argument set. Wildcards are rejected by
+the role's assertions.
 
 ## Example
 

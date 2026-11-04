@@ -1,3 +1,28 @@
+- name: Validate the OliveTin wrapper selection
+  when: olivetin_agent_enabled | bool
+  ansible.builtin.assert:
+    that:
+      - olivetin_agent_wrappers | difference(olivetin_agent_wrapper_commands.keys() | list) | length == 0
+    fail_msg: >-
+      olivetin_agent_wrappers contains wrappers this role has no argument
+      list for:
+      {{ olivetin_agent_wrappers | difference(olivetin_agent_wrapper_commands.keys() | list) | join(', ') }}.
+      Known wrappers: {{ olivetin_agent_wrapper_commands.keys() | list | join(', ') }}.
+
+- name: Validate the extra sudo commands
+  when: olivetin_agent_enabled | bool
+  ansible.builtin.assert:
+    that:
+      - item is string
+      - item.startswith('/')
+      - item is not search('[\n\r*?]')
+    fail_msg: >-
+      olivetin_agent_extra_sudo_commands entry
+      {{ item | default('') | to_json }} must be an absolute path without
+      wildcards, '?' or newlines.
+    quiet: true
+  loop: "{{ olivetin_agent_extra_sudo_commands }}"
+
 - name: Install host operation wrappers
   when: olivetin_agent_enabled | bool
   ansible.builtin.copy:
@@ -6,14 +31,14 @@
     owner: root
     group: root
     mode: "0755"
-  loop:
-    - hsp-apt
-    - hsp-needrestart
-    - hsp-reboot
-    - hsp-backup-check
-    - hsp-journal-vacuum
-    - hsp-etckeeper
-    - hsp-smart
+  loop: "{{ olivetin_agent_wrappers }}"
+
+- name: Remove host operation wrappers that are no longer allowed
+  when: olivetin_agent_enabled | bool
+  ansible.builtin.file:
+    path: "/usr/local/sbin/{{ item }}"
+    state: absent
+  loop: "{{ olivetin_agent_wrapper_commands.keys() | list | difference(olivetin_agent_wrappers) }}"
 
 - name: Ensure the OliveTin agent group exists
   when: olivetin_agent_enabled | bool
@@ -51,26 +76,11 @@
     key_options: "restrict"
   loop: "{{ olivetin_agent_ssh_public_keys }}"
 
-- name: Allow the OliveTin agent to run the host operation wrappers
+- name: Allow the OliveTin agent to run the configured commands
   when: olivetin_agent_enabled | bool
-  ansible.builtin.copy:
+  ansible.builtin.template:
+    src: 90-olivetin.j2
     dest: /etc/sudoers.d/90-olivetin
-    content: |
-      # Managed by Ansible - do not edit manually.
-      {{ olivetin_agent_user }} ALL=(root) NOPASSWD: \
-        /usr/local/sbin/hsp-apt check, \
-        /usr/local/sbin/hsp-apt upgrade, \
-        /usr/local/sbin/hsp-apt autoremove-check, \
-        /usr/local/sbin/hsp-apt autoremove, \
-        /usr/local/sbin/hsp-needrestart, \
-        /usr/local/sbin/hsp-reboot schedule, \
-        /usr/local/sbin/hsp-reboot cancel, \
-        /usr/local/sbin/hsp-backup-check, \
-        /usr/local/sbin/hsp-journal-vacuum, \
-        /usr/local/sbin/hsp-etckeeper, \
-        /usr/local/sbin/hsp-smart short, \
-        /usr/local/sbin/hsp-smart status summary, \
-        /usr/local/sbin/hsp-smart status full
     owner: root
     group: root
     mode: "0440"

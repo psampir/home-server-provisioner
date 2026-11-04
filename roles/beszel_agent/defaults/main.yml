@@ -20,6 +20,9 @@ beszel_agent_listen: 45876
 beszel_agent_package_updates_interval: "1h"
 # Comma-separated mountpoints or devices shown as extra disk usage charts.
 beszel_agent_extra_filesystems: ""
+# Mountpoints the agent must wait for before it starts (systemd
+# RequiresMountsFor). Use this for extra filesystems on removable disks.
+beszel_agent_requires_mounts: []
 # Explicit GPU collector list, e.g. "intel_gpu_top". Empty auto-detects.
 beszel_agent_gpu_collector: ""
 # Intel's i915 PMU needs perf_event_paranoid <= 2 even with CAP_PERFMON on
