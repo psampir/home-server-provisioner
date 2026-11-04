@@ -2,14 +2,32 @@
 # hsp-reboot - schedule or cancel a short-notice reboot from OliveTin.
 #
 # Usage: hsp-reboot schedule | cancel
+#
+# schedule uses a transient systemd timer instead of `shutdown -r +5`.
+# For a +5 schedule, shutdown creates /run/nologin immediately, which
+# blocks the unprivileged OliveTin SSH user from logging in to cancel it.
 set -euo pipefail
+
+unit=hsp-reboot
 
 case "${1:-}" in
     schedule)
-        shutdown -r +5 "Scheduled from OliveTin"
+        systemctl stop "${unit}.timer" 2>/dev/null || true
+        systemctl stop "${unit}.service" 2>/dev/null || true
+        systemctl reset-failed "${unit}.service" 2>/dev/null || true
+        systemd-run --collect --unit="$unit" \
+            --on-active=5min --timer-property=AccuracySec=1s \
+            --description="OliveTin scheduled reboot" \
+            /usr/bin/systemctl reboot
+        echo
+        systemctl list-timers "${unit}.timer" --no-pager
         ;;
     cancel)
-        shutdown -c
+        systemctl stop "${unit}.timer" 2>/dev/null || true
+        systemctl stop "${unit}.service" 2>/dev/null || true
+        systemctl reset-failed "${unit}.service" 2>/dev/null || true
+        shutdown -c 2>/dev/null || true
+        echo "Scheduled reboot cancelled."
         ;;
     *)
         echo "usage: hsp-reboot schedule|cancel" >&2

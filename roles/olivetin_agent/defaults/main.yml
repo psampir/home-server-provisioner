@@ -24,10 +24,6 @@ olivetin_agent_wrapper_commands:
   hsp-backup-check: []
   hsp-journal-vacuum: []
   hsp-etckeeper: []
-  hsp-smart:
-    - short
-    - status summary
-    - status full
 
 # Wrappers installed and allowed on this host. Must be a subset of the keys
 # of olivetin_agent_wrapper_commands; the rest are removed from
@@ -39,7 +35,6 @@ olivetin_agent_wrappers:
   - hsp-backup-check
   - hsp-journal-vacuum
   - hsp-etckeeper
-  - hsp-smart
 
 # Exact extra commands allowed through sudo for custom OliveTin actions.
 # Each entry must be an absolute path; no wildcards. Install the script

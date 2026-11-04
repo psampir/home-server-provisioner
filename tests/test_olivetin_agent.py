@@ -58,15 +58,12 @@ def main() -> int:
         "/usr/local/sbin/hsp-backup-check",
         "/usr/local/sbin/hsp-journal-vacuum",
         "/usr/local/sbin/hsp-etckeeper",
-        "/usr/local/sbin/hsp-smart short",
-        "/usr/local/sbin/hsp-smart status summary",
-        "/usr/local/sbin/hsp-smart status full",
     ]
     assert command_line(rendered) == (
         "olivetin ALL=(root) NOPASSWD: " + ", ".join(expected)
     ), command_line(rendered)
     assert "hsp-apt autoremove" in rendered
-    assert "hsp-smart status summary" in rendered
+    assert "hsp-smart" not in rendered, rendered
 
     rendered = render(
         defaults,
