@@ -59,6 +59,19 @@
     update_cache: true
     cache_valid_time: 3600
 
+- name: Allow Intel GPU perf events
+  ansible.posix.sysctl:
+    name: kernel.perf_event_paranoid
+    value: "{{ beszel_agent_perf_event_paranoid }}"
+    state: present
+    sysctl_set: true
+    reload: true
+    sysctl_file: /etc/sysctl.d/99-beszel-gpu.conf
+  when:
+    - beszel_agent_enabled | bool
+    - "'intel_gpu_top' in beszel_agent_gpu_collector"
+  notify: Restart beszel-agent
+
 - name: Ensure the Beszel agent group exists
   when: beszel_agent_enabled | bool
   ansible.builtin.group:

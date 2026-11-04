@@ -32,6 +32,7 @@ token are supplied.
 | `beszel_agent_smart_devices` | empty | SMART device list; empty disables SMART polling |
 | `beszel_agent_extra_filesystems` | empty | Comma-separated mountpoints/devices for extra disk charts |
 | `beszel_agent_gpu_collector` | empty | Comma-separated GPU collectors, e.g. `intel_gpu_top` |
+| `beszel_agent_perf_event_paranoid` | `2` | `kernel.perf_event_paranoid` set when `intel_gpu_top` is used |
 | `beszel_agent_smart_exclude` | empty | Comma-separated devices skipped by SMART |
 | `beszel_agent_extra_groups` | `[]` | Supplementary groups for the service |
 | `beszel_agent_capabilities` | `[]` | Ambient capabilities for the service |
@@ -54,6 +55,15 @@ is non-empty: an empty value is parsed as an invalid filesystem.
 `render` groups, and `CAP_PERFMON` on kernels with
 `perf_event_paranoid >= 2`. `intel_sysfs` instead needs a hwmon
 `energy1_input`, which older iGPUs such as Gemini Lake and Haswell lack.
+
+On Debian's 6.12 kernel CAP_PERFMON alone is not enough: at
+`perf_event_paranoid=3` `perf_event_open` on the i915 PMU still returns
+`EACCES`, so `intel_gpu_top` reports `Failed to initialize PMU` and the
+agent logs `no valid GPU data found`. When `intel_gpu_top` is selected the
+role therefore writes `kernel.perf_event_paranoid=2` to
+`/etc/sysctl.d/99-beszel-gpu.conf` (see
+`beszel_agent_perf_event_paranoid`) and restarts the agent. Hosts without
+that collector keep the system default.
 
 ## SMART
 

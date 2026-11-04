@@ -22,6 +22,9 @@ beszel_agent_package_updates_interval: "1h"
 beszel_agent_extra_filesystems: ""
 # Explicit GPU collector list, e.g. "intel_gpu_top". Empty auto-detects.
 beszel_agent_gpu_collector: ""
+# Intel's i915 PMU needs perf_event_paranoid <= 2 even with CAP_PERFMON on
+# Debian's 6.12 kernel. Applied only when intel_gpu_top is selected.
+beszel_agent_perf_event_paranoid: 2
 # Comma-separated "path[:type]" list. Empty disables SMART; a non-empty value
 # also enables SMART for devices found by the smartctl scan.
 beszel_agent_smart_devices: ""
