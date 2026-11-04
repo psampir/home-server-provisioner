@@ -183,3 +183,48 @@
     owner: root
     group: root
     mode: "0644"
+
+# ---------------------------------------------------------------------------
+# Automatic reboot - schedule it as soon as the marker exists, and warn
+# shortly before it happens. The unattended-upgrades timer only schedules the
+# reboot at its next run, which can be up to a day after a kernel install.
+# ---------------------------------------------------------------------------
+- name: Install hsp-reboot-notify
+  when: auto_updates_enable_reboot | bool
+  ansible.builtin.template:
+    src: hsp-reboot-notify.j2
+    dest: "{{ auto_updates_reboot_notify_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Remove hsp-reboot-notify when automatic reboot is disabled
+  when: not (auto_updates_enable_reboot | bool)
+  ansible.builtin.file:
+    path: "{{ auto_updates_reboot_notify_bin }}"
+    state: absent
+
+- name: Check whether a reboot is required
+  ansible.builtin.stat:
+    path: /run/reboot-required
+  register: auto_updates_reboot_required
+
+- name: Check for an already scheduled shutdown
+  ansible.builtin.stat:
+    path: /run/systemd/shutdown/scheduled
+  register: auto_updates_shutdown_scheduled
+
+- name: Schedule the automatic reboot
+  when:
+    - auto_updates_enable_reboot | bool
+    - auto_updates_reboot_required.stat.exists
+    - not auto_updates_shutdown_scheduled.stat.exists
+  ansible.builtin.command:
+    cmd: "/sbin/shutdown -r {{ auto_updates_reboot_time }}"
+  register: auto_updates_reboot_schedule
+  changed_when: true
+
+- name: Show the scheduled reboot
+  when: auto_updates_reboot_schedule.rc | default(1) == 0
+  ansible.builtin.debug:
+    msg: "{{ (auto_updates_reboot_schedule.stdout ~ auto_updates_reboot_schedule.stderr) | trim }}"

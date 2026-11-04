@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# hsp-reboot-notify - warn when a reboot is actually scheduled.
+#
+# Reads the systemd scheduled-shutdown file, so it only fires when a reboot
+# is queued, whether by unattended-upgrades, Ansible or a human. The job that
+# calls it runs shortly before the configured automatic reboot time.
+#
+# Managed by Ansible (roles/auto_updates) - do not edit by hand.
+
+set -euo pipefail
+
+NOTIFY="{{ auto_updates_notify_bin }}"
+SCHEDULE_FILE="${HSP_REBOOT_SCHEDULE_FILE:-/run/systemd/shutdown/scheduled}"
+LEAD_MINUTES="${HSP_REBOOT_NOTIFY_LEAD_MINUTES:-60}"
+
+[[ -r "$SCHEDULE_FILE" ]] || exit 0
+grep -q '^MODE=reboot$' "$SCHEDULE_FILE" || exit 0
+
+host="$(hostname -s 2>/dev/null || hostname || echo localhost)"
+usec="$(awk -F= '/^USEC=/ {print $2; exit}' "$SCHEDULE_FILE")"
+
+if [[ -n "${usec:-}" ]]; then
+    when=$(( usec / 1000000 ))
+    now=$(date +%s)
+    minutes=$(( (when - now + 59) / 60 ))
+    [[ "$minutes" -lt 0 ]] && minutes=0
+    # Stay quiet for a manual shutdown that is still hours away.
+    [[ "$minutes" -gt "$LEAD_MINUTES" ]] && exit 0
+    lead="${minutes} min"
+else
+    lead="soon"
+fi
+
+if [[ -x "$NOTIFY" ]]; then
+    "$NOTIFY" --priority high --tags warning,arrows_counterclockwise \
+        "reboot on ${host}: in ${lead}" \
+        "Host ${host} will reboot in ${lead} (scheduled shutdown, unattended-upgrades)."
+else
+    logger -t hsp-reboot-notify "reboot on ${host} in ${lead}"
+fi
