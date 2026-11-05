@@ -44,6 +44,12 @@ image_updates_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/h
 image_updates_notify_priority: low
 image_updates_notify_tags: "update_report,docker"
 
+# systemd OnCalendar for the digest. The role does not create its own timer:
+# the schedule belongs to a scheduled_jobs entry, which should reference this
+# variable so the cadence has one home. Any valid OnCalendar works, e.g.
+# "Mon *-*-* 08:00:00" or "*-*-1,15 08:00:00".
+image_updates_schedule: "Sun *-*-* 21:00:00"
+
 # Per-request registry timeout and per-stack `docker compose config` timeout.
 image_updates_registry_timeout: 20
 image_updates_compose_timeout: 30
