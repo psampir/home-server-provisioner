@@ -198,7 +198,7 @@ test-db-dump: ## Test the generic database dump helper
 # Test env is just ENV=test with a pre-built configs/test/ tree that is
 # regenerated from scratch by scripts/test-env.sh (gitignored).
 
-.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision test-wireguard-render test-smoke test-reboot test-nut
+.PHONY: test-env-create test-env-destroy test-env-status test-bootstrap test-provision test-wireguard-render test-smoke test-reboot test-boot-order test-nut
 
 test-env-create: ## Create test VMs and seed configs/test/
 	./scripts/test-env.sh create
@@ -223,6 +223,9 @@ test-smoke: ## end-to-end smoke test from the controller via WG (needs sudo)
 
 test-reboot: ## reboot every test VM and verify services persist across reboots
 	@./scripts/test-reboot-check.sh
+
+test-boot-order: ## verify Docker waits for /srv/data and stale binds are caught
+	@./scripts/test-boot-order.sh
 
 test-nut: ## test the nut role with the dummy UPS driver (ENV=test)
 	@./scripts/test-nut.sh
