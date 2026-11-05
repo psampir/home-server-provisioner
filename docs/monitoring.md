@@ -11,6 +11,7 @@ email is the independent second channel.
 |---|---|
 | `gatus` | Dashboard and checker for HTTP, TCP, DNS and TLS, ntfy alerts, optional external heartbeat |
 | `docker_health` | Pushes container health to a Gatus external endpoint without exposing the Docker socket |
+| `image_updates` | Read-only weekly digest of newer image tags and moved digests, through `hsp-notify` |
 | `notifications` | `hsp-notify` CLI, the ntfy backend and `hsp-disk-check` |
 | `login_notify` | PAM session hook that reports untrusted SSH logins |
 | `smart_monitoring` | `smartd` with alerts and USB bridge quirks for enclosures that hide SMART |
@@ -89,6 +90,7 @@ alerts on silence, with its own grace period.
 make test-gatus
 make test-gatus-heartbeat
 make test-docker-health
+make test-image-updates
 make test-disk-check
 make test-login-notify
 make test-nut-notify

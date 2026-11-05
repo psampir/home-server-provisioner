@@ -48,6 +48,7 @@
     - docker_registry
     - compose_deploy
     - docker_health
+    - image_updates
 
 - name: Backup repository targets
   hosts: backup_targets

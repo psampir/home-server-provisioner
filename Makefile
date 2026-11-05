@@ -126,9 +126,9 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 # --- Local tests (no VMs, no Docker) ---
 
-.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-boot-check test-olivetin-agent
+.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-boot-check test-olivetin-agent test-image-updates
 
-test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-boot-check test-docker-health test-docker-prune test-nut-notify test-login-notify test-gatus-heartbeat test-update-report test-auto-updates test-reboot-notify test-host-ops test-olivetin-agent test-db-dump ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-disk-check test-boot-check test-docker-health test-docker-prune test-image-updates test-nut-notify test-login-notify test-gatus-heartbeat test-update-report test-auto-updates test-reboot-notify test-host-ops test-olivetin-agent test-db-dump ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -162,6 +162,9 @@ test-docker-health: ## Test hsp-docker-health container evaluation and push
 
 test-docker-prune: ## Test hsp-docker-prune image and cache filters
 	python3 tests/test_docker_prune.py
+
+test-image-updates: ## Test the Docker image update digest and registry client
+	python3 tests/test_image_updates.py
 
 test-nut-notify: ## Test the UPS event to ntfy priority mapping
 	python3 tests/test_nut_notify.py

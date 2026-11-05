@@ -1,0 +1,851 @@
+#!/usr/bin/env python3
+"""hsp-image-updates - report Docker images that have a newer version upstream.
+
+Read-only with respect to the host: the deployed image references come from
+`docker compose config` on the stack directories, and the upstream candidates
+come from the registry HTTP API. Nothing is pulled, restarted or written back
+to a stack. The only writes are the JSON state file and one notification.
+
+Compose resolves `image: repo:${VERSION}` itself, so this script never reads
+or prints a stack `.env`; it only consumes the resolved config JSON.
+
+Exit status:
+  0  a completed run, even when some registry lookups failed (they are listed
+     under "errors" in the state file);
+  2  a missing or invalid configuration / stacks directory;
+  1  anything else, so a scheduled job's OnFailure still catches a broken
+     script or a failed notification.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import socket
+import subprocess
+import sys
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+DEFAULT_CONFIG = "/etc/hsp/image-updates.json"
+
+COMPOSE_FILES = (
+    "compose.yaml",
+    "compose.yml",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+)
+
+MANIFEST_ACCEPT = ", ".join(
+    (
+        "application/vnd.docker.distribution.manifest.v2+json",
+        "application/vnd.docker.distribution.manifest.list.v2+json",
+        "application/vnd.oci.image.manifest.v1+json",
+        "application/vnd.oci.image.index.v1+json",
+    )
+)
+
+# Cap a single tag listing. Some projects publish tens of thousands of tags
+# (Immich has ~33k, mostly per-commit builds), so the cap has to be generous;
+# when it is hit the run reports an error instead of silently missing the
+# newest tags.
+MAX_TAGS = 60000
+MAX_BODY_LINES = 20
+NOTIFY_TIMEOUT = 30
+
+# Test-only escape hatch: every registry URL is rewritten to this base, so
+# the test suite can run a local HTTP registry. Never set it on a host.
+TEST_REGISTRY_ENV = "HSP_IMAGE_UPDATES_TEST_REGISTRY"
+TEST_GITHUB_ENV = "HSP_IMAGE_UPDATES_TEST_GITHUB"
+
+DOCKER_HUB_ALIASES = {"docker.io", "index.docker.io", "registry-1.docker.io"}
+
+# [v]MAJOR[.MINOR[.PATCH]][-suffix]. The suffix is deliberately restricted to
+# one leading dash and a lowercase alphanumeric/dot body: that keeps
+# "16-alpine" and "16-alpine3.20" comparable while a compound tag such as
+# "14-vectorchord0.4.3-pg17" stays a non-semver tag that only gets a digest
+# check.
+SEMVER_RE = re.compile(r"^[vV]?(?P<numbers>\d+(?:\.\d+)*)(?P<suffix>-[a-z][a-z0-9.]*)?$")
+PRERELEASE_RE = re.compile(
+    r"(?:^|\.)(?:rc|alpha|beta|pre|preview|dev|snapshot|nightly)(?:\d+)?(?:\.|$)"
+)
+KINDS = ("major", "minor", "patch")
+
+DEFAULTS = {
+    "stacks_dir": "/opt/stacks",
+    "state_file": "/var/lib/hsp/image-updates.json",
+    "include_stacks": [],
+    "exclude_stacks": [],
+    "ignore_images": [],
+    "release_sources": {},
+    "include_major": True,
+    "notify_when_current": False,
+    "notify_bin": "/usr/local/bin/hsp-notify",
+    "notify_priority": "low",
+    "notify_tags": "update_report,docker",
+    "registry_timeout": 20,
+    "compose_timeout": 30,
+}
+
+
+class ConfigError(Exception):
+    """The configuration file is missing or malformed."""
+
+
+class StackError(Exception):
+    """One stack could not be read through docker compose."""
+
+
+class RegistryError(Exception):
+    """One registry request failed."""
+
+
+class NotifyError(Exception):
+    """The notification could not be delivered."""
+
+
+# --------------------------------------------------------------------------
+# Image references
+# --------------------------------------------------------------------------
+
+
+class ImageRef:
+    """A parsed image reference: registry, repository, tag and digest."""
+
+    def __init__(self, raw: str) -> None:
+        self.raw = raw.strip()
+        body = self.raw
+        self.digest: str | None = None
+        if "@" in body:
+            body, digest = body.split("@", 1)
+            self.digest = digest.lower() or None
+
+        slash = body.rfind("/")
+        colon = body.rfind(":")
+        if colon > slash:
+            self.repo_path = body[:colon]
+            self.tag: str | None = body[colon + 1 :] or None
+        else:
+            self.repo_path = body
+            self.tag = None
+
+        first, separator, rest = self.repo_path.partition("/")
+        if separator and ("." in first or ":" in first or first == "localhost"):
+            self.registry = first
+            self.repository = rest
+        else:
+            self.registry = "docker.io"
+            self.repository = self.repo_path
+
+        if self.registry in DOCKER_HUB_ALIASES:
+            self.registry = "docker.io"
+            self.api_host = "registry-1.docker.io"
+            if "/" not in self.repository:
+                self.repository = "library/" + self.repository
+        else:
+            self.api_host = self.registry
+
+    def without_digest(self) -> str:
+        return self.raw.split("@", 1)[0]
+
+    def names(self) -> set[str]:
+        """Every spelling that identifies this image in the ignore list."""
+        return {
+            self.raw,
+            self.without_digest(),
+            self.repo_path,
+            self.repository,
+            f"{self.registry}/{self.repository}",
+            f"{self.api_host}/{self.repository}",
+        }
+
+
+def is_ignored(ref: ImageRef, entries: list[str]) -> bool:
+    wanted = {entry.strip() for entry in entries if entry.strip()}
+    return bool(ref.names() & wanted)
+
+
+# --------------------------------------------------------------------------
+# Semver tags
+# --------------------------------------------------------------------------
+
+
+def parse_semver(tag: str) -> tuple[tuple[int, ...], str] | None:
+    """Return (numeric components, suffix) or None for a non-semver tag."""
+    match = SEMVER_RE.match(tag)
+    if not match:
+        return None
+    numbers = tuple(int(part) for part in match.group("numbers").split("."))
+    return numbers, match.group("suffix") or ""
+
+
+def is_prerelease(suffix: str) -> bool:
+    return bool(PRERELEASE_RE.search(suffix.lstrip("-")))
+
+
+def classify(current: tuple[int, ...], candidate: tuple[int, ...]) -> str:
+    """Name a newer candidate by the most significant component that changed."""
+    index = min(i for i, pair in enumerate(zip(current, candidate)) if pair[0] != pair[1])
+    return KINDS[min(index, len(KINDS) - 1)]
+
+
+# --------------------------------------------------------------------------
+# Registry client
+# --------------------------------------------------------------------------
+
+
+def test_registry() -> str:
+    return os.environ.get(TEST_REGISTRY_ENV, "").strip().rstrip("/")
+
+
+def registry_base(api_host: str) -> str:
+    override = test_registry()
+    if override:
+        return override
+    return f"https://{api_host}"
+
+
+class Registry:
+    """Anonymous-capable registry client built on urllib only."""
+
+    def __init__(self, timeout: int) -> None:
+        self.timeout = timeout
+        self._tokens: dict[tuple[str, str], str] = {}
+        self._tags: dict[tuple[str, str], list[str]] = {}
+        self._digests: dict[tuple[str, str, str], str] = {}
+
+    # -- HTTP ---------------------------------------------------------
+
+    def _map(self, url: str) -> str:
+        override = test_registry()
+        if not override:
+            return url
+        parts = urllib.parse.urlsplit(url)
+        target = override + (parts.path or "/")
+        if parts.query:
+            target += "?" + parts.query
+        return target
+
+    def _get_once(self, url: str, headers: dict[str, str]):
+        request = urllib.request.Request(
+            self._map(url),
+            headers={"User-Agent": "hsp-image-updates/1", **headers},
+        )
+        with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            return response.headers, response.read()
+
+    def _get(self, url: str, accept: str | None = None):
+        headers: dict[str, str] = {}
+        if accept:
+            headers["Accept"] = accept
+        try:
+            return self._get_once(url, headers)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 401:
+                raise RegistryError(f"HTTP {exc.code} for {url}") from exc
+            challenge = exc.headers.get("WWW-Authenticate", "")
+            headers["Authorization"] = "Bearer " + self._token(challenge, url)
+            try:
+                return self._get_once(url, headers)
+            except urllib.error.HTTPError as retry:
+                raise RegistryError(f"HTTP {retry.code} for {url}") from retry
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise RegistryError(f"{url}: {exc}") from exc
+
+    def _token(self, challenge: str, url: str) -> str:
+        scheme, _, params_text = challenge.partition(" ")
+        if scheme.lower() != "bearer":
+            raise RegistryError(f"unsupported auth challenge for {url}")
+        params = dict(re.findall(r'(\w+)="([^"]*)"', params_text))
+        realm = params.get("realm")
+        if not realm:
+            raise RegistryError(f"auth challenge without a realm for {url}")
+
+        scope = params.get("scope", "")
+        key = (realm, scope)
+        if key not in self._tokens:
+            query = {
+                name: value
+                for name, value in params.items()
+                if name in ("service", "scope")
+            }
+            token_url = realm
+            if query:
+                token_url += ("&" if "?" in realm else "?") + urllib.parse.urlencode(query)
+            try:
+                _, body = self._get_once(token_url, {})
+                payload = json.loads(body.decode("utf-8"))
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                raise RegistryError(f"token request failed for {url}: {exc}") from exc
+            except json.JSONDecodeError as exc:
+                raise RegistryError(f"token response is not JSON for {url}: {exc}") from exc
+            token = payload.get("token") or payload.get("access_token")
+            if not token:
+                raise RegistryError(f"token response has no token for {url}")
+            self._tokens[key] = token
+        return self._tokens[key]
+
+    @staticmethod
+    def _next_link(header: str | None, current: str) -> str | None:
+        if not header:
+            return None
+        for part in header.split(","):
+            match = re.search(r"<([^>]+)>\s*;\s*rel=\"?next\"?", part)
+            if match:
+                return urllib.parse.urljoin(current, match.group(1))
+        return None
+
+    # -- API ----------------------------------------------------------
+
+    def tags(self, ref: ImageRef) -> list[str]:
+        key = (ref.api_host, ref.repository)
+        if key in self._tags:
+            return self._tags[key]
+
+        url = f"{registry_base(ref.api_host)}/v2/{ref.repository}/tags/list?n=1000"
+        tags: list[str] = []
+        seen_tags: set[str] = set()
+        seen_urls: set[str] = set()
+        while url and url not in seen_urls and len(tags) < MAX_TAGS:
+            seen_urls.add(url)
+            headers, body = self._get(url, "application/json")
+            try:
+                payload = json.loads(body.decode("utf-8"))
+            except json.JSONDecodeError as exc:
+                raise RegistryError(
+                    f"tags response is not JSON for {ref.repository}: {exc}"
+                ) from exc
+            page = payload.get("tags") or []
+            for tag in page:
+                if tag not in seen_tags:
+                    seen_tags.add(tag)
+                    tags.append(tag)
+            if not page:
+                break
+            url = self._next_link(headers.get("Link"), url)
+
+        if len(tags) >= MAX_TAGS:
+            raise RegistryError(
+                f"tag listing for {ref.repository} hit the {MAX_TAGS}-tag cap; "
+                "newer tags may be missing"
+            )
+        self._tags[key] = tags
+        return self._tags[key]
+
+    def manifest_digest(self, ref: ImageRef, tag: str) -> str:
+        key = (ref.api_host, ref.repository, tag)
+        if key in self._digests:
+            return self._digests[key]
+
+        url = (
+            f"{registry_base(ref.api_host)}/v2/{ref.repository}"
+            f"/manifests/{urllib.parse.quote(tag, safe='')}"
+        )
+        headers, body = self._get(url, MANIFEST_ACCEPT)
+        digest = headers.get("Docker-Content-Digest")
+        if not digest:
+            # Some registries omit the header; the body hash is the same
+            # value the digest would have carried.
+            digest = "sha256:" + hashlib.sha256(body).hexdigest()
+        self._digests[key] = digest.strip().lower()
+        return self._digests[key]
+
+
+# --------------------------------------------------------------------------
+# GitHub releases
+# --------------------------------------------------------------------------
+
+
+def github_base() -> str:
+    return os.environ.get(TEST_GITHUB_ENV, "").strip().rstrip("/") or "https://api.github.com"
+
+
+def github_release_tags(project: str, timeout: int) -> list[str]:
+    """Newest-first release tag names for a GitHub project.
+
+    Some projects publish an impractical number of image tags (Immich's
+    machine-learning image has more than 200,000), so the registry tag list
+    cannot be enumerated. Their GitHub releases are small and already
+    ordered, which makes the comparison cheap. `release_sources` maps an
+    image to the project that publishes its versions.
+    """
+    url = f"{github_base()}/repos/{project}/releases?per_page=100"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "hsp-image-updates/1",
+            "Accept": "application/vnd.github+json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise RegistryError(f"GitHub releases for {project}: HTTP {exc.code}") from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise RegistryError(f"GitHub releases for {project}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise RegistryError(
+            f"GitHub releases for {project} are not JSON: {exc}"
+        ) from exc
+    if not isinstance(payload, list):
+        raise RegistryError(f"GitHub releases for {project} is not a list")
+
+    tags: list[str] = []
+    for release in payload:
+        if not isinstance(release, dict):
+            continue
+        if release.get("draft") or release.get("prerelease"):
+            continue
+        tag = release.get("tag_name")
+        if isinstance(tag, str) and tag:
+            tags.append(tag)
+    return tags
+
+
+def release_source(ref: ImageRef, mapping: dict[str, str]) -> str | None:
+    """Return the configured GitHub project for an image, if any."""
+    for name in ref.names():
+        project = mapping.get(name)
+        if project:
+            return project
+    return None
+
+
+# --------------------------------------------------------------------------
+# Stacks
+# --------------------------------------------------------------------------
+
+
+def discover_stacks(
+    stacks_dir: Path, include: list[str], exclude: list[str]
+) -> list[tuple[str, Path]]:
+    stacks: list[tuple[str, Path]] = []
+    for entry in sorted(stacks_dir.iterdir()):
+        if not entry.is_dir():
+            continue
+        name = entry.name
+        if include and name not in include:
+            continue
+        if name in exclude:
+            continue
+        for filename in COMPOSE_FILES:
+            candidate = entry / filename
+            if candidate.is_file():
+                stacks.append((name, candidate))
+                break
+    return stacks
+
+
+def compose_json(stack: str, compose_file: Path, timeout: int) -> dict:
+    command = [
+        "docker",
+        "compose",
+        "--project-directory",
+        str(compose_file.parent),
+        "-f",
+        str(compose_file),
+        "config",
+        "--format",
+        "json",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise StackError("docker CLI not found") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise StackError(f"docker compose config timed out after {timeout}s") from exc
+
+    if result.returncode != 0:
+        raise StackError(
+            first_line(result.stderr or result.stdout)
+            or f"docker compose config exited {result.returncode}"
+        )
+    try:
+        document = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise StackError(f"cannot parse compose config JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise StackError("compose config is not a JSON object")
+    return document
+
+
+def first_line(text: str, limit: int = 300) -> str:
+    for line in (text or "").strip().splitlines():
+        line = line.strip()
+        if line:
+            return line[:limit]
+    return ""
+
+
+# --------------------------------------------------------------------------
+# Update detection
+# --------------------------------------------------------------------------
+
+
+def finding(stack: str, service: str, ref: ImageRef, available: str | None, kind: str) -> dict:
+    return {
+        "stack": stack,
+        "service": service,
+        "current": ref.without_digest(),
+        "pinned": ref.digest,
+        "available": available,
+        "kind": kind,
+    }
+
+
+def evaluate(
+    registry: Registry,
+    stack: str,
+    service: str,
+    ref: ImageRef,
+    release_sources: dict[str, str],
+) -> tuple[list[dict], list[str]]:
+    """Return the findings and registry errors for one deployed image."""
+    found: list[dict] = []
+    errors: list[str] = []
+    digest_finding: dict | None = None
+
+    if ref.tag is None:
+        # A bare digest reference has nothing to compare a tag against.
+        return found, errors
+
+    if ref.digest:
+        try:
+            resolved = registry.manifest_digest(ref, ref.tag)
+        except RegistryError as exc:
+            errors.append(f"{stack}/{service}: {ref.without_digest()}: {exc}")
+        else:
+            if resolved != ref.digest:
+                digest_finding = finding(stack, service, ref, None, "digest")
+
+    current = parse_semver(ref.tag)
+    if current is not None and not is_prerelease(current[1]):
+        current_numbers, current_suffix = current
+        source = release_source(ref, release_sources)
+        try:
+            if source:
+                tags = github_release_tags(source, registry.timeout)
+            else:
+                tags = registry.tags(ref)
+        except RegistryError as exc:
+            errors.append(f"{stack}/{service}: {ref.without_digest()}: {exc}")
+            tags = []
+
+        best: tuple[tuple[int, ...], str] | None = None
+        for tag in tags:
+            parsed = parse_semver(tag)
+            if parsed is None:
+                continue
+            numbers, suffix = parsed
+            if suffix != current_suffix:
+                continue
+            if len(numbers) != len(current_numbers):
+                continue
+            if is_prerelease(suffix):
+                continue
+            if best is None or (numbers, tag) > best:
+                best = (numbers, tag)
+
+        if best is not None and best[0] > current_numbers:
+            kind = classify(current_numbers, best[0])
+            found.append(
+                finding(stack, service, ref, f"{ref.repo_path}:{best[1]}", kind)
+            )
+            # A newer tag supersedes the "same tag, new build" signal: the
+            # bump the user is going to make covers both.
+            digest_finding = None
+
+    if digest_finding is not None:
+        found.append(digest_finding)
+
+    return found, errors
+
+
+# --------------------------------------------------------------------------
+# Reporting
+# --------------------------------------------------------------------------
+
+
+def finding_line(item: dict) -> str:
+    if item["kind"] == "digest":
+        current = item["current"].split("@", 1)[0]
+        return f"- {item['service']} ({item['stack']}): {current} tag moved (digest)"
+    return (
+        f"- {item['service']} ({item['stack']}): {item['current']}"
+        f" -> {item['available']} ({item['kind']})"
+    )
+
+
+def build_report(findings: list[dict], include_major: bool, errors: list[str]) -> str:
+    """Render the notification body for the findings that will be reported."""
+    majors = [item for item in findings if item["kind"] == "major"] if include_major else []
+    others = [item for item in findings if item["kind"] != "major"]
+
+    lines = [finding_line(item) for item in others]
+    if majors:
+        if lines:
+            lines.append("")
+        lines.append("major:")
+        lines.extend(finding_line(item) for item in majors)
+    if errors:
+        if lines:
+            lines.append("")
+        lines.append(f"{len(errors)} check(s) failed; see the state file")
+
+    if not lines:
+        message = "all pinned images current"
+        if errors:
+            message += f"\n\n{len(errors)} check(s) failed; see the state file"
+        return message
+    if len(lines) > MAX_BODY_LINES:
+        extra = len(lines) - MAX_BODY_LINES
+        lines = lines[:MAX_BODY_LINES] + [f"... and {extra} more"]
+    return "\n".join(lines)
+
+
+def host_name() -> str:
+    return (socket.gethostname() or "localhost").split(".")[0]
+
+
+# --------------------------------------------------------------------------
+# Config, notification and state
+# --------------------------------------------------------------------------
+
+
+def load_config(path: str) -> dict:
+    try:
+        raw = Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ConfigError(f"cannot read {path}: {exc}") from exc
+    try:
+        document = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ConfigError(f"{path} is not valid JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise ConfigError(f"{path} must contain a JSON object")
+
+    config = dict(DEFAULTS)
+    config.update({key: value for key, value in document.items() if not key.startswith("_")})
+
+    for key in ("stacks_dir", "state_file", "notify_bin", "notify_priority", "notify_tags"):
+        value = config.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError(f"{key} must be a non-empty string")
+    for key in ("include_stacks", "exclude_stacks", "ignore_images"):
+        value = config.get(key)
+        if not isinstance(value, list):
+            raise ConfigError(f"{key} must be a list")
+    sources = config.get("release_sources")
+    if not isinstance(sources, dict) or not all(
+        isinstance(name, str) and isinstance(project, str) and name and project
+        for name, project in sources.items()
+    ):
+        raise ConfigError("release_sources must map image names to GitHub projects")
+    for key in ("include_major", "notify_when_current"):
+        if not isinstance(config.get(key), bool):
+            raise ConfigError(f"{key} must be true or false")
+    for key in ("registry_timeout", "compose_timeout"):
+        value = config.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ConfigError(f"{key} must be a positive integer")
+    return config
+
+
+def send_notification(config: dict, subject: str, body: str) -> None:
+    command = [
+        config["notify_bin"],
+        "--priority",
+        str(config["notify_priority"]),
+        "--tags",
+        str(config["notify_tags"]),
+        subject,
+        body,
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=NOTIFY_TIMEOUT,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise NotifyError(f"notify binary not found: {command[0]}") from exc
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise NotifyError(f"{command[0]}: {exc}") from exc
+    if result.returncode != 0:
+        detail = first_line(result.stderr or result.stdout) or f"exit {result.returncode}"
+        raise NotifyError(f"{command[0]} failed: {detail}")
+
+
+def write_state(path: Path, payload: dict) -> None:
+    """Write the state file atomically so a reader never sees half a file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle_fd, temp_name = tempfile.mkstemp(
+        dir=str(path.parent), prefix=path.name + ".", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+        os.chmod(temp_name, 0o644)
+        os.replace(temp_name, path)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+
+
+# --------------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------------
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Report Docker images with a newer tag or a moved digest."
+    )
+    parser.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG,
+        help=f"configuration file (default: {DEFAULT_CONFIG})",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the report, send nothing and do not write the state file",
+    )
+    parser.add_argument(
+        "--no-notify",
+        action="store_true",
+        help="update the state file but send no notification",
+    )
+    parser.add_argument(
+        "--stacks-dir",
+        help="override stacks_dir from the configuration",
+    )
+    return parser
+
+
+def run(args: argparse.Namespace) -> int:
+    try:
+        config = load_config(args.config)
+    except ConfigError as exc:
+        print(f"hsp-image-updates: {exc}", file=sys.stderr)
+        return 2
+
+    stacks_dir = Path(args.stacks_dir or config["stacks_dir"])
+    if not stacks_dir.is_dir():
+        print(
+            f"hsp-image-updates: stacks directory not found: {stacks_dir}",
+            file=sys.stderr,
+        )
+        return 2
+
+    stacks = discover_stacks(
+        stacks_dir, config["include_stacks"], config["exclude_stacks"]
+    )
+    registry = Registry(config["registry_timeout"])
+
+    findings: list[dict] = []
+    errors: list[str] = []
+    scanned: list[str] = []
+
+    for stack, compose_file in stacks:
+        try:
+            document = compose_json(stack, compose_file, config["compose_timeout"])
+        except StackError as exc:
+            errors.append(f"{stack}: {exc}")
+            continue
+        scanned.append(stack)
+
+        services = document.get("services") or {}
+        if not isinstance(services, dict):
+            errors.append(f"{stack}: compose config has no services mapping")
+            continue
+
+        for service in sorted(services):
+            definition = services[service]
+            if not isinstance(definition, dict):
+                continue
+            # Locally built images have no registry tag to compare.
+            if "build" in definition:
+                continue
+            image = definition.get("image")
+            if not isinstance(image, str) or not image.strip():
+                continue
+            ref = ImageRef(image)
+            if is_ignored(ref, config["ignore_images"]):
+                continue
+
+            found, failed = evaluate(
+                registry, stack, service, ref, config["release_sources"]
+            )
+            findings.extend(found)
+            errors.extend(failed)
+
+    findings.sort(key=lambda item: (item["stack"], item["service"], item["kind"]))
+    reported = [item for item in findings if config["include_major"] or item["kind"] != "major"]
+    count = len(reported)
+    host = host_name()
+    subject = f"docker updates {host}: {count} available"
+    body = build_report(findings, config["include_major"], errors)
+
+    if args.dry_run:
+        print(subject)
+        print()
+        print(body)
+        if not count and not config["notify_when_current"]:
+            print()
+            print("(no notification would be sent)", file=sys.stderr)
+        return 0
+
+    state = {
+        "generated_at": datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "host": host,
+        "stacks_scanned": scanned,
+        "findings": findings,
+        "errors": errors,
+    }
+    try:
+        write_state(Path(config["state_file"]), state)
+    except OSError as exc:
+        print(f"hsp-image-updates: cannot write state file: {exc}", file=sys.stderr)
+        return 1
+
+    if not args.no_notify and (count or config["notify_when_current"]):
+        try:
+            send_notification(config, subject, body)
+        except NotifyError as exc:
+            print(f"hsp-image-updates: {exc}", file=sys.stderr)
+            return 1
+
+    print(
+        f"hsp-image-updates: {count} update(s), {len(errors)} error(s), "
+        f"{len(scanned)} stack(s) scanned"
+    )
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    return run(build_parser().parse_args(argv))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

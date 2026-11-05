@@ -278,6 +278,7 @@ Each role is self-contained. The full list:
 | `docker_registry` | Logs the Docker CLI in to private registries before `compose_deploy` pulls images |
 | `compose_deploy` | Auto-discovers and deploys Docker Compose stacks from `configs/<ENV>/stacks/_common/<name>/` (every app server) and `configs/<ENV>/stacks/<hostname>/<name>/` (per-host override). Per-stack directory is synced verbatim - drop `compose.yaml` + `.env` + `Caddyfile` + `config/` next to each other. A stack restarts when a synced or rendered file changed, because compose does not notice a replaced bind-mounted file. |
 | `docker_health` | Pushes Docker container health (healthcheck status for listed containers, running state for the rest) to a Gatus external endpoint, so containers without a published port are monitored without exposing the Docker socket |
+| `image_updates` | Read-only weekly digest of Docker images whose registry offers a newer tag or whose pinned digest moved, sent through `hsp-notify` |
 
 > [!WARNING]
 > **Published container ports bypass UFW.** Docker writes its own

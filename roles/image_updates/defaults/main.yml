@@ -1,0 +1,49 @@
+# image_updates - weekly read-only report of Docker image updates.
+#
+# The role is inert until enabled. It installs a reporter that compares the
+# image references resolved from the deployed Compose stacks against the tags
+# their registries currently offer, then sends one ntfy digest. Nothing is
+# pulled or restarted; the schedule is a scheduled_jobs entry.
+image_updates_enabled: false
+
+image_updates_bin: /usr/local/bin/hsp-image-updates
+image_updates_config: /etc/hsp/image-updates.json
+image_updates_state_file: /var/lib/hsp/image-updates.json
+
+# Directory compose_deploy writes the stacks to on this host.
+image_updates_stacks_dir: /opt/stacks
+
+# Restrict and drop stacks by directory name. An empty include list means
+# every discovered stack is examined.
+image_updates_include_stacks: []
+image_updates_exclude_stacks: []
+
+# Exact image references or repository names to skip, for example an image
+# that intentionally stays on an old major.
+image_updates_ignore_images: []
+
+# Map an image to the GitHub project that publishes its versions, for
+# projects whose registry tag list is unusable. Immich's machine-learning
+# image has more than 200,000 tags, so listing them is not practical; its
+# releases are a short, ordered list. Keys are repository names as they
+# appear in the Compose file:
+#
+#   image_updates_release_sources:
+#     "ghcr.io/immich-app/immich-server": "immich-app/immich"
+#     "ghcr.io/immich-app/immich-machine-learning": "immich-app/immich"
+image_updates_release_sources: {}
+
+# Report major version jumps in a separate section. Setting this to false
+# drops them from the digest entirely, so the report stays actionable.
+image_updates_include_major: true
+
+# Send a digest on a run that found nothing, as a sign of life.
+image_updates_notify_when_current: false
+
+image_updates_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
+image_updates_notify_priority: low
+image_updates_notify_tags: "update_report,docker"
+
+# Per-request registry timeout and per-stack `docker compose config` timeout.
+image_updates_registry_timeout: 20
+image_updates_compose_timeout: 30
