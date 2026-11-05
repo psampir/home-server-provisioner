@@ -54,3 +54,12 @@
     user: "{{ admin_user_name }}"
     key: "{{ admin_user_ssh_pubkey }}"
     state: present
+
+- name: Authorize extra SSH keys for admin user
+  ansible.posix.authorized_key:
+    user: "{{ admin_user_name }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ admin_user_extra_ssh_pubkeys }}"
+  loop_control:
+    label: "recovery key"

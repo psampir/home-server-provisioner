@@ -24,9 +24,10 @@ row per container instead of a single boolean. Only the aggregate
 endpoint carries alerts and the heartbeat, so a dead script pages once
 rather than once per container.
 
-Gatus raises the alert, and its endpoint heartbeat catches the case where
-the script stops running at all. The scheduled job's `notify_on_failure`
-covers the case where the script runs but cannot reach Gatus.
+Gatus raises the alert, and its endpoint heartbeat (3 minutes) catches the
+case where the script stops running or cannot reach Gatus. A transient TLS
+or network failure during a Caddy reload is retried and is not paged as a
+systemd unit failure; the heartbeat is the watchdog for the monitoring path.
 
 ## Variables
 
