@@ -12,6 +12,9 @@ Group={{ job.group | default(job.user | default('root')) }}
 {% if job.working_directory is defined %}
 WorkingDirectory={{ job.working_directory }}
 {% endif %}
+{% if job.environment_file is defined and job.environment_file | length > 0 %}
+EnvironmentFile=-{{ scheduled_jobs_env_dir }}/{{ job.name }}.env
+{% endif %}
 {% for k, v in (job.environment | default({})).items() %}
 Environment={{ k }}={{ v }}
 {% endfor %}

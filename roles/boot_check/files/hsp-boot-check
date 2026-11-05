@@ -22,6 +22,8 @@ retry=120
 docker_enabled=0
 priority=urgent
 tags=boot,floppy_disk
+healthchecks_url=""
+notified=0
 mounts=()
 sources=()
 failures=()
@@ -39,6 +41,7 @@ while read -r kind a b; do
         notify) NOTIFY="$a" ;;
         priority) priority="$a" ;;
         tags) tags="$a" ;;
+        healthchecks) healthchecks_url="$a" ;;
         mount)
             if [[ -z "${a:-}" || -z "${b:-}" ]]; then
                 echo "boot check: invalid mount line" >&2
@@ -57,6 +60,34 @@ done < "$CONFIG"
 fail() {
     failures+=("$*")
 }
+
+ping_healthchecks() {
+    [[ -n "$healthchecks_url" ]] || return 0
+    curl -fsS -m 10 --retry 2 "$healthchecks_url" >/dev/null 2>&1 || \
+        logger -t hsp-boot-check "healthchecks ping failed"
+}
+
+finish() {
+    local rc=$?
+    trap - EXIT
+    if (( rc != 0 )) && (( notified == 0 )); then
+        # The script exited before its explicit failure block; still tell
+        # the operator. The healthchecks ping below means "the job ran";
+        # this notification carries the actual error.
+        local host
+        host=$(hostname -s)
+        if [[ -x "$NOTIFY" ]]; then
+            "$NOTIFY" --priority "$priority" --tags "$tags" \
+                "boot check failed on $host" "unexpected exit $rc" || true
+        else
+            logger -t hsp-boot-check "unexpected exit $rc"
+        fi
+    fi
+    ping_healthchecks
+    exit "$rc"
+}
+
+trap finish EXIT
 
 mount_source() {
     findmnt -rn -M "$1" -o SOURCE 2>/dev/null | head -n 1
@@ -181,6 +212,7 @@ if (( ${#failures[@]} > 0 )); then
     else
         logger -t hsp-boot-check "$body"
     fi
+    notified=1
     exit 1
 fi
 

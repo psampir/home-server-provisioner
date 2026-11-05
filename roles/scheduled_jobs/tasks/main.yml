@@ -59,6 +59,14 @@
     group: root
     mode: "0755"
 
+- name: Ensure the scheduled jobs environment directory exists
+  ansible.builtin.file:
+    path: "{{ scheduled_jobs_env_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Read previous manifest (if any)
   ansible.builtin.slurp:
     src: "{{ scheduled_jobs_manifest_path }}"
@@ -80,6 +88,40 @@
     scheduled_jobs_to_remove: >-
       {{ (_previous | difference(scheduled_jobs_managed) + _explicit_absent)
          | unique | sort }}
+
+- name: Render secret environment files for scheduled jobs
+  when:
+    - job.environment_file is defined
+    - job.environment_file | length > 0
+  ansible.builtin.template:
+    src: scheduled_jobs.env.j2
+    dest: "{{ scheduled_jobs_env_dir }}/{{ job.name }}.env"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ scheduled_jobs_present }}"
+  loop_control:
+    loop_var: job
+    label: "{{ scheduled_jobs_env_dir }}/{{ job.name }}.env"
+  no_log: true
+
+- name: Remove secret environment files for jobs that no longer need one
+  when: (job.environment_file | default({}) | length) == 0
+  ansible.builtin.file:
+    path: "{{ scheduled_jobs_env_dir }}/{{ job.name }}.env"
+    state: absent
+  loop: "{{ scheduled_jobs_present }}"
+  loop_control:
+    loop_var: job
+    label: "{{ scheduled_jobs_env_dir }}/{{ job.name }}.env"
+
+- name: Remove secret environment files for removed jobs
+  ansible.builtin.file:
+    path: "{{ scheduled_jobs_env_dir }}/{{ item | regex_replace('^' ~ scheduled_jobs_unit_prefix, '') }}.env"
+    state: absent
+  loop: "{{ scheduled_jobs_to_remove }}"
+  loop_control:
+    label: "{{ item }}"
 
 - name: Render service unit files (present)
   ansible.builtin.template:

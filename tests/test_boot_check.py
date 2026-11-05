@@ -88,6 +88,10 @@ FAKE_NOTIFY = """#!/bin/sh
 printf '%s\\n' "$*" >> "$NOTIFY_LOG"
 """
 
+FAKE_CURL = """#!/bin/sh
+printf '%s\\n' "$*" >> "$PING_LOG"
+"""
+
 
 def write_fake(path: Path, content: str) -> None:
     path.write_text(content)
@@ -100,6 +104,7 @@ def run(config: Path, proc_root: Path, bin_dir: Path, log: Path, **env_extra: st
     env["BOOT_CHECK_CONFIG"] = str(config)
     env["BOOT_CHECK_PROC_ROOT"] = str(proc_root)
     env["NOTIFY_LOG"] = str(log)
+    env["PING_LOG"] = str(config.parent / "ping.log")
     env.update(env_extra)
     return subprocess.run(
         ["bash", str(SCRIPT)],
@@ -121,6 +126,7 @@ def main() -> int:
         write_fake(bin_dir / "systemctl", FAKE_SYSTEMCTL)
         write_fake(bin_dir / "systemd-escape", FAKE_SYSTEMD_ESCAPE)
         write_fake(bin_dir / "docker", FAKE_DOCKER)
+        write_fake(bin_dir / "curl", FAKE_CURL)
         notify = bin_dir / "hsp-notify"
         write_fake(notify, FAKE_NOTIFY)
 
@@ -131,6 +137,7 @@ def main() -> int:
             f"notify {notify}\n"
             f"priority urgent\n"
             f"tags boot,floppy_disk\n"
+            f"healthchecks http://example.test/ping\n"
             f"mount /srv/data /dev/sdb1\n"
         )
         log = root / "notify.log"
@@ -139,6 +146,9 @@ def main() -> int:
         assert result.returncode == 0, (result.stdout, result.stderr)
         assert "boot check OK" in result.stdout, result.stdout
         assert not log.exists(), log.read_text() if log.exists() else ""
+        ping_log = root / "ping.log"
+        assert ping_log.exists(), "healthchecks ping was not sent"
+        assert "http://example.test/ping" in ping_log.read_text(), ping_log.read_text()
 
         log.unlink(missing_ok=True)
         pid_dir = proc_root / "123"

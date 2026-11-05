@@ -26,3 +26,9 @@ boot_check_retry_seconds: 120
 boot_check_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
 boot_check_notify_priority: urgent
 boot_check_notify_tags: "boot,floppy_disk"
+
+# Optional external dead-man's switch. The script pings this URL after
+# every run, including a failed one, so the external service only alerts
+# when the check did not run at all. Keep the URL in Vault; the rendered
+# config file is mode 0600.
+boot_check_healthchecks_url: ""
