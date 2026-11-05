@@ -1,0 +1,16 @@
+{{ {
+  "_comment": ansible_managed,
+  "stacks_dir": image_updates_stacks_dir,
+  "state_file": image_updates_state_file,
+  "include_stacks": image_updates_include_stacks,
+  "exclude_stacks": image_updates_exclude_stacks,
+  "ignore_images": image_updates_ignore_images,
+  "release_sources": image_updates_release_sources,
+  "include_major": image_updates_include_major | bool,
+  "notify_when_current": image_updates_notify_when_current | bool,
+  "notify_bin": image_updates_notify_bin,
+  "notify_priority": image_updates_notify_priority,
+  "notify_tags": image_updates_notify_tags,
+  "registry_timeout": image_updates_registry_timeout | int,
+  "compose_timeout": image_updates_compose_timeout | int
+} | to_nice_json }}

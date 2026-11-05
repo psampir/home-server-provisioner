@@ -1,0 +1,67 @@
+- name: Remove the image updates files when disabled
+  when: not (image_updates_enabled | bool)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ image_updates_bin }}"
+    - "{{ image_updates_config }}"
+
+- name: Stop here when image updates is disabled
+  when: not (image_updates_enabled | bool)
+  ansible.builtin.meta: end_role
+
+- name: Validate the image updates configuration
+  ansible.builtin.assert:
+    that:
+      - image_updates_stacks_dir is string
+      - (image_updates_stacks_dir | length) > 0
+      - (image_updates_registry_timeout | int) > 0
+      - (image_updates_compose_timeout | int) > 0
+    fail_msg: >-
+      image_updates_enabled is true but the configuration is incomplete.
+      Set image_updates_stacks_dir and keep both timeouts positive.
+
+- name: Check that the stacks directory exists
+  ansible.builtin.stat:
+    path: "{{ image_updates_stacks_dir }}"
+  register: image_updates_stacks_stat
+
+- name: Validate the stacks directory
+  ansible.builtin.assert:
+    that:
+      - image_updates_stacks_stat.stat.isdir | default(false)
+    fail_msg: >-
+      image_updates_enabled is true but image_updates_stacks_dir
+      ({{ image_updates_stacks_dir }}) is missing or not a directory.
+      Point it at the directory compose_deploy writes the stacks to, or
+      enable compose_deploy first.
+
+- name: Ensure the image updates directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ image_updates_config | dirname }}"
+    - "{{ image_updates_state_file | dirname }}"
+
+- name: Install hsp-image-updates
+  ansible.builtin.copy:
+    src: hsp-image-updates
+    dest: "{{ image_updates_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+# No secrets here: the state file path, the stack filters and the notify
+# metadata. The script writes the state file itself.
+- name: Render the image updates configuration
+  ansible.builtin.template:
+    src: image-updates.json.j2
+    dest: "{{ image_updates_config }}"
+    owner: root
+    group: root
+    mode: "0644"
