@@ -25,6 +25,7 @@ account Ansible itself connects as.
 | `admin_user_shell` | `bash` | Shell package/name; resolved to an absolute path. |
 | `admin_user_extra_packages` | `[]` | Extra packages installed with the role. |
 | `admin_user_ssh_pubkey` | `"{{ service_user_ssh_pubkey }}"` | Key authorized for the account. |
+| `admin_user_extra_ssh_pubkeys` | `[]` | Additional keys, e.g. an offline recovery key. |
 
 ## Pinning the UID
 

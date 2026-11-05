@@ -24,9 +24,12 @@ account takes over from `base` onwards.
 | `service_user_name` | `ansible` | Account name |
 | `service_user_shell` | `/bin/bash` | Login shell for the account |
 | `service_user_ssh_pubkey` | contents of `SSH_PUBKEY_FILE` or `~/.ssh/id_ed25519.pub` | Public key authorized for SSH |
+| `service_user_extra_ssh_pubkeys` | `[]` | Additional keys, e.g. an offline recovery key |
 
 Set `SSH_PUBKEY_FILE` in `.env` to use a key other than the controller's
-standard ed25519 key.
+standard ed25519 key. `service_user_extra_ssh_pubkeys` adds keys without
+replacing it; use it for a recovery key whose private half is kept offline
+(for example in the password manager) and never committed.
 
 ## Notes
 

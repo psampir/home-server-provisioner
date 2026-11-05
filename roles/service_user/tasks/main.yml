@@ -26,3 +26,12 @@
     user: "{{ service_user_name }}"
     key: "{{ service_user_ssh_pubkey }}"
     state: present
+
+- name: Authorize extra SSH keys for service user
+  ansible.posix.authorized_key:
+    user: "{{ service_user_name }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ service_user_extra_ssh_pubkeys }}"
+  loop_control:
+    label: "recovery key"

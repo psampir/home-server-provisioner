@@ -11,3 +11,7 @@ admin_user_uid: ""
 admin_user_shell: bash
 admin_user_extra_packages: []
 admin_user_ssh_pubkey: "{{ service_user_ssh_pubkey }}"
+
+# Additional public keys authorized for the admin user. Keep the recovery
+# private key offline; the public key can live in Vault.
+admin_user_extra_ssh_pubkeys: []

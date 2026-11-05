@@ -108,8 +108,9 @@ push_status() {
         --silent
         --show-error
         --max-time "$TIMEOUT"
-        --retry 2
-        --retry-delay 2
+        --retry 3
+        --retry-delay 3
+        --retry-all-errors
         -X POST
         -H "Authorization: Bearer ${GATUS_TOKEN}"
         --url-query "success=${success}"
