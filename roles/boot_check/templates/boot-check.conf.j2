@@ -4,6 +4,9 @@ docker {{ 1 if boot_check_docker else 0 }}
 notify {{ boot_check_notify_bin }}
 priority {{ boot_check_notify_priority }}
 tags {{ boot_check_notify_tags }}
+{% if boot_check_healthchecks_url %}
+healthchecks {{ boot_check_healthchecks_url }}
+{% endif %}
 {% for mount in boot_check_mounts %}
 mount {{ mount.path }} {{ mount.source }}
 {% endfor %}

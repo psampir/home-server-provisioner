@@ -39,6 +39,7 @@ files deleted, daemon reloaded) on the next run.
 | `group` | no | same as `user` | `Group=` on the service |
 | `working_directory` | no | (unset) | `WorkingDirectory=` on the service |
 | `environment` | no | `{}` | Dict → `Environment=` lines |
+| `environment_file` | no | (unset) | Dict → `/etc/hsp/scheduled-jobs/<name>.env` mode `0600`, loaded with `EnvironmentFile=` |
 | `log_file` | no | (unset) | Wraps `ExecStart` with `sh -c '… >> <path> 2>&1'`; pre-created `0640 user:group` |
 | `persistent` | no | `true` | `Persistent=` on the timer (catch up missed runs) |
 | `randomized_delay` | no | (unset) | `RandomizedDelaySec=` |
@@ -71,6 +72,16 @@ scheduled_jobs_host:
     randomized_delay: "10m"
     environment:
       BORG_REPO: "ssh://backup@hsp-backup/./repo"
+```
+
+Use `environment_file` instead of `environment` for secrets. It renders a
+root-only `0600` file at `/etc/hsp/scheduled-jobs/<name>.env` and loads it
+with `EnvironmentFile=`, so the value is not readable from the `0644` unit
+file:
+
+```yaml
+    environment_file:
+      RESTORE_DRILL_HEALTHCHECKS_URL: "{{ vault_healthchecks_restore_drill }}"
 ```
 
 ### Common: rotate /var/log/legacy-app, every host, opt-out of alerts

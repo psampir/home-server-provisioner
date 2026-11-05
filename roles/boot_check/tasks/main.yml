@@ -73,7 +73,7 @@
     dest: "{{ boot_check_config }}"
     owner: root
     group: root
-    mode: "0644"
+    mode: "0600"
 
 - name: Render the boot check service
   ansible.builtin.template:

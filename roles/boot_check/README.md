@@ -43,6 +43,7 @@ Disabled by default. Enable it on hosts with removable or late mounts;
 | `boot_check_notify_bin` | `hsp-notify` | Notification helper |
 | `boot_check_notify_priority` | `urgent` | ntfy priority |
 | `boot_check_notify_tags` | `boot,floppy_disk` | ntfy tags |
+| `boot_check_healthchecks_url` | empty | External heartbeat ping URL; kept in Vault |
 
 ## Example
 
@@ -64,6 +65,15 @@ journalctl -u hsp-boot-check.service -n 30 --no-pager
 The timer runs after every boot and daily, so a container restarted with a
 stale bind later is caught too. The check does not restart Docker; it only
 reports the problem. Use OliveTin or a manual run to repair it.
+
+## Heartbeat
+
+`boot_check_healthchecks_url` is optional. When set, the script pings the
+URL after **every** run, including a failed one. The external service is
+therefore a dead-man's switch for "the check did not run", not a second
+failure channel: actual failures still go to ntfy immediately. The URL is
+stored in Vault and rendered into `/etc/hsp/boot-check.conf`, which is
+mode `0600`.
 
 ## Limitations
 

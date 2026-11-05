@@ -24,6 +24,11 @@
 #   working_directory:  (optional) WorkingDirectory= for the service.
 #   environment:        (optional) Dict of env vars rendered as Environment=
 #                       lines on the service unit.
+#   environment_file:   (optional) Dict of secret env vars rendered to
+#                       <scheduled_jobs_env_dir>/<name>.env (mode 0600) and
+#                       loaded with EnvironmentFile=. Use this instead of
+#                       `environment` for values that must not be readable
+#                       from the 0644 unit file.
 #   log_file:           (optional) Absolute path. When set, ExecStart wraps
 #                       the command with `sh -c '... >> <log_file> 2>&1'`
 #                       and the file is pre-created with mode 0640 owned by
@@ -51,6 +56,9 @@ scheduled_jobs_host: []
 # the next run (stop+disable timer, stop service, rm unit files,
 # daemon-reload).
 scheduled_jobs_manifest_path: /var/lib/home-server-provisioner/scheduled_jobs.manifest
+
+# Directory for secret per-job environment files (mode 0600).
+scheduled_jobs_env_dir: /etc/hsp/scheduled-jobs
 
 # --- Unit name prefix (rarely overridden) ---
 # All units this role creates are prefixed so they do not collide with
