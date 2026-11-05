@@ -66,12 +66,30 @@ broken run or a failed notification exits non-zero, so the scheduled job's
 | `image_updates_notify_bin` | `hsp-notify` | Notification helper |
 | `image_updates_notify_priority` | `low` | ntfy priority |
 | `image_updates_notify_tags` | `update_report,docker` | ntfy tags |
+| `image_updates_schedule` | `Sun *-*-* 21:00:00` | `OnCalendar` for the scheduled job; the role creates no timer |
 | `image_updates_registry_timeout` | `20` | Seconds per registry request |
 | `image_updates_compose_timeout` | `30` | Seconds per `docker compose config` |
 
 The rendered JSON uses the variable name without the `image_updates_`
 prefix (`stacks_dir`, `ignore_images`, `notify_bin`, ...), and the script
 falls back to the same values when a key is absent.
+
+The digest cadence is not baked into the script: it is the `schedule` of the
+`scheduled_jobs` entry. Reference `image_updates_schedule` there so the
+interval lives with the rest of the role settings:
+
+```yaml
+scheduled_jobs_host:
+  - name: image-updates
+    command: /usr/local/bin/hsp-image-updates
+    schedule: "{{ image_updates_schedule }}"
+    description: "Weekly Docker image update digest"
+    notify_on_failure: true
+```
+
+Define `image_updates_schedule` in `host_vars` (not only in the role
+defaults), because `scheduled_jobs` renders its units in an earlier play
+than this role runs.
 
 ## Example
 
