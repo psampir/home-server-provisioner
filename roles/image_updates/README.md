@@ -44,9 +44,13 @@ notification, and the schedule belongs to `scheduled_jobs`.
    false means no notification at all; the state file is still written.
 
 Registry failures are not fatal: they land in `errors` in the state file
-and the run exits 0. A missing config or stacks directory exits 2, and a
-broken run or a failed notification exits non-zero, so the scheduled job's
-`OnFailure` still fires for a reporter that stopped working.
+and the run exits 0. Transient responses (HTTP 429/502/503/504) are retried,
+up to 3 attempts with exponential backoff, honouring the registry's
+`Retry-After` header when it gives a number of seconds; a failure that
+persists is still recorded in `errors` and stays non-fatal. A missing config
+or stacks directory exits 2, and a broken run or a failed notification exits
+non-zero, so the scheduled job's `OnFailure` still fires for a reporter that
+stopped working.
 
 ## Variables
 

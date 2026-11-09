@@ -57,9 +57,18 @@ def digest_for(repo: str, tag: str) -> str:
 def serve_registry(
     tags_by_repo: dict[str, list[str]],
     releases_by_project: dict[str, list[dict]] | None = None,
+    flaky_manifests: dict[tuple[str, str], int] | None = None,
 ):
-    """Start a fake registry and return (server, base URL)."""
+    """Start a fake registry and return (server, base URL, manifest request counts).
+
+    `flaky_manifests` maps a (repo, tag) to how many manifest requests should
+    answer 429 (with `Retry-After: 0`) before serving normally. The returned
+    counter dict records every manifest request, so a test can prove that the
+    reporter retried exactly as often as intended.
+    """
     releases_by_project = releases_by_project or {}
+    flaky = dict(flaky_manifests or {})
+    manifest_hits: dict[tuple[str, str], int] = {}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args) -> None:  # keep the test output quiet
@@ -116,6 +125,16 @@ def serve_registry(
             if "/manifests/" in path:
                 repo, tag = path[len("/v2/") :].split("/manifests/", 1)
                 tag = urllib.parse.unquote(tag)
+                key = (repo, tag)
+                manifest_hits[key] = manifest_hits.get(key, 0) + 1
+                if flaky.get(key, 0) > 0:
+                    flaky[key] -= 1
+                    self._json(
+                        429,
+                        {"errors": [{"code": "TOOMANYREQUESTS"}]},
+                        {"Retry-After": "0"},
+                    )
+                    return
                 if tag not in tags_by_repo.get(repo, []):
                     self._json(404, {"errors": [{"code": "MANIFEST_UNKNOWN"}]})
                     return
@@ -140,7 +159,7 @@ def serve_registry(
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    return server, f"http://127.0.0.1:{server.server_address[1]}"
+    return server, f"http://127.0.0.1:{server.server_address[1]}", manifest_hits
 
 
 class Case:
@@ -257,11 +276,18 @@ TAGS = {
     "acme/pg": ["14-vectorchord0.4.3-pg17", "15-vectorchord0.4.3-pg17"],
     "acme/tool": ["v3.3.5", "v3.4.0"],
     "acme/current": ["1.2.3"],
+    # Retry scenarios: "flaky" fails twice, "stuck" never recovers.
+    "acme/flaky": ["2.0.0"],
+    "acme/stuck": ["2.0.0"],
 }
+
+# The first two manifest requests for "flaky" answer 429; "stuck" has enough
+# failures to outlast every attempt of the retry loop.
+FLAKY_MANIFESTS = {("acme/flaky", "2.0.0"): 2, ("acme/stuck", "2.0.0"): 10}
 
 
 def main() -> int:
-    server, registry_url = serve_registry(TAGS, RELEASES)
+    server, registry_url, manifest_hits = serve_registry(TAGS, RELEASES, FLAKY_MANIFESTS)
     try:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -420,6 +446,62 @@ def main() -> int:
                 raise SystemExit(
                     f"missing stacks dir: rc={result.returncode} stderr={result.stderr!r}"
                 )
+
+            # -- transient 429 is retried and the check still succeeds ------
+            transient = Case(root / "transient", registry_url)
+            transient.stack(
+                "retry",
+                {
+                    "app": {
+                        "image": "ghcr.io/acme/flaky:2.0.0@"
+                        + digest_for("acme/flaky", "2.0.0")
+                    }
+                },
+            )
+            result = transient.run()
+            if result.returncode != 0:
+                raise SystemExit(f"transient retry run failed: {result.stderr}")
+            state = json.loads(transient.state.read_text())
+            if state["errors"]:
+                raise SystemExit(f"transient 429 was not retried: {state['errors']!r}")
+            if state["findings"]:
+                raise SystemExit(f"transient run invented findings: {state['findings']!r}")
+            hits = manifest_hits.get(("acme/flaky", "2.0.0"), 0)
+            if hits != 3:
+                raise SystemExit(f"expected 3 manifest attempts, saw {hits}")
+
+            # -- a persistent 429 stays non-fatal and lands in errors ------
+            persistent = Case(root / "persistent", registry_url)
+            persistent.stack(
+                "stuck",
+                {
+                    "app": {
+                        "image": "ghcr.io/acme/stuck:2.0.0@sha256:"
+                        + hashlib.sha256(b"never").hexdigest()
+                    }
+                },
+            )
+            # Nothing is outdated here, so the sign-of-life flag is what makes
+            # the failure line reach the notification body at all.
+            persistent.write_config(notify_when_current=True)
+            result = persistent.run()
+            if result.returncode != 0:
+                raise SystemExit(f"persistent 429 failed the run: {result.stderr}")
+            state = json.loads(persistent.state.read_text())
+            if not any(
+                "HTTP 429 for " in error
+                and "/v2/acme/stuck/manifests/2.0.0" in error
+                for error in state["errors"]
+            ):
+                raise SystemExit(f"persistent 429 was not recorded: {state['errors']!r}")
+            hits = manifest_hits.get(("acme/stuck", "2.0.0"), 0)
+            if hits != 3:
+                raise SystemExit(f"expected 3 manifest attempts, saw {hits}")
+            messages = persistent.notifications()
+            if len(messages) != 1:
+                raise SystemExit(f"expected one failure notification, got {messages!r}")
+            if not messages[0][-1].endswith("1 check(s) failed; see the state file"):
+                raise SystemExit(f"failure line missing from body: {messages[0][-1]!r}")
     finally:
         server.shutdown()
         server.server_close()
