@@ -128,6 +128,18 @@ make provision              # ENV=prod by default
 
 Runs the full provisioning playbook as the `ansible` user. Safe to re-run - all tasks are idempotent.
 
+Every role is tagged with its own name, so a single role can be re-run:
+
+```bash
+make provision ENV=prod LIMIT=app1 TAGS=caddy
+make provision ENV=sampirium LIMIT=gate TAGS=gatus
+```
+
+`TAGS` accepts a comma-separated list (`TAGS=dnsmasq,caddy,gatus`).
+`compose_deploy` also carries the `stacks` tag and `local_ssh_config` carries
+`ssh_config`. A tagged run skips the `wireguard-keys` prerequisite and every
+other role, so use it for targeted re-runs, not for provisioning a fresh host.
+
 ### 5. Deploy only Compose stacks
 
 ```bash
@@ -390,7 +402,7 @@ build container must read. See
 | `make setup` | Install Ansible, ansible-lint, and the required collections |
 | `make init-config ENV=prod` | Create `configs/prod/` from the example tree |
 | `make bootstrap ENV=prod` | First run on fresh hosts |
-| `make provision ENV=prod` | Full site play |
+| `make provision ENV=prod [TAGS=<tag,...>]` | Full site play, or only tagged roles |
 | `make stacks ENV=prod LIMIT=<host>` | Deploy only Compose stacks |
 | `make ssh-config ENV=prod` | Regenerate the controller's `~/.ssh/config.d/` entry |
 | `make host HOST=<name>` | Show inventory variables, with secrets redacted |

@@ -24,6 +24,11 @@ endif
 ENV ?= prod
 LIMIT ?=
 LIMIT_FLAG = $(if $(strip $(LIMIT)),--limit $(LIMIT),)
+TAGS ?=
+TAGS_FLAG = $(if $(strip $(TAGS)),--tags '$(TAGS)',)
+# A tagged run is a targeted re-run; skip the WireGuard key maintenance
+# (wireguard-keys can create and commit vault changes).
+PROVISION_DEPS = $(if $(strip $(TAGS)),,wireguard-keys)
 ENV_DIR = configs/$(ENV)
 INVENTORY = $(ENV_DIR)/inventory
 VAULT_FILE ?= $(INVENTORY)/group_vars/all/vault.yml
@@ -49,11 +54,11 @@ WG_KEYS_FLAGS ?=
 bootstrap: ## First run on fresh hosts (ENV=prod by default)
 	ansible-playbook playbooks/bootstrap.yml -i $(INVENTORY) -e 'ansible_user={{ bootstrap_user }}' $(BOOTSTRAP_FLAGS) $(LIMIT_FLAG)
 
-provision: wireguard-keys ## Run full site playbook (ENV=prod by default)
-	ansible-playbook playbooks/site.yml -i $(INVENTORY) $(LIMIT_FLAG)
+provision: $(PROVISION_DEPS) ## Run full site playbook (ENV=prod by default; TAGS=<tag,...> for a subset)
+	ansible-playbook playbooks/site.yml -i $(INVENTORY) $(LIMIT_FLAG) $(TAGS_FLAG)
 
-stacks: ## Deploy only Docker Compose stacks (ENV=prod by default)
-	ansible-playbook playbooks/stacks.yml -i $(INVENTORY) $(LIMIT_FLAG)
+stacks: ## Deploy only Docker Compose stacks (ENV=prod by default; TAGS=<tag,...>)
+	ansible-playbook playbooks/stacks.yml -i $(INVENTORY) $(LIMIT_FLAG) $(TAGS_FLAG)
 
 ssh-config: ## Regenerate the local ~/.ssh/config.d entry for ENV
 	ansible-playbook playbooks/site.yml -i $(INVENTORY) --limit localhost
@@ -62,8 +67,8 @@ host: ## Show inventory variables for HOST, with secrets redacted
 	@test -n "$(HOST)" || { echo "usage: make host HOST=<name>"; exit 2; }
 	@ansible-inventory -i $(INVENTORY) --host $(HOST) | scripts/show-host-vars.py
 
-plan: ## List the tasks the playbook would run for LIMIT
-	ansible-playbook playbooks/site.yml -i $(INVENTORY) $(LIMIT_FLAG) --list-tasks
+plan: ## List the tasks the playbook would run for LIMIT (TAGS=<tag,...>)
+	ansible-playbook playbooks/site.yml -i $(INVENTORY) $(LIMIT_FLAG) $(TAGS_FLAG) --list-tasks
 
 wireguard-keys: ## Generate/prune WireGuard client keys (vaulted, auto-committed)
 	scripts/wg-ensure-keys.py --inventory $(INVENTORY) $(WG_KEYS_FLAGS)
