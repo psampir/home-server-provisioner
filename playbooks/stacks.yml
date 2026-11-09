@@ -2,4 +2,4 @@
 - name: Deploy Docker Compose stacks
   hosts: app_servers
   roles:
-    - compose_deploy
+    - { role: compose_deploy, tags: [compose_deploy, stacks] }

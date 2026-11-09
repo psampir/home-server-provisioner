@@ -1,59 +1,59 @@
 - name: Base system provisioning
   hosts: servers
   roles:
-    - hostname
-    - timezone_locale
-    - time_sync
-    - service_user
-    - base
-    - etckeeper
-    - beszel_agent
-    - laptop_power
-    - nut
-    - admin_user
-    - admin_dotfiles
-    - ssh_hardening
-    - notifications
-    - login_notify
-    - auto_updates
-    - journal
-    - fail2ban
-    - firewall
-    - wireguard
-    - swap
-    - storage
-    - boot_check
-    - network_mounts
-    - smart_monitoring
-    - borgmatic
-    - custom_scripts
-    - db_dump
-    - systemd_units
-    - scheduled_jobs
-    - olivetin_agent
+    - { role: hostname, tags: [hostname] }
+    - { role: timezone_locale, tags: [timezone_locale] }
+    - { role: time_sync, tags: [time_sync] }
+    - { role: service_user, tags: [service_user] }
+    - { role: base, tags: [base] }
+    - { role: etckeeper, tags: [etckeeper] }
+    - { role: beszel_agent, tags: [beszel_agent] }
+    - { role: laptop_power, tags: [laptop_power] }
+    - { role: nut, tags: [nut] }
+    - { role: admin_user, tags: [admin_user] }
+    - { role: admin_dotfiles, tags: [admin_dotfiles] }
+    - { role: ssh_hardening, tags: [ssh_hardening] }
+    - { role: notifications, tags: [notifications] }
+    - { role: login_notify, tags: [login_notify] }
+    - { role: auto_updates, tags: [auto_updates] }
+    - { role: journal, tags: [journal] }
+    - { role: fail2ban, tags: [fail2ban] }
+    - { role: firewall, tags: [firewall] }
+    - { role: wireguard, tags: [wireguard] }
+    - { role: swap, tags: [swap] }
+    - { role: storage, tags: [storage] }
+    - { role: boot_check, tags: [boot_check] }
+    - { role: network_mounts, tags: [network_mounts] }
+    - { role: smart_monitoring, tags: [smart_monitoring] }
+    - { role: borgmatic, tags: [borgmatic] }
+    - { role: custom_scripts, tags: [custom_scripts] }
+    - { role: db_dump, tags: [db_dump] }
+    - { role: systemd_units, tags: [systemd_units] }
+    - { role: scheduled_jobs, tags: [scheduled_jobs] }
+    - { role: olivetin_agent, tags: [olivetin_agent] }
 
 - name: VPN hub and resolver provisioning
   hosts: vpn_server
   roles:
-    - dnsmasq
-    - caddy
-    - gatus
+    - { role: dnsmasq, tags: [dnsmasq] }
+    - { role: caddy, tags: [caddy] }
+    - { role: gatus, tags: [gatus] }
 
 - name: Application server provisioning
   hosts: app_servers
   roles:
-    - dns_client
-    - docker_runtime
-    - docker_prune
-    - docker_registry
-    - compose_deploy
-    - docker_health
-    - image_updates
+    - { role: dns_client, tags: [dns_client] }
+    - { role: docker_runtime, tags: [docker_runtime] }
+    - { role: docker_prune, tags: [docker_prune] }
+    - { role: docker_registry, tags: [docker_registry] }
+    - { role: compose_deploy, tags: [compose_deploy, stacks] }
+    - { role: docker_health, tags: [docker_health] }
+    - { role: image_updates, tags: [image_updates] }
 
 - name: Backup repository targets
   hosts: backup_targets
   roles:
-    - borg_repo
+    - { role: borg_repo, tags: [borg_repo] }
 
 - name: Update local SSH config
   hosts: localhost
@@ -61,4 +61,4 @@
   gather_facts: false
   become: false
   roles:
-    - local_ssh_config
+    - { role: local_ssh_config, tags: [local_ssh_config, ssh_config] }

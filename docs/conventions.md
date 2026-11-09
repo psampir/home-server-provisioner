@@ -63,3 +63,8 @@ not merged, and each README states which side it is.
 `vault-edit`, `test-env-create`, `test-smoke`. There are no short aliases - the
 canonical `<domain>-<action>` name is the only name, and every target carries a
 `##` help comment so `make help` lists it.
+
+Role tags mirror role names, so `make provision TAGS=<role>[,<role>...]` re-runs
+a subset (for example `TAGS=gatus`). `compose_deploy` also carries `stacks`, and
+`local_ssh_config` also carries `ssh_config`. Tagged runs skip the
+`wireguard-keys` prerequisite.
