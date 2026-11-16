@@ -2,3 +2,13 @@
   ansible.builtin.systemd:
     name: dnsmasq
     state: restarted
+
+- name: Restart dnsmasq rebind
+  ansible.builtin.systemd:
+    name: "{{ dnsmasq_rebind_unit_name }}.service"
+    state: restarted
+    daemon_reload: true
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true

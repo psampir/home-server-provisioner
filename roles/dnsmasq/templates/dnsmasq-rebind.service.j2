@@ -1,0 +1,24 @@
+# Managed by Ansible (dnsmasq role) - do not edit by hand.
+#
+# dnsmasq binds the interfaces listed in managed.conf. When one of them does
+# not exist yet at boot (wg0 on a VPN hub, created by wg-quick a moment
+# later), dnsmasq logs `interface wg0 does not currently exist` and does not
+# bind it afterwards, so 10.10.0.1:53 never appears and every VPN client
+# loses DNS until the next restart.
+#
+# This unit runs after the owning units have finished and restarts dnsmasq,
+# which then binds the now existing interface. `PartOf=` repeats the restart
+# whenever an owner is restarted (e.g. `systemctl restart wg-quick@wg0`).
+[Unit]
+Description=Restart dnsmasq after {{ dnsmasq_rebind_after_units | join(', ') }} created their interfaces
+After={{ dnsmasq_rebind_after_units | join(' ') }}
+Wants={{ dnsmasq_rebind_after_units | join(' ') }}
+PartOf={{ dnsmasq_rebind_after_units | join(' ') }}
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/systemctl try-restart dnsmasq.service
+
+[Install]
+WantedBy=multi-user.target

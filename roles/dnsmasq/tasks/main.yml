@@ -64,6 +64,31 @@
     enabled: true
     state: started
 
+- name: Render the dnsmasq rebind unit
+  ansible.builtin.template:
+    src: dnsmasq-rebind.service.j2
+    dest: "/etc/systemd/system/{{ dnsmasq_rebind_unit_name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  when: dnsmasq_rebind_after_units | length > 0
+  notify: Restart dnsmasq rebind
+
+- name: Enable the dnsmasq rebind unit
+  ansible.builtin.systemd:
+    name: "{{ dnsmasq_rebind_unit_name }}.service"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: dnsmasq_rebind_after_units | length > 0
+
+- name: Remove the dnsmasq rebind unit when no rebind is configured
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ dnsmasq_rebind_unit_name }}.service"
+    state: absent
+  when: dnsmasq_rebind_after_units | length == 0
+  notify: Reload systemd
+
 - name: Open dnsmasq port 53/tcp in firewall
   community.general.ufw:
     rule: allow

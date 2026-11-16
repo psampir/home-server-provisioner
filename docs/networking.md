@@ -91,7 +91,13 @@ pointing at `127.0.0.1` with `dnsmasq_resolv_fallback` (`1.1.1.1` by
 default) as a safety net.
 
 dnsmasq listens on `dnsmasq_interfaces` - `lo` and `wg0` by default - and
-uses `bind-dynamic` so `wg0` may appear after dnsmasq starts. It serves
+uses `bind-dynamic` so `wg0` may appear after dnsmasq starts. That is not
+enough on every boot: dnsmasq can start a second before `wg-quick` creates
+`wg0`, logs `interface wg0 does not currently exist` and never binds
+`10.10.0.1:53`. The role's `dnsmasq_rebind_after_units` installs a oneshot
+unit that restarts dnsmasq after `wg-quick@wg0` finishes, which restores the
+listener deterministically (a reboot without it left the fleet without VPN
+DNS for six hours on 2026-11-16). It serves
 `dnsmasq_domain` (`home` by default), auto-generates a `host-record` for
 every host in `dnsmasq_inventory_groups` (`servers`) using that host's
 `vpn_ip` when defined and its `ansible_host` otherwise, and forwards
