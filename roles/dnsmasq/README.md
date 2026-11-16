@@ -31,6 +31,30 @@ host, for example `{ name: home, ip: 10.10.0.2 }` to answer every `*.home`
 name with the app server's VPN address. Use addresses that VPN peers can
 reach; the hub does not route to the home LAN.
 
+## Interfaces that appear after boot (VPN hub)
+
+`bind-dynamic` is not always enough on a hub: dnsmasq can start a second
+before `wg-quick` creates `wg0`. It then logs
+`warning: interface wg0 does not currently exist` and never binds
+`10.10.0.1:53`, so every VPN client silently loses name resolution until the
+next restart (2026-11-16: six hours down; Gatus heartbeats from the app
+server failed and the aggregate check paged).
+
+Set the units that create such interfaces and the role installs a oneshot
+unit (`dnsmasq_rebind_unit_name`, `dnsmasq-rebind.service`) that restarts
+dnsmasq after they have finished and whenever they are restarted:
+
+```yaml
+# host_vars/<vpn-hub>.yml
+dnsmasq_rebind_after_units:
+  - wg-quick@wg0.service
+```
+
+The unit is ordered `After= wg-quick@wg0.service` and `PartOf=` it, but
+never touches `dnsmasq.service` ordering: `dnsmasq.service` is
+`Before=nss-lookup.target` while `wg-quick@wg0` is `After=` it, so an
+`After=wg-quick` on dnsmasq itself would close an ordering cycle.
+
 ## DHCP + IPv6 (opt-in)
 
 Enable this only on a host that should be the **DHCP/RA authority for a

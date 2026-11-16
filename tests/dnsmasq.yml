@@ -1,0 +1,71 @@
+---
+- name: Render the dnsmasq templates
+  hosts: test-target
+  gather_facts: false
+  become: false
+  # Role defaults are not loaded outside a role, and managed.conf.j2 needs
+  # them (domain, cache size, inventory records, DHCP switches).
+  vars_files:
+    - "{{ playbook_dir }}/../roles/dnsmasq/defaults/main.yml"
+  tasks:
+    - name: Render the rebind unit for one owner
+      ansible.builtin.set_fact:
+        dnsmasq_rebind_unit: >-
+          {{ lookup('template', playbook_dir + '/../roles/dnsmasq/templates/dnsmasq-rebind.service.j2') }}
+      vars:
+        dnsmasq_rebind_after_units:
+          - wg-quick@wg0.service
+
+    - name: Assert ordering, restart command and install section
+      ansible.builtin.assert:
+        that:
+          - "'After=wg-quick@wg0.service' in dnsmasq_rebind_unit"
+          - "'Wants=wg-quick@wg0.service' in dnsmasq_rebind_unit"
+          - "'PartOf=wg-quick@wg0.service' in dnsmasq_rebind_unit"
+          - "'Type=oneshot' in dnsmasq_rebind_unit"
+          - "'RemainAfterExit=yes' in dnsmasq_rebind_unit"
+          - "'ExecStart=/bin/systemctl try-restart dnsmasq.service' in dnsmasq_rebind_unit"
+          - "'WantedBy=multi-user.target' in dnsmasq_rebind_unit"
+          - "dnsmasq_rebind_unit.splitlines().index('PartOf=wg-quick@wg0.service') < dnsmasq_rebind_unit.splitlines().index('[Service]')"
+
+    # dnsmasq.service itself is Before=nss-lookup.target while wg-quick@wg0 is
+    # After= it: an After= on dnsmasq would close an ordering cycle.
+    - name: Assert the unit never orders dnsmasq.service itself
+      ansible.builtin.assert:
+        that:
+          - "'Before=' not in dnsmasq_rebind_unit"
+          - "'After=dnsmasq.service' not in dnsmasq_rebind_unit"
+          - "'Requires=dnsmasq.service' not in dnsmasq_rebind_unit"
+
+    - name: Render the rebind unit for two owners
+      ansible.builtin.set_fact:
+        dnsmasq_rebind_multi: >-
+          {{ lookup('template', playbook_dir + '/../roles/dnsmasq/templates/dnsmasq-rebind.service.j2') }}
+      vars:
+        dnsmasq_rebind_after_units:
+          - wg-quick@wg0.service
+          - wg-quick@wg1.service
+
+    - name: Assert every owner is listed
+      ansible.builtin.assert:
+        that:
+          - "'After=wg-quick@wg0.service wg-quick@wg1.service' in dnsmasq_rebind_multi"
+          - "'PartOf=wg-quick@wg0.service wg-quick@wg1.service' in dnsmasq_rebind_multi"
+
+    - name: Render the managed dnsmasq config
+      ansible.builtin.set_fact:
+        dnsmasq_managed: >-
+          {{ lookup('template', playbook_dir + '/../roles/dnsmasq/templates/managed.conf.j2') }}
+      vars:
+        dnsmasq_interfaces:
+          - lo
+          - wg0
+        dnsmasq_upstream_servers:
+          - 1.1.1.1
+
+    - name: Assert bind-dynamic stays in place
+      ansible.builtin.assert:
+        that:
+          - "'bind-dynamic' in dnsmasq_managed"
+          - "'\\nbind-interfaces' not in dnsmasq_managed"
+          - "'interface=wg0' in dnsmasq_managed"

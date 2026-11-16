@@ -19,6 +19,19 @@ dnsmasq_interfaces:
   - lo
   - wg0
 
+# --- Interfaces created after boot (rebind) ---
+# `bind-dynamic` copes with an interface whose address changes, but not
+# reliably with one that does not exist yet: on a VPN hub dnsmasq can start
+# a second before wg-quick creates wg0. It logs `interface wg0 does not
+# currently exist` and then never binds 10.10.0.1:53, so DNS is dead for
+# every VPN client until the next restart (hit on 2026-11-16: six hours of
+# missing name resolution).
+# List the units that create such interfaces. The role then installs a
+# oneshot unit that restarts dnsmasq once they have finished, and again
+# whenever they are restarted. Empty list = no extra unit.
+dnsmasq_rebind_after_units: []
+dnsmasq_rebind_unit_name: dnsmasq-rebind
+
 # --- Records ---
 # Auto-generate host-record entries from the Ansible inventory.
 # For each host in `dnsmasq_inventory_groups`, the record points to:
