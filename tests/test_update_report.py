@@ -33,7 +33,9 @@ printf '%s\\n' "$*" >> "${NOTIFY_LOG}"
 """
 
 
-def run(root: Path, no_packages: bool = False) -> str:
+def run(
+    root: Path, no_packages: bool = False, report_empty: bool = False
+) -> str:
     log = root / "notify.log"
     if log.exists():
         log.unlink()
@@ -41,6 +43,7 @@ def run(root: Path, no_packages: bool = False) -> str:
     env["HSP_UPDATE_REPORT_CONFIG"] = str(root / "update-report.conf")
     env["NOTIFY_LOG"] = str(log)
     env["NO_PACKAGES"] = "1" if no_packages else "0"
+    env["REPORT_EMPTY"] = "1" if report_empty else "0"
     env["PATH"] = f"{root / 'bin'}:{env.get('PATH', '')}"
     subprocess.run(["/bin/sh", str(SCRIPT)], env=env, check=True, capture_output=True, text=True)
     return log.read_text() if log.exists() else ""
@@ -68,8 +71,14 @@ def main() -> int:
             raise SystemExit(f"image section leaked into the report: {out!r}")
 
         out = run(root, no_packages=True)
+        if out:
+            raise SystemExit(f"empty package report should stay silent: {out!r}")
+
+        out = run(root, no_packages=True, report_empty=True)
         if "0 apt" not in out or "nothing to upgrade" not in out:
-            raise SystemExit(f"empty package report is wrong: {out!r}")
+            raise SystemExit(f"REPORT_EMPTY=1 must send the empty report: {out!r}")
+        if "--priority low" not in out or "update_report,package" not in out:
+            raise SystemExit(f"empty report metadata missing: {out!r}")
         if "images" in out or "older than" in out:
             raise SystemExit(f"image section leaked into the empty report: {out!r}")
 

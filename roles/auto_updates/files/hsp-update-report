@@ -17,6 +17,10 @@ CONFIG="${HSP_UPDATE_REPORT_CONFIG:-/etc/hsp/update-report.conf}"
 
 NOTIFY_BIN="${NOTIFY_BIN:-/usr/local/bin/hsp-notify}"
 MAX_ITEMS="${MAX_ITEMS:-15}"
+# Empty reports are noise: a monthly "nothing to upgrade" message says
+# nothing the operator cannot see with one command. Set REPORT_EMPTY=1 to
+# receive it anyway (useful as a proof of life).
+REPORT_EMPTY="${REPORT_EMPTY:-0}"
 host="$(hostname -s 2>/dev/null || hostname)"
 
 apt_list=""
@@ -27,6 +31,10 @@ fi
 apt_count=0
 if [ -n "$apt_list" ]; then
     apt_count="$(printf '%s\n' "$apt_list" | grep -c .)"
+fi
+
+if [ "$apt_count" -eq 0 ] && [ "$REPORT_EMPTY" != "1" ]; then
+    exit 0
 fi
 
 subject="updates ${host}: ${apt_count} apt"

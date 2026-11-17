@@ -36,6 +36,11 @@ auto_updates_needrestart_confd: /etc/needrestart/needrestart.conf.d/10-hsp.conf
 auto_updates_needrestart_notify_bin: /usr/local/bin/hsp-needrestart-notify
 auto_updates_needrestart_notify_unit: sched-needrestart-notify
 auto_updates_needrestart_notify_schedule: "*-*-* 07:30:00"
+# Deduplicate alerts by signature (kernel status/version + sorted service
+# list). A changed signature alerts on the next run; the same signature is
+# repeated at most once per interval. 0 = never repeat until it changes.
+auto_updates_needrestart_notify_state: /var/lib/hsp/needrestart-notify.state
+auto_updates_needrestart_notify_repeat_days: 7
 auto_updates_notify_bin: "{{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}"
 auto_updates_reboot_notify_bin: /usr/local/bin/hsp-reboot-notify
 
@@ -58,3 +63,6 @@ auto_updates_package_units:
 auto_updates_report_bin: /usr/local/bin/hsp-update-report
 auto_updates_report_config: /etc/hsp/update-report.conf
 auto_updates_report_max_items: 15
+# Stay silent when apt has nothing to upgrade. Set true to receive the
+# monthly "nothing to upgrade" message as a proof of life.
+auto_updates_report_empty: false

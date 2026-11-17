@@ -2,29 +2,61 @@
 # hsp-needrestart-notify - run needrestart in batch mode, and if any
 # services or the kernel need a restart, send an alert via hsp-notify.
 #
+# Alerts are deduplicated by signature: the kernel status and version plus
+# the sorted list of services. The same state is reported once and then
+# stays quiet until it changes, or until the repeat interval elapses. A
+# run with nothing pending clears the state, so a later issue alerts
+# immediately even if it looks like one reported before.
+#
 # Managed by Ansible (roles/auto_updates) - do not edit by hand.
 
 set -euo pipefail
 
 NOTIFY="{{ auto_updates_notify_bin }}"
+STATE="{{ auto_updates_needrestart_notify_state }}"
+REPEAT_DAYS="{{ auto_updates_needrestart_notify_repeat_days }}"
 {% raw %}
 host="$(hostname -s 2>/dev/null || hostname || echo localhost)"
 
 # Batch output is line-oriented:
 #   NEEDRESTART-KSTA: <n>   kernel status (1 = current, 2 = ABI upgrade
 #                           available, 3 = newer version pending)
+#   NEEDRESTART-KCUR/KEXP   running and expected kernel version
 #   NEEDRESTART-SVC: <unit> one line per service running outdated code
 out="$(needrestart -b 2>/dev/null || true)"
 
 ksta="$(printf '%s\n' "$out" | awk -F': ' '/^NEEDRESTART-KSTA:/ {print $2; exit}')"
-mapfile -t svcs < <(printf '%s\n' "$out" | awk -F': ' '/^NEEDRESTART-SVC:/ {print $2}')
+kcur="$(printf '%s\n' "$out" | awk -F': ' '/^NEEDRESTART-KCUR:/ {print $2; exit}')"
+kexp="$(printf '%s\n' "$out" | awk -F': ' '/^NEEDRESTART-KEXP:/ {print $2; exit}')"
+mapfile -t svcs < <(printf '%s\n' "$out" | awk -F': ' '/^NEEDRESTART-SVC:/ {print $2}' | LC_ALL=C sort)
 
 kernel_pending=0
 [[ -n "${ksta:-}" && "$ksta" -ge 2 ]] && kernel_pending=1
 
 if [[ "$kernel_pending" -eq 0 && "${#svcs[@]}" -eq 0 ]]; then
-    # Nothing to do - stay quiet.
+    # Nothing to do - stay quiet and forget the previous state.
+    rm -f "$STATE"
     exit 0
+fi
+
+svc_sig="$(printf '%s\n' "${svcs[@]}" | paste -sd, -)"
+sig="ksta=${ksta:-0};kcur=${kcur:-};kexp=${kexp:-};svc=${svc_sig}"
+
+now="$(date +%s)"
+last_sig=""
+last_sent=0
+if [[ -r "$STATE" ]]; then
+    last_sig="$(sed -n 's/^sig=//p' "$STATE" | head -n1)"
+    last_sent="$(sed -n 's/^sent=//p' "$STATE" | head -n1)"
+    [[ "$last_sent" =~ ^[0-9]+$ ]] || last_sent=0
+fi
+
+# A repeat interval of 0 means: only report when the signature changes.
+repeat_secs=$(( REPEAT_DAYS * 86400 ))
+if [[ -n "$last_sig" && "$sig" == "$last_sig" ]]; then
+    if [[ "$repeat_secs" -le 0 || $((now - last_sent)) -lt "$repeat_secs" ]]; then
+        exit 0
+    fi
 fi
 
 parts=()
@@ -54,4 +86,11 @@ if [[ -x "$NOTIFY" ]]; then
 else
     logger -t hsp-needrestart-notify "${subject} - ${body}"
 fi
+
+# Record the signature only after the notification left, so a failed
+# delivery is retried on the next run instead of being suppressed.
+mkdir -p "$(dirname "$STATE")"
+tmp="${STATE}.tmp.$$"
+printf 'sig=%s\nsent=%s\n' "$sig" "$now" > "$tmp"
+mv "$tmp" "$STATE"
 {% endraw %}
