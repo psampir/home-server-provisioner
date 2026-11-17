@@ -370,14 +370,22 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 # auto_updates_needrestart_mode: l   # l = list only (safe) | a = auto-restart | i = interactive (avoid)
 #
 # Daily `needrestart -b` check, alerting through hsp-notify when anything
-# needs a restart. Disable the timer with auto_updates_needrestart_notify.
+# needs a restart. Alerts are deduplicated by kernel/service signature: an
+# unchanged pending state repeats at most every N days, not every day.
+# Disable the timer with auto_updates_needrestart_notify.
 # auto_updates_needrestart_notify: true
 # auto_updates_needrestart_notify_schedule: "*-*-* 07:30:00"
+# auto_updates_needrestart_notify_repeat_days: 7   # 0 = only on change
 #
 # Rarely overridden:
 # auto_updates_needrestart_confd: /etc/needrestart/needrestart.conf.d/10-hsp.conf
 # auto_updates_needrestart_notify_bin: /usr/local/bin/hsp-needrestart-notify
 # auto_updates_needrestart_notify_unit: sched-needrestart-notify
+# auto_updates_needrestart_notify_state: /var/lib/hsp/needrestart-notify.state
+
+# Monthly package report. Silent when apt has nothing to upgrade unless
+# auto_updates_report_empty is true.
+# auto_updates_report_empty: false
 
 # --- smart_monitoring role -----------------------------------------------------
 # Installs smartd and routes disk-health alerts through hsp-notify. Enabled

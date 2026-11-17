@@ -12,7 +12,9 @@ Configures unattended security upgrades and optional restart detection.
 4. Installs and pins `needrestart` to a non-interactive mode so it cannot
    block unattended upgrades.
 5. Optionally installs a daily `needrestart -b` timer that calls
-   `hsp-notify` when a service or the kernel needs a restart.
+   `hsp-notify` when a service or the kernel needs a restart. Alerts are
+   deduplicated by signature, so an unchanged pending state is repeated at
+   most once per interval instead of every day.
 6. When automatic reboot is enabled, schedules `shutdown -r <time>` as soon
    as `/run/reboot-required` exists, and installs `hsp-reboot-notify` for a
    warning shortly before the reboot.
@@ -33,6 +35,9 @@ Configures unattended security upgrades and optional restart detection.
 | `auto_updates_needrestart_notify` | `true` | Install the daily notify timer |
 | `auto_updates_needrestart_notify_schedule` | `*-*-* 07:30:00` | Timer schedule |
 | `auto_updates_needrestart_notify_unit` | `sched-needrestart-notify` | Service and timer unit name |
+| `auto_updates_needrestart_notify_state` | `/var/lib/hsp/needrestart-notify.state` | Dedup signature and last-sent timestamp |
+| `auto_updates_needrestart_notify_repeat_days` | `7` | Repeat the same unchanged alert after N days; `0` = only on change |
+| `auto_updates_report_empty` | `false` | Send the monthly report even when nothing is upgradable |
 | `auto_updates_notify_bin` | `/usr/local/bin/hsp-notify` | Notification helper |
 
 ## Notes
@@ -48,6 +53,13 @@ Configures unattended security upgrades and optional restart detection.
 - The daily needrestart notification uses priority `default` when only
   services need a restart and `high` when a kernel reboot is pending, so
   routine service restarts stay a digest while a kernel reboot pages.
+- The signature covers the running/expected kernel version and the sorted
+  service list. A changed signature alerts on the next run; an unchanged
+  one repeats after `auto_updates_needrestart_notify_repeat_days` (default
+  weekly). A run with nothing pending removes the state file, so a later
+  issue alerts immediately. Delivered state is written only after a
+  successful notification, so a failed delivery is retried.
+- Deleting the state file forces the next run to alert.
 - Automatic reboot is off by default. When enabled, the role schedules it
   as soon as `/run/reboot-required` exists instead of waiting for the next
   unattended-upgrades run. A kernel update normally needs a reboot before
@@ -98,7 +110,9 @@ Removing a unit from the list deletes its drop-in on the next run.
 `hsp-update-report` prints the packages apt would upgrade. It is
 read-only: no upgrade, no pull, no container touched. Schedule it from
 `scheduled_jobs` and let it send the list through `hsp-notify`; decide on a
-window with the real list instead of jumping tags to `latest`.
+window with the real list instead of jumping tags to `latest`. When apt has
+nothing to upgrade the script exits silently; set
+`auto_updates_report_empty: true` to keep the monthly proof-of-life message.
 
 Docker images are deliberately not part of the report. Image age is not
 the same as an available update, so images are reviewed manually in a
@@ -109,6 +123,7 @@ deliberate window, with the upstream release notes in hand.
 | `auto_updates_report_bin` | `/usr/local/bin/hsp-update-report` | Script path |
 | `auto_updates_report_config` | `/etc/hsp/update-report.conf` | Rendered config |
 | `auto_updates_report_max_items` | `15` | Packages listed before "and N more" |
+| `auto_updates_report_empty` | `false` | Report even when nothing is upgradable |
 
 Schedule it from `scheduled_jobs`, monthly:
 

@@ -2,3 +2,4 @@
 # Read by hsp-update-report as a POSIX shell fragment.
 MAX_ITEMS={{ auto_updates_report_max_items }}
 NOTIFY_BIN={{ notifications_bin_path | default('/usr/local/bin/hsp-notify') }}
+REPORT_EMPTY={{ '1' if auto_updates_report_empty | default(false) else '0' }}

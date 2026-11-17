@@ -17,6 +17,7 @@ import yaml
 REPO = Path(__file__).resolve().parents[1]
 DEFAULTS = REPO / "roles" / "auto_updates" / "defaults" / "main.yml"
 TEMPLATE = REPO / "roles" / "auto_updates" / "templates" / "50unattended-upgrades.j2"
+REPORT_TEMPLATE = REPO / "roles" / "auto_updates" / "templates" / "update-report.conf.j2"
 
 
 def main() -> int:
@@ -40,6 +41,20 @@ def main() -> int:
     assert "Unattended-Upgrade::Origins-Pattern" in rendered
     assert "codename=${distro_codename}-security" in rendered
     assert 'Unattended-Upgrade::Remove-Unused-Kernel-Packages "true"' in rendered
+
+    report = jinja2.Template(REPORT_TEMPLATE.read_text()).render(
+        auto_updates_report_max_items=15,
+        notifications_bin_path="/usr/local/bin/hsp-notify",
+        auto_updates_report_empty=False,
+    )
+    assert "REPORT_EMPTY=0" in report, report
+
+    report = jinja2.Template(REPORT_TEMPLATE.read_text()).render(
+        auto_updates_report_max_items=15,
+        notifications_bin_path="/usr/local/bin/hsp-notify",
+        auto_updates_report_empty=True,
+    )
+    assert "REPORT_EMPTY=1" in report, report
 
     print("test-auto-updates: ok")
     return 0

@@ -64,6 +64,15 @@
   when: not auto_updates_needrestart
 
 # --- daily notify timer ---
+- name: Ensure needrestart notify state directory exists
+  ansible.builtin.file:
+    path: "{{ auto_updates_needrestart_notify_state | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: auto_updates_needrestart and auto_updates_needrestart_notify
+
 - name: Install needrestart notify wrapper
   ansible.builtin.template:
     src: hsp-needrestart-notify.j2
@@ -117,6 +126,7 @@
     - "/etc/systemd/system/{{ auto_updates_needrestart_notify_unit }}.service"
     - "/etc/systemd/system/{{ auto_updates_needrestart_notify_unit }}.timer"
     - "{{ auto_updates_needrestart_notify_bin }}"
+    - "{{ auto_updates_needrestart_notify_state }}"
   when: not (auto_updates_needrestart and auto_updates_needrestart_notify)
   notify: Reload systemd for needrestart
 
