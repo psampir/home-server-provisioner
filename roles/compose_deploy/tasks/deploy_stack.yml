@@ -119,12 +119,13 @@
         state: present
         pull: "{{ stack.pull | default('missing') }}"
 
-    # A container mounts the inode it saw at creation. When Ansible replaces
-    # a bind-mounted file, compose sees an unchanged compose file and leaves
-    # the container running, so the old content stays in place. Restart the
-    # stack whenever a synced or rendered file changed; the restart
-    # re-resolves the mounts.
-    - name: "Restart stack after a configuration file changed - {{ stack.name }}"
+    # A container mounts the inode it saw at creation, and a container that
+    # joins another one's netns (`network_mode: service:x`) keeps that netns
+    # only while it exists. `docker compose restart` does NEITHER job: it keeps
+    # the same container, so the old bind-mount inodes stay, and if `x` was
+    # recreated the restarted container is left in the dead netns (no DNS, no
+    # network). Recreate instead whenever a synced or rendered file changed.
+    - name: "Recreate stack after a configuration file changed - {{ stack.name }}"
       when:
         - not compose_deploy_skip_docker
         - (compose_deploy_stack_sync is changed)
@@ -134,4 +135,5 @@
         COMPOSE_PARALLEL_LIMIT: "{{ compose_deploy_parallel_limit }}"
       community.docker.docker_compose_v2:
         project_src: "{{ compose_deploy_base_dir }}/{{ stack.name }}"
-        state: restarted
+        state: present
+        recreate: always
