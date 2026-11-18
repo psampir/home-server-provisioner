@@ -7,3 +7,9 @@
 # The login is stored for the user running the Docker CLI (the remote Ansible
 # user), so run this role before compose_deploy and as the same user.
 docker_registry_logins: []
+
+# Also give the unprivileged admin user (`admin_user_name`) the same logins, so
+# a manual `docker compose run --rm <tool>` works without sudo. The root login
+# is authoritative: this copies /root/.docker/config.json to the admin user
+# (mode 0600). Enable only where such manual tool runs are expected.
+docker_registry_login_admin_user: false

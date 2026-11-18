@@ -9,6 +9,7 @@ is empty.
 | Variable | Default | Description |
 |---|---|---|
 | `docker_registry_logins` | `[]` | List of `registry`, `username`, `password` entries |
+| `docker_registry_login_admin_user` | `false` | Also log in for `admin_user_name` (the unprivileged admin user), so manual `docker compose run` works without sudo |
 
 ```yaml
 docker_registry_logins:

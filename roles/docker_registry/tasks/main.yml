@@ -9,3 +9,33 @@
     label: "{{ item.registry }}"
   no_log: true
   when: docker_registry_logins | length > 0
+
+- name: Ensure the admin user's docker config directory exists
+  when:
+    - docker_registry_logins | length > 0
+    - docker_registry_login_admin_user | bool
+    - admin_user_name | default('') | length > 0
+  ansible.builtin.file:
+    path: "/home/{{ admin_user_name }}/.docker"
+    state: directory
+    owner: "{{ admin_user_name }}"
+    group: "{{ admin_user_name }}"
+    mode: "0700"
+
+- name: Share the registry logins with the admin user
+  when:
+    - docker_registry_logins | length > 0
+    - docker_registry_login_admin_user | bool
+    - admin_user_name | default('') | length > 0
+  # Copying is deliberate: `become` to an unprivileged user needs ACL-capable
+  # chmod (Ansible >= 2.20) and fails on hosts without it, and the documented
+  # workaround (world-readable tempfiles) would expose the token. The copy
+  # replaces the admin user's config with the root one, so the role owns it.
+  ansible.builtin.copy:
+    src: /root/.docker/config.json
+    dest: "/home/{{ admin_user_name }}/.docker/config.json"
+    remote_src: true
+    owner: "{{ admin_user_name }}"
+    group: "{{ admin_user_name }}"
+    mode: "0600"
+  no_log: true
