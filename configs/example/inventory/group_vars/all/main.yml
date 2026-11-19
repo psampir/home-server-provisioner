@@ -39,7 +39,13 @@ admin_user_name: ""   # REQUIRED, e.g. "jan"
 # --- admin_user role -----------------------------------------------------------
 # admin_user_shell: bash
 # admin_user_extra_packages: []
+# admin_user_extra_groups: []
 # admin_user_ssh_pubkey: "{{ service_user_ssh_pubkey }}"
+#
+# Read system journals without sudo (journal files are root:systemd-journal
+# 0640), so diagnosing a failed unit does not need an extra escalation:
+# admin_user_extra_groups:
+#   - systemd-journal
 #
 # Example (not default): fish + zoxide
 # admin_user_shell: fish
