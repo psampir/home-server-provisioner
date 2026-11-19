@@ -1,0 +1,20 @@
+---
+- name: Render the failed-unit notification template
+  hosts: test-target
+  gather_facts: false
+  become: false
+  vars:
+    notifications_unit_failure_bin: /usr/local/bin/hsp-notify-unit-failure
+  tasks:
+    - name: Render hsp-notify-failure@.service
+      ansible.builtin.set_fact:
+        notify_failure_unit: >-
+          {{ lookup('template', playbook_dir + '/../roles/notifications/templates/hsp-notify-failure@.service.j2') }}
+
+    - name: Assert the unit delegates to the journal-aware wrapper
+      ansible.builtin.assert:
+        that:
+          - "'[Unit]' in notify_failure_unit"
+          - "'[Service]' in notify_failure_unit"
+          - "'Type=oneshot' in notify_failure_unit"
+          - "'ExecStart=/usr/local/bin/hsp-notify-unit-failure %i' in notify_failure_unit"

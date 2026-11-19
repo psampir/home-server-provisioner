@@ -131,9 +131,9 @@ vault-rekey: ## Re-encrypt $(VAULT_FILE) with a new password (updates .vault_pas
 
 # --- Local tests (no VMs, no Docker) ---
 
-.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-dnsmasq test-disk-check test-boot-check test-olivetin-agent test-image-updates test-needrestart-notify
+.PHONY: test-local test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-dnsmasq test-disk-check test-boot-check test-olivetin-agent test-image-updates test-needrestart-notify test-notify-failure test-notifications
 
-test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-dnsmasq test-disk-check test-boot-check test-docker-health test-docker-prune test-image-updates test-nut-notify test-login-notify test-gatus-heartbeat test-update-report test-auto-updates test-reboot-notify test-needrestart-notify test-host-ops test-olivetin-agent test-db-dump ## Run fast local tests
+test-local: test-makefile test-compose-deploy test-vault-rekey test-borgmatic test-borg-repo test-ssh-config test-gatus test-caddy test-dnsmasq test-disk-check test-boot-check test-docker-health test-docker-prune test-image-updates test-nut-notify test-login-notify test-gatus-heartbeat test-update-report test-auto-updates test-reboot-notify test-needrestart-notify test-notify-failure test-notifications test-host-ops test-olivetin-agent test-db-dump ## Run fast local tests
 
 test-makefile: ## Test Makefile target wiring
 	python3 tests/test_makefile.py
@@ -194,6 +194,12 @@ test-reboot-notify: ## Test hsp-reboot-notify scheduled-shutdown handling
 
 test-needrestart-notify: ## Test needrestart alert dedup and repeat interval
 	python3 tests/test_needrestart_notify.py
+
+test-notify-failure: ## Test the unit-failure notification wrapper
+	python3 tests/test_notify_failure.py
+
+test-notifications: ## Test the unit-failure notification template
+	env -u ANSIBLE_VAULT_PASSWORD_FILE ansible-playbook -i tests/inventory.yml tests/notifications.yml
 
 test-host-ops: ## Test the OliveTin host operation wrappers
 	python3 tests/test_host_ops.py

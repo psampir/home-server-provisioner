@@ -30,6 +30,14 @@
     group: root
     mode: "0600"
 
+- name: Install hsp-notify-unit-failure wrapper
+  ansible.builtin.copy:
+    src: hsp-notify-unit-failure
+    dest: "{{ notifications_unit_failure_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Install hsp-notify-failure@.service template
   ansible.builtin.template:
     src: hsp-notify-failure@.service.j2

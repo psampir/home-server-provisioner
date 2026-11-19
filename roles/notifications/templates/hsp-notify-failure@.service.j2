@@ -6,8 +6,6 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart={{ notifications_bin_path }} \
-    --priority high \
-    --tags rotating_light,%i \
-    "systemd unit failed: %i on %H" \
-    "Unit %i entered failed state on host %H. Check: systemctl status %i ; journalctl -u %i -n 50 --no-pager"
+# The wrapper attaches the tail of the unit's journal to the notification;
+# the unit name alone does not say why it failed.
+ExecStart={{ notifications_unit_failure_bin }} %i

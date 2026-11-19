@@ -10,6 +10,7 @@ user's own scripts. Single supported backend (M3.5): [ntfy](https://ntfy.sh).
 | `/usr/local/bin/hsp-notify` | CLI wrapper around `curl` → ntfy |
 | `/etc/hsp-notify.env` (0600) | Backend URL + token (rendered from vars) |
 | `/etc/systemd/system/hsp-notify-failure@.service` | Template unit called via `OnFailure=` |
+| `/usr/local/bin/hsp-notify-unit-failure` | Sends a failed unit's alert with the tail of its journal |
 | `/usr/local/bin/hsp-disk-check` | Filesystem usage and inode check |
 | `/etc/hsp/disk-check.conf` | Paths and thresholds for the disk check |
 
@@ -18,6 +19,27 @@ is empty, `hsp-notify` becomes a no-op and logs each would-be subject to
 the systemd journal under tag `hsp-notify`. Other roles that wire up
 `OnFailure=hsp-notify-failure@%n.service` therefore work on hosts that
 have not configured a backend yet - failures just don't reach a phone.
+
+## Failure notifications carry the journal tail
+
+`hsp-notify-failure@.service` calls `hsp-notify-unit-failure <unit>`, which
+sends the subject `systemd unit failed: <unit> on <host>` plus the last six
+lines of that unit's journal (capped at 1200 characters, so the message
+stays inside ntfy's size limit). Without it a notification says only *that*
+a unit failed, and finding out *why* means opening a shell on the host.
+
+```text
+systemd unit failed: borgmatic.service on wyse
+Unit borgmatic.service entered failed state on wyse.
+Check: systemctl status borgmatic.service ; journalctl -u borgmatic.service -n 50 --no-pager
+
+hsp-db-dump: sqlite bta: SQLite database not found: /srv/data/bta/data/bta.db
+Error running pre-everything hook
+```
+
+The wrapper runs as root (the template unit has no `User=`), so it reads
+system journals regardless of the admin account's groups. Overridable for
+tests: `NOTIFY_BIN`, `JOURNALCTL`, `LINES`, `MAX_CHARS`.
 
 ## Variables
 
