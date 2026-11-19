@@ -3,3 +3,8 @@
   hosts: app_servers
   roles:
     - { role: compose_deploy, tags: [compose_deploy, stacks] }
+    # Stack changes move database files around: renaming bta to mc-sampir-pl
+    # left /etc/hsp/db-dump.json pointing at /srv/data/bta/data/bta.db, and
+    # the next borgmatic run aborted in its before_everything hook. Render
+    # the dump config with every stack deploy so the two cannot drift.
+    - { role: db_dump, tags: [db_dump, stacks] }

@@ -146,9 +146,12 @@ other role, so use it for targeted re-runs, not for provisioning a fresh host.
 make stacks ENV=prod LIMIT=app1
 ```
 
-Runs only the `compose_deploy` role. Use this to apply stack, `.env.j2` or
-`Caddyfile.j2` changes without running the full system provisioning. Docker
-and the external networks must already exist on the host.
+Runs the `compose_deploy` role, then `db_dump` so a renamed or removed
+stack cannot leave `/etc/hsp/db-dump.json` pointing at a path that no longer
+exists (that drift aborts the next backup). Use this to apply stack,
+`.env.j2` or `Caddyfile.j2` changes without running the full system
+provisioning. Docker and the external networks must already exist on the
+host.
 
 ### Multiple environments
 
@@ -403,7 +406,7 @@ build container must read. See
 | `make init-config ENV=prod` | Create `configs/prod/` from the example tree |
 | `make bootstrap ENV=prod` | First run on fresh hosts |
 | `make provision ENV=prod [TAGS=<tag,...>]` | Full site play, or only tagged roles |
-| `make stacks ENV=prod LIMIT=<host>` | Deploy only Compose stacks |
+| `make stacks ENV=prod LIMIT=<host>` | Deploy Compose stacks and re-render the DB dump config |
 | `make ssh-config ENV=prod` | Regenerate the controller's `~/.ssh/config.d/` entry |
 | `make host HOST=<name>` | Show inventory variables, with secrets redacted |
 | `make plan LIMIT=<host>` | List the tasks that would run |
