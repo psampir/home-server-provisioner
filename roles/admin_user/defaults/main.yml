@@ -10,6 +10,11 @@ admin_user_name: ""
 admin_user_uid: ""
 admin_user_shell: bash
 admin_user_extra_packages: []
+# Extra groups for the account, appended to the mandatory `sudo`.
+# `systemd-journal` is the one that matters in practice: journal files are
+# root:systemd-journal 0640, so without it the human cannot read
+# `journalctl -u <unit>` and every diagnosis needs another sudo hop.
+admin_user_extra_groups: []
 admin_user_ssh_pubkey: "{{ service_user_ssh_pubkey }}"
 
 # Additional public keys authorized for the admin user. Keep the recovery

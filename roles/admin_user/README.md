@@ -11,7 +11,7 @@ account Ansible itself connects as.
    `admin_user_extra_packages`.
 3. Creates the user with a home directory and membership in `sudo`
    (`append: true`, so any group memberships the account already has are
-   preserved).
+   preserved), plus anything in `admin_user_extra_groups`.
 4. Grants passwordless sudo through `/etc/sudoers.d/<user>` (validated with
    `visudo`).
 5. Authorizes `admin_user_ssh_pubkey` for the account.
@@ -24,6 +24,7 @@ account Ansible itself connects as.
 | `admin_user_uid` | `""` | Optional numeric UID; empty lets the system choose. |
 | `admin_user_shell` | `bash` | Shell package/name; resolved to an absolute path. |
 | `admin_user_extra_packages` | `[]` | Extra packages installed with the role. |
+| `admin_user_extra_groups` | `[]` | Extra groups appended to the mandatory `sudo`. |
 | `admin_user_ssh_pubkey` | `"{{ service_user_ssh_pubkey }}"` | Key authorized for the account. |
 | `admin_user_extra_ssh_pubkeys` | `[]` | Additional keys, e.g. an offline recovery key. |
 
@@ -48,3 +49,15 @@ guarantees the human user can read and own that data after every rebuild.
 disk - those keep the old numeric UID and the user may lose access. Set the
 UID before the first provision where possible; if you change it later,
 `chown -R` the affected paths on the data disks yourself.
+
+## Reading logs without sudo
+
+Journal files are `root:systemd-journal 0640`, so a plain account cannot run
+`journalctl -u <unit>` for system units. Add the group rather than handing
+out sudo for every read:
+
+```yaml
+# group_vars/all/main.yml
+admin_user_extra_groups:
+  - systemd-journal
+```

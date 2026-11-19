@@ -38,7 +38,9 @@
     # parameter out entirely (omit), not pass "".
     uid: "{{ (admin_user_uid | string | length > 0) | ternary(admin_user_uid, omit) }}"
     create_home: true
-    groups: sudo
+    # `sudo` is mandatory; extra groups are appended so existing membership
+    # (e.g. docker, video) survives.
+    groups: "{{ ['sudo'] + admin_user_extra_groups }}"
     append: true
     state: present
 
