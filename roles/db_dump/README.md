@@ -26,6 +26,26 @@ API for SQLite files. It never stops or restarts a container.
 - All entries are attempted; the script exits non-zero if any of them fails,
   so a `before_everything` hook aborts the archive.
 
+## Removing a database or a whole stack
+
+The rendered `/etc/hsp/db-dump.json` is a snapshot: dropping an entry from
+`host_vars` changes nothing on the host until the role runs again. A stale
+entry then points at a path that no longer exists, and the next borgmatic
+run fails in its `before_everything` hook - before a single archive is
+created.
+
+`make stacks` renders this role after every stack deploy for exactly that
+reason. When you remove a database by hand, or deploy without the stacks
+target, re-render the config and rerun the backup:
+
+```bash
+make provision ENV=sampirium LIMIT=<host> TAGS=db_dump
+```
+
+The old dump directory under `output:` is left behind by design (retention
+only prunes inside a configured entry). Delete it if the database is gone
+for good, otherwise it keeps being archived every night.
+
 ## Configuration
 
 ```yaml
