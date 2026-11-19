@@ -23,6 +23,9 @@ notifications_ntfy_priority_default: default
 notifications_bin_path: /usr/local/bin/hsp-notify
 notifications_env_path: /etc/hsp-notify.env
 notifications_failure_unit_path: /etc/systemd/system/hsp-notify-failure@.service
+# Wrapper that turns a failed unit into a notification carrying the tail of
+# its journal; without it the push says only which unit failed.
+notifications_unit_failure_bin: /usr/local/bin/hsp-notify-unit-failure
 
 # --- Disk usage check ---
 # The script is installed with the role; the timer is a scheduled job, so

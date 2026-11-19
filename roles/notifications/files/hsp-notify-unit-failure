@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# hsp-notify-unit-failure - alert about a failed systemd unit, with the tail
+# of its journal attached.
+#
+# Called from hsp-notify-failure@<unit>.service, where the failing unit name
+# arrives as the instance argument. The unit name alone never explains why it
+# failed: a job that dies on a missing file looks exactly like one that dies
+# on a broken network. The journal tail is what makes the push actionable.
+#
+# Exit status stays 0 even when delivery fails: this runs from an OnFailure=
+# unit, and a non-zero exit there produces a second, less useful failure.
+
+set -uo pipefail
+
+UNIT="${1:-}"
+if [[ -z "$UNIT" ]]; then
+    echo "usage: ${0##*/} <unit>" >&2
+    exit 2
+fi
+
+NOTIFY_BIN="${NOTIFY_BIN:-/usr/local/bin/hsp-notify}"
+JOURNALCTL="${JOURNALCTL:-journalctl}"
+LINES="${LINES:-6}"
+MAX_CHARS="${MAX_CHARS:-1200}"
+
+host="$(hostname -s 2>/dev/null || hostname)"
+
+# `-o cat` drops the timestamp/priority prefix: journald already records
+# that, and the human needs the message itself. A missing journal (unit with
+# no entries yet, or unreadable logs) must not turn into a second failure.
+tail_output="$("$JOURNALCTL" -u "$UNIT" -n "$LINES" --no-pager -o cat 2>/dev/null || true)"
+if (( ${#tail_output} > MAX_CHARS )); then
+    tail_output="...[truncated]${tail_output: -MAX_CHARS}"
+fi
+
+body="Unit ${UNIT} entered failed state on ${host}.
+Check: systemctl status ${UNIT} ; journalctl -u ${UNIT} -n 50 --no-pager"
+if [[ -n "$tail_output" ]]; then
+    body+=$'\n\n'"${tail_output}"
+fi
+
+if [[ -x "$NOTIFY_BIN" ]]; then
+    "$NOTIFY_BIN" --priority high --tags "rotating_light,${UNIT}" \
+        "systemd unit failed: ${UNIT} on ${host}" "$body" ||
+        logger -t hsp-notify-unit-failure "notification failed for ${UNIT}"
+else
+    logger -t hsp-notify-unit-failure "would notify: ${UNIT} failed on ${host}"
+fi
+
+exit 0
