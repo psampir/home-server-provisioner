@@ -68,3 +68,25 @@ Role tags mirror role names, so `make provision TAGS=<role>[,<role>...]` re-runs
 a subset (for example `TAGS=gatus`). `compose_deploy` also carries `stacks`, and
 `local_ssh_config` also carries `ssh_config`. Tagged runs skip the
 `wireguard-keys` prerequisite.
+
+## Public repository hygiene
+
+This repository is public; real deployments are not. Everything committed,
+tagged, released or discussed here is world-readable forever, including
+release notes, annotated tag messages and commit messages. Write for an
+audience that has never seen the fleet:
+
+- **Placeholders only.** `app1`, `backup1`, `hub`, `ENV=prod`, `<host>`,
+  `example.internal`, `192.168.50.x` and `198.51.100.x` (RFC 5737). Never a
+  real host name, environment name, internal domain, stack name, data path,
+  disk serial, MAC, VPN peer address or public IP.
+- **Release notes describe the mechanism, not the rollout.** "Verified on a
+  real deployment" is enough; "verified on <host>" maps the fleet.
+- **Incidents lose their identifiers, not their lesson.** Keep dates, error
+  text from upstream projects, timings and counts; drop which host, which
+  stack and which path.
+- **The same rule applies to commit messages and tag messages**, because both
+  are public in the same way and survive in clones and mirrors.
+
+Private inventories, host variables and operational status live in separate
+private repositories; they are never referenced by name here.

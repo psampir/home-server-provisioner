@@ -22,7 +22,7 @@ printf '%s\\n' "$*" >> "${NOTIFY_LOG}"
 """
 
 CONFIG = """IGNORE_USERS="ansible"
-TRUSTED_NETS="10.10.0.0/24 192.168.0.0/24"
+TRUSTED_NETS="10.10.0.0/24 192.168.50.0/24"
 NOTIFY_TRUSTED="__NOTIFY_TRUSTED__"
 TRUSTED_PRIORITY="low"
 UNTRUSTED_PRIORITY="high"
@@ -60,12 +60,12 @@ def main() -> int:
         notify.write_text(FAKE_NOTIFY)
         notify.chmod(0o755)
         log = root / "notify.log"
-        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="pawel",
+        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="admin",
                        PAM_RHOST="10.10.0.21", PAM_SERVICE="sshd", PAM_TTY="pts/0")
         if rc != 0 or "--priority low" not in line or "rotating_light" in line:
             raise SystemExit(f"trusted login: rc={rc} line={line!r}")
 
-        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="pawel",
+        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="admin",
                        PAM_RHOST="203.0.113.9", PAM_SERVICE="sshd", PAM_TTY="pts/0")
         if "--priority high" not in line or "rotating_light" not in line:
             raise SystemExit(f"untrusted login: {line!r}")
@@ -75,32 +75,32 @@ def main() -> int:
         if line:
             raise SystemExit(f"ignored user produced a notification: {line!r}")
 
-        rc, line = run(root, log, PAM_TYPE="close_session", PAM_USER="pawel",
+        rc, line = run(root, log, PAM_TYPE="close_session", PAM_USER="admin",
                        PAM_RHOST="203.0.113.9", PAM_SERVICE="sshd", PAM_TTY="pts/0")
         if line:
             raise SystemExit(f"close_session produced a notification: {line!r}")
 
-        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="pawel",
+        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="admin",
                        PAM_RHOST="", PAM_SERVICE="login", PAM_TTY="tty1")
         if "--priority low" not in line or "from local" not in line:
             raise SystemExit(f"local login: {line!r}")
 
-        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="pawel",
+        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="admin",
                        PAM_RHOST="::1", PAM_SERVICE="sshd", PAM_TTY="pts/0")
         if "--priority low" not in line:
             raise SystemExit(f"loopback login: {line!r}")
 
-        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="pawel",
-                       PAM_RHOST="192.168.0.10", PAM_SERVICE="sshd", PAM_TTY="pts/0")
+        rc, line = run(root, log, PAM_TYPE="open_session", PAM_USER="admin",
+                       PAM_RHOST="192.168.50.10", PAM_SERVICE="sshd", PAM_TTY="pts/0")
         if "--priority low" not in line:
             raise SystemExit(f"LAN login: {line!r}")
 
-        rc, line = run(root, log, notify_trusted="0", PAM_TYPE="open_session", PAM_USER="pawel",
+        rc, line = run(root, log, notify_trusted="0", PAM_TYPE="open_session", PAM_USER="admin",
                        PAM_RHOST="10.10.0.21", PAM_SERVICE="sshd", PAM_TTY="pts/0")
         if line:
             raise SystemExit(f"trusted login notified while disabled: {line!r}")
 
-        rc, line = run(root, log, notify_trusted="0", PAM_TYPE="open_session", PAM_USER="pawel",
+        rc, line = run(root, log, notify_trusted="0", PAM_TYPE="open_session", PAM_USER="admin",
                        PAM_RHOST="203.0.113.9", PAM_SERVICE="sshd", PAM_TTY="pts/0")
         if "--priority high" not in line:
             raise SystemExit(f"untrusted login was not notified: {line!r}")

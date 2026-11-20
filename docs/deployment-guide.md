@@ -183,7 +183,7 @@ inventory models both, and `ansible_host` follows an environment switch, so
 there is nothing to edit when you leave the house:
 
 ```yaml
-wyse:
+app1:
   lan_ip: 192.168.1.20
   vpn_ip: 10.10.0.2
   ansible_host: "{{ lookup('env', 'HSP_REMOTE') | ternary(vpn_ip, lan_ip) }}"
@@ -197,8 +197,8 @@ HSP_REMOTE=1 make provision ENV=prod    # WireGuard address, works anywhere
 `make ssh-config` writes both aliases:
 
 ```text
-Host wyse          HostName 10.10.0.2     # VPN first, works anywhere
-Host wyse-lan      HostName 192.168.1.20  # direct LAN, fastest at home
+Host app1          HostName 10.10.0.2     # VPN first, works anywhere
+Host app1-lan      HostName 192.168.1.20  # direct LAN, fastest at home
 ```
 
 The hub is always reached at its public address, because its `vpn_ip` only

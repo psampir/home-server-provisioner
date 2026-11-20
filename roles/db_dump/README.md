@@ -39,7 +39,7 @@ reason. When you remove a database by hand, or deploy without the stacks
 target, re-render the config and rerun the backup:
 
 ```bash
-make provision ENV=sampirium LIMIT=<host> TAGS=db_dump
+make provision ENV=prod LIMIT=<host> TAGS=db_dump
 ```
 
 The old dump directory under `output:` is left behind by design (retention

@@ -29,11 +29,11 @@ stays inside ntfy's size limit). Without it a notification says only *that*
 a unit failed, and finding out *why* means opening a shell on the host.
 
 ```text
-systemd unit failed: borgmatic.service on wyse
-Unit borgmatic.service entered failed state on wyse.
+systemd unit failed: borgmatic.service on app1
+Unit borgmatic.service entered failed state on app1.
 Check: systemctl status borgmatic.service ; journalctl -u borgmatic.service -n 50 --no-pager
 
-hsp-db-dump: sqlite bta: SQLite database not found: /srv/data/bta/data/bta.db
+hsp-db-dump: sqlite app: SQLite database not found: /srv/data/app/data/app.db
 Error running pre-everything hook
 ```
 

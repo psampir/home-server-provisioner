@@ -132,7 +132,7 @@ Every role is tagged with its own name, so a single role can be re-run:
 
 ```bash
 make provision ENV=prod LIMIT=app1 TAGS=caddy
-make provision ENV=sampirium LIMIT=gate TAGS=gatus
+make provision ENV=prod LIMIT=hub TAGS=gatus
 ```
 
 `TAGS` accepts a comma-separated list (`TAGS=dnsmasq,caddy,gatus`).
