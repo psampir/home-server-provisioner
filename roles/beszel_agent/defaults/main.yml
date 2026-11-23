@@ -4,10 +4,10 @@
 # has to be opened. Disabled by default: an environment must opt in with a
 # hub URL and the universal token/key generated in the hub.
 beszel_agent_enabled: false
-beszel_agent_version: "0.21.1"
+beszel_agent_version: "0.21.2"
 beszel_agent_binary_url: >-
   https://github.com/henrygd/beszel/releases/download/v{{ beszel_agent_version }}/beszel-agent_linux_amd64.tar.gz
-beszel_agent_binary_sha256: "3b6ee592632ec03b9a43312e99a40203a7b3d83fe40dd0c25acda1eb915ea7c0"
+beszel_agent_binary_sha256: "0359a4c3b9d800ba865b2be4081c7f0df8ba29a8c5c0ac76e72f490f28496909"
 beszel_agent_bin: /usr/local/bin/beszel-agent
 
 beszel_agent_user: beszel

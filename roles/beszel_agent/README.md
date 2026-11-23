@@ -20,7 +20,7 @@ token are supplied.
 | Variable | Default | Description |
 |---|---|---|
 | `beszel_agent_enabled` | `false` | Install and start the agent |
-| `beszel_agent_version` | `0.21.1` | Pinned release |
+| `beszel_agent_version` | `0.21.2` | Pinned release |
 | `beszel_agent_binary_url` | GitHub release | Agent archive URL |
 | `beszel_agent_binary_sha256` | pinned | Archive checksum |
 | `beszel_agent_hub_url` | empty | Hub URL, e.g. `http://10.10.0.2:8090` |
