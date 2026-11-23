@@ -5,25 +5,55 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: ansible-lint
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
+      # Galaxy occasionally answers with a transient 5xx. Keep the resolved
+      # collections and the pip wheel cache for a week, then refresh them, so
+      # a range such as ">=2.1.0,<3.0.0" cannot pin an old release forever.
+      - name: Compute dependency cache key
+        id: cachekey
+        run: echo "week=$(date -u +%Y-%W)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Ansible collections and pip wheels
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.ansible/collections
+            ~/.cache/pip
+          key: ${{ runner.os }}-py312-ansible-lint-26.11.0-${{ steps.cachekey.outputs.week }}-${{ hashFiles('requirements.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-py312-ansible-lint-26.11.0-${{ steps.cachekey.outputs.week }}-
+            ${{ runner.os }}-py312-ansible-lint-26.11.0-
+
       - name: Install ansible-lint
         # Pinned to the version validated locally in this repository.
-        run: pip install ansible-lint==26.4.0
+        run: pip install ansible-lint==26.11.0
 
       - name: Install collections
-        run: ansible-galaxy collection install -r requirements.yml
+        run: |
+          for attempt in 1 2 3; do
+            if ansible-galaxy collection install -r requirements.yml; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
 
       - name: Run ansible-lint
         run: ansible-lint
