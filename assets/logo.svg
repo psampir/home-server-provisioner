@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <title>Home Server Provisioner</title>
+  <g stroke="#111318" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 26 32 8 56 26"/>
+    <rect x="16" y="27" width="32" height="28" rx="3"/>
+    <path d="M16 41h32M31 34h9M31 48h9"/>
+  </g>
+  <g fill="#111318">
+    <circle cx="23" cy="34" r="2"/>
+    <circle cx="23" cy="48" r="2"/>
+  </g>
+</svg>
