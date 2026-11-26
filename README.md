@@ -1,13 +1,13 @@
-<p align="center">
+<p align="left">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
     <img src="assets/logo.svg" alt="Home Server Provisioner" width="96">
   </picture>
 </p>
 
-<h1 align="center">Home Server Provisioner</h1>
+# Home Server Provisioner
 
-<p align="center">Ansible-based provisioning toolkit for Debian self-hosted servers.</p>
+Ansible-based provisioning toolkit for Debian self-hosted servers.
 
 Prepares fresh Debian hosts with system hardening, a dedicated management user, and a baseline configuration - ready for Docker workloads, reverse proxying, VPN connectivity, and automated backups. The helper commands and state it ships carry the `hsp-` prefix - HSP, short for Home Server Provisioner: `hsp-notify`, `hsp-disk-check`, `hsp-docker-prune`, and the `/etc/hsp/` state directory.
 
